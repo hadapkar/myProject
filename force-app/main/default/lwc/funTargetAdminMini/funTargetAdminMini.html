@@ -1,0 +1,129 @@
+<template>
+    <lightning-card title="Fun Target Admin" icon-name="utility:setup">
+        <lightning-button-icon
+            slot="actions"
+            icon-name="utility:refresh"
+            variant="border-filled"
+            alternative-text="Refresh"
+            title="Refresh data"
+            onclick={handleManualRefresh}
+            disabled={isRefreshDisabled}
+        ></lightning-button-icon>
+        <div class="container">
+            <div class="wheel-number-panel">
+                <div class="wheel-header">
+                    <span class="label">Predefined Wheel Number</span>
+                    <lightning-button
+                        variant="neutral"
+                        label="Reset"
+                        title="Reset predefined wheel number"
+                        onclick={handleClearWheelNumber}
+                        disabled={isClearWheelDisabled}
+                    ></lightning-button>
+                </div>
+                <div class="wheel-grid">
+                    <template for:each={wheelNumbersRow1} for:item="item">
+                        <button
+                            key={item.value}
+                            type="button"
+                            class={item.className}
+                            data-number={item.value}
+                            onclick={handleWheelNumberSelect}
+                            disabled={isRefreshDisabled}
+                        >
+                            {item.value}
+                        </button>
+                    </template>
+                </div>
+                <div class="wheel-grid">
+                    <template for:each={wheelNumbersRow2} for:item="item">
+                        <button
+                            key={item.value}
+                            type="button"
+                            class={item.className}
+                            data-number={item.value}
+                            onclick={handleWheelNumberSelect}
+                            disabled={isRefreshDisabled}
+                        >
+                            {item.value}
+                        </button>
+                    </template>
+                </div>
+            </div>
+
+            <div class="score-block">
+                <span class="label">Current Score</span>
+                <span class="score">{scoreDisplay}</span>
+            </div>
+
+            <div class="live-panel">
+                <div class="live-meta-row">
+                    <span class="label">Time (Sync)</span>
+                    <span class="live-value">{syncedTimerText}</span>
+                </div>
+                <div class="live-meta-row">
+                    <span class="label">Total Bet Amount</span>
+                    <span class="live-value">{totalBetAmountDisplay}</span>
+                </div>
+                <div class="live-meta-row">
+                    <span class="label">Last 3 Bet</span>
+                    <span class="live-value">{lastThreeResultsDisplay}</span>
+                </div>
+
+                <div class="label live-bet-label">Selected Bet Numbers (Read Only)</div>
+                <div class="live-bet-grid">
+                    <template for:each={liveBetRow1} for:item="item">
+                        <div key={item.value} class={item.className}>
+                            <span class="live-bet-number">{item.value}</span>
+                            <span class="live-bet-amount">{item.amountText}</span>
+                        </div>
+                    </template>
+                </div>
+                <div class="live-bet-grid">
+                    <template for:each={liveBetRow2} for:item="item">
+                        <div key={item.value} class={item.className}>
+                            <span class="live-bet-number">{item.value}</span>
+                            <span class="live-bet-amount">{item.amountText}</span>
+                        </div>
+                    </template>
+                </div>
+            </div>
+
+            <lightning-input
+                type="number"
+                label="Amount to Add"
+                value={amount}
+                min="0"
+                step="1"
+                onchange={handleAmountChange}
+                disabled={isRefreshDisabled}
+            ></lightning-input>
+
+            <div class="actions">
+                <div class="actions-left">
+                    <lightning-button
+                        variant="brand"
+                        label="Add"
+                        title="Add amount to current score"
+                        onclick={handleSet}
+                        disabled={isSetDisabled}
+                    ></lightning-button>
+                </div>
+                <div class="actions-right">
+                    <lightning-button
+                        variant="destructive-text"
+                        label="Reset Score"
+                        title="Reset current score to zero"
+                        onclick={handleResetScore}
+                        disabled={isResetDisabled}
+                    ></lightning-button>
+                </div>
+            </div>
+
+            <div class="meta">
+                <span class="meta-item">Updated From: {lastUpdatedFrom}</span>
+                <span class="meta-item">Last Updated: {lastUpdatedAtDisplay}</span>
+            </div>
+        </div>
+    </lightning-card>
+</template>

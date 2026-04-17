@@ -1,0 +1,107 @@
+<template>
+    <div class="frame">
+        <section class="stage" style={stageStyle}>
+            <div class="overlay">
+                <div class={timerGlowClass}>
+                    <img class="timer-glow-on" src={targetTimeGlowUrl} alt="" />
+                    <img class="timer-glow-off" src={targetTimeOffUrl} alt="" />
+                </div>
+                <div class="score-value value-box">{coins}</div>
+                <div class="time-value value-box" data-id="timeValue">0:59</div>
+                <div class="winner-value value-box">{winnerValue}</div>
+                <div class="last-value value-box">{lastResultsText}</div>
+            </div>
+
+            <div class="wheel-layer">
+                <div class={arrowStackClass}>
+                    <img class="arrow-glow-img" src={arrowGlowUrl} alt="" />
+                <img class="arrow-img" src={arrowUrl} alt="Arrow" />
+                </div>
+                <img class="wheel" src={wheelUrl} alt="Wheel" style={wheelStyle} />
+                <div class="wheel-center">
+                    <c-fun-target-logo-animator
+                        class="center-ball-host"
+                        spinning={isSpinning}
+                        reset-token={logoResetToken}
+                    ></c-fun-target-logo-animator>
+                </div>
+            </div>
+            <img class="title-front" src={titleUrl} alt="Fun Target Title" />
+            <div class="coin-layer">
+                <template for:each={coinButtons} for:item="item">
+                    <button
+                        key={item.value}
+                        type="button"
+                        class={item.className}
+                        style={item.style}
+                        data-chip={item.value}
+                        aria-pressed={item.isSelected}
+                        aria-label={item.ariaLabel}
+                        title={item.ariaLabel}
+                        onclick={selectChip}
+                    >
+                        <img src={item.image} alt={item.value} />
+                    </button>
+                </template>
+            </div>
+            <div class="bet-number-layer">
+                <template for:each={betNumberButtons} for:item="item">
+                    <button
+                        key={item.value}
+                        type="button"
+                        class={item.className}
+                        style={item.style}
+                        data-number={item.value}
+                        aria-label={item.ariaLabel}
+                        title={item.ariaLabel}
+                        disabled={item.isDisabled}
+                        onclick={selectNumber}
+                    >
+                        <img class="bet-glow-img" src={item.glowUrl} alt="" />
+                    </button>
+                </template>
+            </div>
+            <div class="bet-amount-layer">
+                <template for:each={betAmountVisuals} for:item="amount">
+                    <div key={amount.key} class="bet-amount" style={amount.style}>{amount.value}</div>
+                </template>
+            </div>
+            <div class="total-bet-amount">{totalBetAmount}</div>
+
+            <button class={takeButtonClass} onclick={takePayout}>
+                <img class="btn-glow-on-img" src={takeGlowUrl} alt="" />
+                <img class="btn-glow-off-img" src={takeOffUrl} alt="" />
+                <span class="btn-label">Take</span>
+            </button>
+            <button class="action-btn cancel" onclick={cancelBet}>
+                <img class="btn-glow-on-img" src={cancelGlowUrl} alt="" />
+                <img class="btn-glow-off-img" src={cancelOffUrl} alt="" />
+                <span class="btn-label">Cancel Bet</span>
+            </button>
+            <button class="action-btn cancel-specific" onclick={cancelSpecificBet}>
+                <img class="btn-glow-on-img" src={cancelGlowUrl} alt="" />
+                <img class="btn-glow-off-img" src={cancelOffUrl} alt="" />
+                <span class="btn-label">Cancel Specific Bet</span>
+            </button>
+            <button class={betOkButtonClass} onclick={placeBet} disabled={isBetOkDisabled}>
+                <img class="btn-glow-on-img" src={betOkGlowUrl} alt="" />
+                <img class="btn-glow-off-img" src={betOkOffUrl} alt="" />
+                <span class="btn-label">Bet Ok</span>
+            </button>
+            <button class={prevButtonClass} onclick={prevBet}>
+                <img class="btn-glow-on-img" src={prevGlowUrl} alt="" />
+                <img class="btn-glow-off-img" src={prevOffUrl} alt="" />
+                <span class="btn-label">Prev Bet</span>
+            </button>
+            <button class="action-btn exit" onclick={resetGame}>
+                <img class="btn-glow-on-img" src={exitGlowUrl} alt="" />
+                <img class="btn-glow-off-img" src={exitOffUrl} alt="" />
+                <span class="btn-label">Exit</span>
+            </button>
+
+            <div class="footer-note">
+                {footerMessage}
+            </div>
+        </section>
+    </div>
+</template>

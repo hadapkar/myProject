@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Last10Results__c</fullName>
+    <defaultValue>"8,8,9,0,2,9,6,4,3,7"</defaultValue>
+    <label>Last 10 Results</label>
+    <length>255</length>
+    <required>false</required>
+    <type>Text</type>
+</CustomField>
