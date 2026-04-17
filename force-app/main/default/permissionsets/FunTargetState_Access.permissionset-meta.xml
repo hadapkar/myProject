@@ -30,6 +30,11 @@
     </fieldPermissions>
     <fieldPermissions>
         <editable>true</editable>
+        <field>FunTargetState__c.PredefinedWheelNumber__c</field>
+        <readable>true</readable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <editable>true</editable>
         <field>FunTargetState__c.Score__c</field>
         <readable>true</readable>
     </fieldPermissions>
@@ -63,9 +68,5 @@
     <tabSettings>
         <tab>FunTargetAdminMobile</tab>
         <visibility>Visible</visibility>
-    </tabSettings>
-    <tabSettings>
-        <tab>FunTargetState__c</tab>
-        <visibility>Available</visibility>
     </tabSettings>
 </PermissionSet>

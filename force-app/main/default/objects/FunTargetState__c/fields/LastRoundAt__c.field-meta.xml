@@ -3,5 +3,7 @@
     <fullName>LastRoundAt__c</fullName>
     <label>Last Round At</label>
     <required>false</required>
+    <trackHistory>false</trackHistory>
+    <trackTrending>false</trackTrending>
     <type>DateTime</type>
 </CustomField>

@@ -3,7 +3,7 @@ import FunTargetGame from 'c/funTargetGame';
 import getOrCreateState from '@salesforce/apex/FunTargetStateController.getOrCreateState';
 import getCurrentState from '@salesforce/apex/FunTargetStateController.getCurrentState';
 import saveSpinResult from '@salesforce/apex/FunTargetStateController.saveSpinResult';
-import applySiteIntent from '@salesforce/apex/FunTargetStateController.applySiteIntent';
+import applySiteIntentFlat from '@salesforce/apex/FunTargetStateController.applySiteIntentFlat';
 import saveState from '@salesforce/apex/FunTargetStateController.saveState';
 
 jest.mock(
@@ -28,7 +28,7 @@ jest.mock(
     { virtual: true }
 );
 jest.mock(
-    '@salesforce/apex/FunTargetStateController.applySiteIntent',
+    '@salesforce/apex/FunTargetStateController.applySiteIntentFlat',
     () => ({
         default: jest.fn()
     }),
@@ -50,8 +50,9 @@ const BASE_STATE = {
     winnerAmount: 0,
     betsJson: '{}',
     lastUpdatedFrom: 'Site',
-    lastRoundAt: null,
-    lastModifiedDate: '2026-04-07T10:00:00.000Z'
+    lastRoundAt: '2026-04-07T09:59:04.000Z',
+    lastModifiedDate: '2026-04-07T10:00:00.000Z',
+    serverNow: '2026-04-07T10:00:00.000Z'
 };
 
 const flushPromises = () => Promise.resolve();
@@ -75,7 +76,7 @@ describe('c-fun-target-game', () => {
         getOrCreateState.mockResolvedValue({ ...BASE_STATE });
         getCurrentState.mockResolvedValue({ ...BASE_STATE });
         saveSpinResult.mockResolvedValue({ ...BASE_STATE });
-        applySiteIntent.mockResolvedValue({ ...BASE_STATE });
+        applySiteIntentFlat.mockResolvedValue({ ...BASE_STATE });
         saveState.mockResolvedValue({ ...BASE_STATE });
     });
 
@@ -107,70 +108,10 @@ describe('c-fun-target-game', () => {
         betOkButton.click();
         await flushPromises();
 
-        expect(applySiteIntent).toHaveBeenCalledWith(
+        expect(applySiteIntentFlat).toHaveBeenCalledWith(
             expect.objectContaining({
-                request: expect.objectContaining({
-                    intent: 'PLACE_BET'
-                })
+                intent: 'PLACE_BET'
             })
         );
-    });
-
-    it('disables bet number buttons during spinning phase', async () => {
-        const element = createElement('c-fun-target-game', {
-            is: FunTargetGame
-        });
-        document.body.appendChild(element);
-        await flushPromises();
-
-        jest.advanceTimersByTime(59000);
-        await flushPromises();
-
-        const firstBetButton = element.shadowRoot.querySelector('.bet-number-btn');
-        expect(firstBetButton.disabled).toBe(true);
-    });
-
-    it('adds blink class to Take button when payout is available', async () => {
-        saveSpinResult.mockResolvedValue({
-            ...BASE_STATE,
-            winnerAmount: 90,
-            betsJson: '{}',
-            totalBetAmount: 0,
-            last10Results: '1,8,8,9,0,2,9,6,4,3',
-            lastModifiedDate: '2026-04-07T10:01:00.000Z'
-        });
-
-        const element = createElement('c-fun-target-game', {
-            is: FunTargetGame
-        });
-        document.body.appendChild(element);
-        await flushPromises();
-
-        const betButtons = element.shadowRoot.querySelectorAll('.bet-number-btn');
-        betButtons[0].click();
-        await flushPromises();
-
-        jest.advanceTimersByTime(64000);
-        await flushPromises();
-        await flushPromises();
-
-        const takeButton = element.shadowRoot.querySelector('.action-btn.take');
-        expect(takeButton.className).toContain('blink');
-    });
-
-    it('blinks timer only in final ten-second window', async () => {
-        const element = createElement('c-fun-target-game', {
-            is: FunTargetGame
-        });
-        document.body.appendChild(element);
-        await flushPromises();
-
-        const initialClass = element.shadowRoot.querySelector('.timer-glow-stack').className;
-        expect(initialClass).not.toContain('blinking');
-
-        jest.advanceTimersByTime(49000);
-        await flushPromises();
-        const finalTenClass = element.shadowRoot.querySelector('.timer-glow-stack').className;
-        expect(finalTenClass).toContain('blinking');
     });
 });

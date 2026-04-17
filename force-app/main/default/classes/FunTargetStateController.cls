@@ -12,6 +12,7 @@ public with sharing class FunTargetStateController {
         @AuraEnabled public String lastUpdatedFrom;
         @AuraEnabled public Datetime lastRoundAt;
         @AuraEnabled public Datetime lastModifiedDate;
+        @AuraEnabled public Datetime serverNow;
     }
 
     public class SiteIntentRequest {
@@ -52,7 +53,6 @@ public with sharing class FunTargetStateController {
 
         stateRecord.PredefinedWheelNumber__c = null;
         stateRecord.LastUpdatedFrom__c = 'Site';
-        stateRecord.LastRoundAt__c = System.now();
         update stateRecord;
         return toDto(getStateRecordById(stateRecord.Id));
     }
@@ -99,6 +99,18 @@ public with sharing class FunTargetStateController {
 
     @AuraEnabled
     public static StateDTO applySiteIntent(SiteIntentRequest request, Datetime expectedLastModified) {
+        return applySiteIntentInternal(request, expectedLastModified);
+    }
+
+    @AuraEnabled
+    public static StateDTO applySiteIntentFlat(String intent, String betsJson, Datetime expectedLastModified) {
+        SiteIntentRequest request = new SiteIntentRequest();
+        request.intent = intent;
+        request.betsJson = betsJson;
+        return applySiteIntentInternal(request, expectedLastModified);
+    }
+
+    private static StateDTO applySiteIntentInternal(SiteIntentRequest request, Datetime expectedLastModified) {
         String intent = request == null || String.isBlank(request.intent)
             ? null
             : request.intent.trim().toUpperCase();
@@ -107,7 +119,9 @@ public with sharing class FunTargetStateController {
         }
 
         FunTargetState__c stateRecord = getStateRecord(true, true);
-        assertOptimisticLock(expectedLastModified, stateRecord.LastModifiedDate);
+        if (intent != 'PLACE_BET') {
+            assertOptimisticLock(expectedLastModified, stateRecord.LastModifiedDate);
+        }
         Decimal currentScore = stateRecord.Score__c == null ? 0 : stateRecord.Score__c;
         Boolean changed = false;
 
@@ -157,7 +171,7 @@ public with sharing class FunTargetStateController {
             stateRecord.TotalBetAmount__c = 0;
             stateRecord.WinnerAmount__c = 0;
             stateRecord.BetsJson__c = '{}';
-            stateRecord.LastRoundAt__c = null;
+            stateRecord.LastRoundAt__c = System.now().addSeconds(-56);
             changed = true;
         } else if (intent == 'CONFIRM_BET') {
             // Client uses this to validate lock and keep consistent flow.
@@ -168,9 +182,6 @@ public with sharing class FunTargetStateController {
 
         if (changed) {
             stateRecord.LastUpdatedFrom__c = 'Site';
-            stateRecord.LastRoundAt__c = stateRecord.LastRoundAt__c == null && intent == 'RESET_GAME'
-                ? null
-                : System.now();
             update stateRecord;
             return toDto(getStateRecordById(stateRecord.Id));
         }
@@ -278,7 +289,6 @@ public with sharing class FunTargetStateController {
         }
 
         stateRecord.LastUpdatedFrom__c = 'Admin';
-        stateRecord.LastRoundAt__c = System.now();
         update stateRecord;
 
         return toDto(getStateRecordById(stateRecord.Id));
@@ -296,7 +306,6 @@ public with sharing class FunTargetStateController {
         stateRecord.User__c = userId;
         stateRecord.PredefinedWheelNumber__c = wheelNumber;
         stateRecord.LastUpdatedFrom__c = 'Admin';
-        stateRecord.LastRoundAt__c = System.now();
 
         Database.UpsertResult result = Database.upsert(
             stateRecord,
@@ -358,7 +367,8 @@ public with sharing class FunTargetStateController {
             TotalBetAmount__c = 0,
             WinnerAmount__c = 0,
             BetsJson__c = '{}',
-            LastUpdatedFrom__c = 'Site'
+            LastUpdatedFrom__c = 'Site',
+            LastRoundAt__c = System.now().addSeconds(-56)
         );
 
         try {
@@ -409,8 +419,9 @@ public with sharing class FunTargetStateController {
         dto.winnerAmount = 0;
         dto.betsJson = '{}';
         dto.lastUpdatedFrom = 'Site';
-        dto.lastRoundAt = null;
+        dto.lastRoundAt = System.now().addSeconds(-56);
         dto.lastModifiedDate = null;
+        dto.serverNow = System.now();
         return dto;
     }
 
@@ -655,6 +666,7 @@ public with sharing class FunTargetStateController {
         dto.lastUpdatedFrom = recordData.LastUpdatedFrom__c;
         dto.lastRoundAt = recordData.LastRoundAt__c;
         dto.lastModifiedDate = recordData.LastModifiedDate;
+        dto.serverNow = System.now();
         return dto;
     }
 }

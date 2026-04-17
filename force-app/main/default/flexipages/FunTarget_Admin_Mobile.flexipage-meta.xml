@@ -3,7 +3,7 @@
     <flexiPageRegions>
         <itemInstances>
             <componentInstance>
-                <componentName>c:funTargetAdminMini</componentName>
+                <componentName>funTargetAdminMini</componentName>
                 <identifier>c_funTargetAdminMini</identifier>
             </componentInstance>
         </itemInstances>

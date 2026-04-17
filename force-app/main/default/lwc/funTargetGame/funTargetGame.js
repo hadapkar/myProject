@@ -3,7 +3,7 @@ import funTargrtAsset from '@salesforce/resourceUrl/funTargrtAsset';
 import getOrCreateState from '@salesforce/apex/FunTargetStateController.getOrCreateState';
 import getCurrentState from '@salesforce/apex/FunTargetStateController.getCurrentState';
 import saveSpinResult from '@salesforce/apex/FunTargetStateController.saveSpinResult';
-import applySiteIntent from '@salesforce/apex/FunTargetStateController.applySiteIntent';
+import applySiteIntentFlat from '@salesforce/apex/FunTargetStateController.applySiteIntentFlat';
 import saveState from '@salesforce/apex/FunTargetStateController.saveState';
 
 const SEGMENTS = 10;
@@ -18,7 +18,15 @@ const POST_SPIN_FOOTER_MESSAGE = 'Please bet to Start Game. Minimum Bet - 1';
 const DEFAULT_LAST_RESULTS = [8, 8, 9, 0, 2, 9, 6, 4, 3, 7];
 const SAVE_DEBOUNCE_MS = 450;
 const LIVE_STATE_SYNC_MS = 3000;
+const LIVE_STATE_SYNC_FINAL_TEN_MS = 1000;
 const AUTO_SPIN_DURATION = '5.0s';
+const ROUND_SECONDS = 60;
+const SPIN_START_SECOND = 0;
+const SPIN_RESULT_SECOND = 55;
+const RESULT_HIGHLIGHT_CLEAR_SECOND = 50;
+const PAYOUT_FORFEIT_SECOND = 30;
+const FINAL_TEN_SECOND = 10;
+const ANCHOR_SHIFT_TO_59_MS = 56000;
 const ROUND_PHASE = {
     BETTING: 'BETTING',
     SPINNING: 'SPINNING',
@@ -90,6 +98,7 @@ export default class FunTargetGame extends LightningElement {
     _spinRafId;
     _countdownTimer;
     _timeLeftSeconds = 59;
+    _lastTimerSecond = null;
     _autoSpinActive = false;
     _autoSpinResult = null;
     _prevBet = null;
@@ -103,6 +112,8 @@ export default class FunTargetGame extends LightningElement {
     _pendingSaveBeforeInit = false;
     _lastSavedStateHash = '';
     _lastRoundAtIso = null;
+    _fallbackRoundAnchorMs = null;
+    _serverClockOffsetMs = 0;
     _roundStartInProgress = false;
     _roundPredefinedNumber = null;
     _predefinedWheelNumber = null;
@@ -124,6 +135,9 @@ export default class FunTargetGame extends LightningElement {
     _betButtonsCache;
     _betAmountsCacheKey;
     _betAmountsCache;
+    _betPersistInFlight = false;
+    _betPersistQueued = false;
+    _betPersistPromise;
     _timerText = '0:59';
     _stateLastModified = null;
 
@@ -331,7 +345,7 @@ export default class FunTargetGame extends LightningElement {
         this.coins -= this.selectedChip;
         this.selectedNumbers = Object.keys(updatedBets).map(Number);
         this.selectedNumber = value;
-        this._queueStateSave();
+        this._persistBetsState();
     }
 
     selectChip(event) {
@@ -384,16 +398,10 @@ export default class FunTargetGame extends LightningElement {
             number: this.selectedNumber,
             chip: this.selectedChip
         };
-        this._applySiteIntent('PLACE_BET', {
-            betsJson: JSON.stringify(this.betsByNumber)
-        }).catch(() => {
-            this.isBetConfirmed = false;
-            this.footerMessage = DEFAULT_FOOTER_MESSAGE;
-        });
+        this._persistBetsState();
     }
 
     cancelBet() {
-        const wasBetConfirmed = this.isBetConfirmed;
         this._playSound('button');
         this.selectedNumber = null;
         this.selectedNumbers = [];
@@ -404,20 +412,13 @@ export default class FunTargetGame extends LightningElement {
         this.isBetConfirmed = false;
         this.footerMessage = DEFAULT_FOOTER_MESSAGE;
         this._refreshRoundPhase();
-        if (wasBetConfirmed) {
-            this._applySiteIntent('PLACE_BET', { betsJson: '{}' }).catch(() => {
-                this._syncStateFromServer();
-            });
-            return;
-        }
-        this._queueStateSave();
+        this._persistBetsState();
     }
 
     cancelSpecificBet() {
         if (this.selectedNumber === null) {
             return;
         }
-        const wasBetConfirmed = this.isBetConfirmed;
         this._playSound('button');
 
         const target = this.selectedNumber;
@@ -432,15 +433,7 @@ export default class FunTargetGame extends LightningElement {
         this.isBetConfirmed = false;
         this.footerMessage = DEFAULT_FOOTER_MESSAGE;
         this._refreshRoundPhase();
-        if (wasBetConfirmed) {
-            this._applySiteIntent('PLACE_BET', {
-                betsJson: JSON.stringify(this.betsByNumber)
-            }).catch(() => {
-                this._syncStateFromServer();
-            });
-            return;
-        }
-        this._queueStateSave();
+        this._persistBetsState();
     }
 
     takePayout() {
@@ -485,7 +478,7 @@ export default class FunTargetGame extends LightningElement {
         this.isBetConfirmed = false;
         this.footerMessage = DEFAULT_FOOTER_MESSAGE;
         this._refreshRoundPhase();
-        this._queueStateSave();
+        this._persistBetsState();
     }
 
     showAllBet() {
@@ -511,11 +504,12 @@ export default class FunTargetGame extends LightningElement {
         this.coins = 0;
         this.lastResults = [...DEFAULT_LAST_RESULTS];
         this._timeLeftSeconds = 59;
+        this._lastTimerSecond = null;
         this._autoSpinActive = false;
         this._autoSpinResult = null;
         this.spinDuration = '2.8s';
         this.spinEasing = 'cubic-bezier(0.22, 0.9, 0.26, 1.05)';
-        this._updateTimerText();
+        this._fallbackRoundAnchorMs = this._getServerNowMs() - ANCHOR_SHIFT_TO_59_MS;
         this._prevBet = null;
         window.clearTimeout(this._spinTimer);
         if (this._spinRafId) {
@@ -524,6 +518,7 @@ export default class FunTargetGame extends LightningElement {
         }
         this.logoResetToken += 1;
         this._lastRoundAtIso = null;
+        this._updateTimerFromAnchor();
         this._refreshRoundPhase();
         this._applySiteIntent('RESET_GAME').catch(() => {
             this._syncStateFromServer();
@@ -580,7 +575,7 @@ export default class FunTargetGame extends LightningElement {
             this._resizeRafId = null;
         }
         if (this._countdownTimer) {
-            window.clearInterval(this._countdownTimer);
+            window.clearTimeout(this._countdownTimer);
             this._countdownTimer = null;
         }
         window.clearTimeout(this._spinTimer);
@@ -603,48 +598,127 @@ export default class FunTargetGame extends LightningElement {
             return;
         }
 
+        this._runCountdownTick();
+    }
+
+    _runCountdownTick() {
+        this._countdownTimer = null;
+        this._updateTimerFromAnchor();
+
+        const nowMs = this._getServerNowMs();
+        const msToNextSecond = 1000 - (nowMs % 1000);
+        const nextDelay = Math.min(1000, Math.max(120, msToNextSecond + 12));
+        this._countdownTimer = window.setTimeout(() => {
+            this._runCountdownTick();
+        }, nextDelay);
+    }
+
+    _updateTimerFromAnchor() {
+        const nextSecond = this._computeTimerSecond();
+        if (nextSecond === this._lastTimerSecond) {
+            return;
+        }
+
+        const previousSecond = this._lastTimerSecond;
+        this._lastTimerSecond = nextSecond;
+        this._timeLeftSeconds = nextSecond;
+        this._handleTimerSecondChange(previousSecond, nextSecond);
         this._updateTimerText();
-        this._countdownTimer = window.setInterval(() => {
-            this._timeLeftSeconds -= 1;
+    }
 
-            if (this._timeLeftSeconds === 0) {
-                this._startAutoSpinRound();
+    _computeTimerSecond() {
+        const anchorMs = this._getRoundAnchorMs();
+        if (!Number.isFinite(anchorMs)) {
+            return 59;
+        }
+
+        const elapsedSeconds = Math.max(0, Math.floor((this._getServerNowMs() - anchorMs) / 1000));
+        return (SPIN_RESULT_SECOND - (elapsedSeconds % ROUND_SECONDS) + ROUND_SECONDS) % ROUND_SECONDS;
+    }
+
+    _getRoundAnchorMs() {
+        if (this._lastRoundAtIso) {
+            const parsedAnchorMs = new Date(this._lastRoundAtIso).getTime();
+            if (Number.isFinite(parsedAnchorMs)) {
+                return parsedAnchorMs;
             }
+        }
 
-            if (this._timeLeftSeconds < 0) {
-                this._timeLeftSeconds = 59;
+        if (this._fallbackRoundAnchorMs !== null && Number.isFinite(this._fallbackRoundAnchorMs)) {
+            return this._fallbackRoundAnchorMs;
+        }
+
+        if (this._stateLastModified) {
+            const modifiedMs = new Date(this._stateLastModified).getTime();
+            if (Number.isFinite(modifiedMs)) {
+                this._fallbackRoundAnchorMs = modifiedMs - ANCHOR_SHIFT_TO_59_MS;
+                return this._fallbackRoundAnchorMs;
             }
+        }
 
-            if (this._autoSpinActive && this._timeLeftSeconds === 55) {
-                this._finalizeAutoSpinRound();
+        this._fallbackRoundAnchorMs = this._getServerNowMs() - ANCHOR_SHIFT_TO_59_MS;
+        return this._fallbackRoundAnchorMs;
+    }
+
+    _handleTimerSecondChange(previousSecond, currentSecond) {
+        this._syncFinalTenState();
+        if (!this._stateInitialized) {
+            return;
+        }
+
+        if (this._crossedTimerSecond(previousSecond, currentSecond, RESULT_HIGHLIGHT_CLEAR_SECOND)) {
+            this.highlightedBetNumber = null;
+        }
+
+        if (this._crossedTimerSecond(previousSecond, currentSecond, FINAL_TEN_SECOND)) {
+            this._setBetOkHighlighted(false);
+        }
+
+        if (this._crossedTimerSecond(previousSecond, currentSecond, PAYOUT_FORFEIT_SECOND)) {
+            if (this.winnerValue > 0 || this.pendingPayout > 0) {
+                this.winnerValue = 0;
+                this.pendingPayout = 0;
+                this._applySiteIntent('FORFEIT_PAYOUT').catch(() => {
+                    this._syncStateFromServer();
+                });
             }
+        }
 
-            if (this._timeLeftSeconds === 50) {
-                this.highlightedBetNumber = null;
+        if (this._crossedTimerSecond(previousSecond, currentSecond, SPIN_START_SECOND)) {
+            this._startAutoSpinRound();
+        }
+
+        if (this._autoSpinActive && this._crossedTimerSecond(previousSecond, currentSecond, SPIN_RESULT_SECOND)) {
+            this._finalizeAutoSpinRound();
+        }
+    }
+
+    _crossedTimerSecond(previousSecond, currentSecond, targetSecond) {
+        if (previousSecond === null || previousSecond === undefined) {
+            return currentSecond === targetSecond;
+        }
+
+        if (previousSecond === currentSecond) {
+            return false;
+        }
+
+        let cursor = previousSecond;
+        for (let index = 0; index < ROUND_SECONDS; index += 1) {
+            cursor = (cursor - 1 + ROUND_SECONDS) % ROUND_SECONDS;
+            if (cursor === targetSecond) {
+                return true;
             }
-
-            if (this._timeLeftSeconds === 30) {
-                if (this.winnerValue > 0 || this.pendingPayout > 0) {
-                    this.winnerValue = 0;
-                    this.pendingPayout = 0;
-                    this._applySiteIntent('FORFEIT_PAYOUT').catch(() => {
-                        this._syncStateFromServer();
-                    });
-                }
+            if (cursor === currentSecond) {
+                return false;
             }
+        }
 
-            if (this._timeLeftSeconds === 10) {
-                this._setBetOkHighlighted(false);
-            }
-
-            this._updateTimerText();
-        }, 1000);
+        return false;
     }
 
     _updateTimerText() {
         const seconds = String(this._timeLeftSeconds).padStart(2, '0');
         this._timerText = `0:${seconds}`;
-        this._syncFinalTenState();
         this._renderTimerTextToDom();
     }
 
@@ -652,6 +726,7 @@ export default class FunTargetGame extends LightningElement {
         const isFinalTen = this._timeLeftSeconds >= 0 && this._timeLeftSeconds <= 10;
         if (isFinalTen !== this.isFinalTenSeconds) {
             this.isFinalTenSeconds = isFinalTen;
+            this._restartLiveStateSync();
         }
         this._refreshRoundPhase();
     }
@@ -737,7 +812,8 @@ export default class FunTargetGame extends LightningElement {
         this.spinEasing = 'cubic-bezier(0.22, 0.9, 0.26, 1.05)';
         this.isBetConfirmed = false;
         this.footerMessage = POST_SPIN_FOOTER_MESSAGE;
-        this._lastRoundAtIso = new Date().toISOString();
+        this._lastRoundAtIso = new Date(this._getServerNowMs()).toISOString();
+        this._fallbackRoundAnchorMs = null;
         this._refreshRoundPhase();
         this._persistSpinResult(result, usedPredefinedNumber);
     }
@@ -824,22 +900,74 @@ export default class FunTargetGame extends LightningElement {
         return document.visibilityState !== 'hidden';
     }
 
+    _syncServerClock(serverNowValue) {
+        if (!serverNowValue) {
+            return;
+        }
+        const parsedServerNowMs = new Date(serverNowValue).getTime();
+        if (!Number.isFinite(parsedServerNowMs)) {
+            return;
+        }
+        this._serverClockOffsetMs = parsedServerNowMs - Date.now();
+    }
+
+    _getServerNowMs() {
+        return Date.now() + this._serverClockOffsetMs;
+    }
+
+    _syncFallbackRoundAnchor(lastModifiedValue) {
+        if (this._fallbackRoundAnchorMs !== null) {
+            return;
+        }
+        if (lastModifiedValue) {
+            const modifiedMs = new Date(lastModifiedValue).getTime();
+            if (Number.isFinite(modifiedMs)) {
+                this._fallbackRoundAnchorMs = modifiedMs - ANCHOR_SHIFT_TO_59_MS;
+                return;
+            }
+        }
+        this._fallbackRoundAnchorMs = this._getServerNowMs() - ANCHOR_SHIFT_TO_59_MS;
+    }
+
     _startLiveStateSync() {
         if (this._liveStateSyncTimer || !this._isDocumentVisible()) {
             return;
         }
 
-        this._liveStateSyncTimer = window.setInterval(() => {
-            this._syncStateFromServer();
-        }, LIVE_STATE_SYNC_MS);
+        this._scheduleNextLiveStateSync(this._getLiveStateSyncDelayMs());
     }
 
     _stopLiveStateSync() {
         if (!this._liveStateSyncTimer) {
             return;
         }
-        window.clearInterval(this._liveStateSyncTimer);
+        window.clearTimeout(this._liveStateSyncTimer);
         this._liveStateSyncTimer = null;
+    }
+
+    _restartLiveStateSync() {
+        if (!this._isDocumentVisible()) {
+            return;
+        }
+        this._stopLiveStateSync();
+        this._startLiveStateSync();
+    }
+
+    _scheduleNextLiveStateSync(delayMs) {
+        this._liveStateSyncTimer = window.setTimeout(() => {
+            this._liveStateSyncTimer = null;
+            if (!this._isDocumentVisible()) {
+                return;
+            }
+            this._syncStateFromServer();
+            this._scheduleNextLiveStateSync(this._getLiveStateSyncDelayMs());
+        }, delayMs);
+    }
+
+    _getLiveStateSyncDelayMs() {
+        return this._timeLeftSeconds >= 0 && this._timeLeftSeconds <= 10
+            ? LIVE_STATE_SYNC_FINAL_TEN_MS
+            : LIVE_STATE_SYNC_MS;
     }
 
     _syncStateFromServer() {
@@ -859,6 +987,7 @@ export default class FunTargetGame extends LightningElement {
                 if (!state) {
                     return;
                 }
+                this._syncServerClock(state.serverNow);
 
                 // Prevent stale site-side score from overwriting local in-round score.
                 // Only sync score from server when it was updated by Admin.
@@ -871,6 +1000,17 @@ export default class FunTargetGame extends LightningElement {
                 }
                 this._predefinedWheelNumber = this._normalizeWheelNumber(state.predefinedWheelNumber);
                 this._stateLastModified = this._safeIsoDate(state.lastModifiedDate) || this._stateLastModified;
+                const incomingLastRoundAt = this._safeIsoDate(state.lastRoundAt);
+                if (incomingLastRoundAt) {
+                    if (incomingLastRoundAt !== this._lastRoundAtIso) {
+                        this._lastRoundAtIso = incomingLastRoundAt;
+                        this._fallbackRoundAnchorMs = null;
+                        this._lastTimerSecond = null;
+                    }
+                } else if (!this._lastRoundAtIso) {
+                    this._syncFallbackRoundAnchor(this._stateLastModified);
+                }
+                this._updateTimerFromAnchor();
             })
             .catch(() => {
                 // no-op
@@ -885,6 +1025,7 @@ export default class FunTargetGame extends LightningElement {
             return;
         }
 
+        this._syncServerClock(state.serverNow);
         this.coins = Number(state.score ?? this.coins);
         this.lastResults = this._parseLast10Results(state.last10Results);
         this.currentNumber = this.lastResults[0] ?? this.currentNumber;
@@ -896,6 +1037,13 @@ export default class FunTargetGame extends LightningElement {
         this.selectedNumber = this.selectedNumbers[this.selectedNumbers.length - 1] ?? null;
         this._lastRoundAtIso = this._safeIsoDate(state.lastRoundAt);
         this._stateLastModified = this._safeIsoDate(state.lastModifiedDate);
+        if (this._lastRoundAtIso) {
+            this._fallbackRoundAnchorMs = null;
+        } else {
+            this._syncFallbackRoundAnchor(this._stateLastModified);
+        }
+        this._lastTimerSecond = null;
+        this._updateTimerFromAnchor();
         this._refreshRoundPhase();
     }
 
@@ -1021,7 +1169,9 @@ export default class FunTargetGame extends LightningElement {
             .catch((error) => {
                 const message = error?.body?.message || error?.message || '';
                 if (message.includes('STATE_CONFLICT')) {
-                    this._syncStateFromServer();
+                    // Conflict can happen if admin/site writes overlap.
+                    // Clear lock token once and retry local payload so bets don't get stuck unsaved.
+                    this._stateLastModified = null;
                     this._stateDirty = true;
                     return;
                 }
@@ -1036,27 +1186,96 @@ export default class FunTargetGame extends LightningElement {
     }
 
     _applySiteIntent(intent, extras = {}) {
-        return applySiteIntent({
+        const requestPayload = {
             request: {
                 intent,
                 ...extras
             },
             expectedLastModified: this._stateLastModified
-        })
-            .then((state) => {
-                if (state) {
-                    this._applyLoadedState(state);
-                    this._lastSavedStateHash = JSON.stringify(this._buildStatePayload());
-                }
-                return state;
+        };
+
+        const attemptIntent = (attempt, expectedLastModified) =>
+            applySiteIntentFlat({
+                intent: requestPayload.request.intent,
+                betsJson: requestPayload.request.betsJson,
+                expectedLastModified
             })
-            .catch((error) => {
-                const message = error?.body?.message || error?.message || '';
-                if (message.includes('STATE_CONFLICT')) {
-                    this._syncStateFromServer();
+                .then((state) => {
+                    if (state) {
+                        this._applyLoadedState(state);
+                        this._lastSavedStateHash = JSON.stringify(this._buildStatePayload());
+                    }
+                    return state;
+                })
+                .catch((error) => {
+                    const message = String(error?.body?.message || error?.message || '');
+                    const normalized = message.toUpperCase();
+                    const isConflict = normalized.includes('STATE_CONFLICT');
+                    const isLockContention =
+                        normalized.includes('UNABLE_TO_LOCK_ROW') ||
+                        normalized.includes('EXCLUSIVE ACCESS');
+
+                    if ((isConflict || isLockContention) && attempt < 2) {
+                        this._stateLastModified = null;
+                        return this._delay((attempt + 1) * 120).then(() => attemptIntent(attempt + 1, null));
+                    }
+                    throw error;
+                });
+
+        return attemptIntent(0, requestPayload.expectedLastModified);
+    }
+
+    _persistBetsState() {
+        this._betPersistQueued = true;
+        if (this._betPersistInFlight) {
+            return this._betPersistPromise || Promise.resolve();
+        }
+
+        this._betPersistInFlight = true;
+        this._betPersistPromise = this._flushBetPersistQueue().finally(() => {
+            this._betPersistInFlight = false;
+            this._betPersistPromise = null;
+        });
+        return this._betPersistPromise;
+    }
+
+    async _flushBetPersistQueue() {
+        let retryCount = 0;
+        while (this._betPersistQueued) {
+            this._betPersistQueued = false;
+            const betsJson = JSON.stringify(this.betsByNumber || {});
+            try {
+                await this._applySiteIntent('PLACE_BET', { betsJson });
+                retryCount = 0;
+            } catch (error) {
+                if (this._isRetryableBetPersistError(error) && retryCount < 4) {
+                    retryCount += 1;
+                    this._betPersistQueued = true;
+                    await this._delay(retryCount * 120);
+                    continue;
                 }
-                throw error;
-            });
+                retryCount = 0;
+                this._syncStateFromServer();
+            }
+        }
+    }
+
+    _isRetryableBetPersistError(error) {
+        const message = String(error?.body?.message || error?.message || '').toLowerCase();
+        return (
+            message.includes('state_conflict') ||
+            message.includes('unable_to_lock_row') ||
+            message.includes('exclusive access') ||
+            message.includes('timeout') ||
+            message.includes('network') ||
+            message.includes('invalid session')
+        );
+    }
+
+    _delay(ms) {
+        return new Promise((resolve) => {
+            window.setTimeout(resolve, ms);
+        });
     }
 
     _setBetOkHighlighted(isHighlighted) {
