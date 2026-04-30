@@ -70,5 +70,9 @@
         <tab>FunTargetState__c</tab>
         <visibility>Hidden</visibility>
     </tabVisibilities>
+    <tabVisibilities>
+        <tab>Subscription_Admin</tab>
+        <visibility>Hidden</visibility>
+    </tabVisibilities>
     <userLicense>Guest User License</userLicense>
 </Profile>
