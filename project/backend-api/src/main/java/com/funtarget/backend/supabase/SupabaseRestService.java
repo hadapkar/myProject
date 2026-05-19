@@ -72,7 +72,7 @@ public class SupabaseRestService {
                     uriBuilder.path("/fun_target_state").queryParam("user_id", "eq." + userId).build())
             .header("apikey", props.serviceRoleKey())
             .header(HttpHeaders.AUTHORIZATION, "Bearer " + props.serviceRoleKey())
-            .header(HttpHeaders.PREFER, "return=representation")
+            .header("Prefer", "return=representation")
             .body(patch)
             .retrieve()
             .body(List.class);
@@ -90,7 +90,7 @@ public class SupabaseRestService {
         .uri(uriBuilder -> uriBuilder.path("/fun_target_state").queryParam("on_conflict", "user_id").build())
         .header("apikey", props.serviceRoleKey())
         .header(HttpHeaders.AUTHORIZATION, "Bearer " + props.serviceRoleKey())
-        .header(HttpHeaders.PREFER, "resolution=merge-duplicates,return=representation")
+        .header("Prefer", "resolution=merge-duplicates,return=representation")
         .body(rows)
         .retrieve()
         .toBodilessEntity();
@@ -115,4 +115,3 @@ public class SupabaseRestService {
     return trimmed;
   }
 }
-
