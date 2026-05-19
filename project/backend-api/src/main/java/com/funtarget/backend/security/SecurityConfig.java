@@ -26,6 +26,8 @@ public class SecurityConfig {
         .csrf(csrf -> csrf.disable())
         .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
         .cors(Customizer.withDefaults())
+        .httpBasic(basic -> basic.disable())
+        .formLogin(form -> form.disable())
         .addFilterBefore(new SupabaseTokenAuthFilter(authService), UsernamePasswordAuthenticationFilter.class)
         .authorizeHttpRequests(
             auth ->
@@ -50,7 +52,8 @@ public class SecurityConfig {
           .filter(s -> !s.isBlank())
           .toList());
     } else {
-      cors.setAllowedOriginPatterns(List.of("*"));
+      // Safer default: only allow localhost if not configured.
+      cors.setAllowedOrigins(List.of("http://localhost:3000"));
     }
 
     UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
@@ -58,4 +61,3 @@ public class SecurityConfig {
     return source;
   }
 }
-
