@@ -188,6 +188,10 @@ export function FunTargetGame() {
   const pendingSoundKeyRef = useRef<string | null>(null);
   const audioUnlockHandlerRef = useRef<(() => void) | null>(null);
 
+  const postIntentRef = useRef<(payload: Record<string, unknown>) => Promise<FunTargetStateRow | null>>(
+    async () => null
+  );
+
   const stageStyle = useMemo(() => ({ backgroundImage: `url(${ASSET_BASE}/Bg.jpg)` }), []);
   const wheelUrl = `${ASSET_BASE}/Wheel5.png`;
   const arrowUrl = `${ASSET_BASE}/Arrow.png`;
@@ -572,9 +576,7 @@ export function FunTargetGame() {
           setWinnerValue(0);
           setPendingPayout(0);
           if (api) {
-            void api.post("/api/funtarget/intent", { intent: "FORFEIT_PAYOUT" }).catch(() => {
-              // ignore
-            });
+            void postIntentRef.current({ intent: "FORFEIT_PAYOUT" });
           }
         }
       }
@@ -718,6 +720,40 @@ export function FunTargetGame() {
     [refreshRoundPhase, updateTimerFromAnchor]
   );
 
+  const applyLoadedStateRef = useRef<(row: FunTargetStateRow) => void>(() => {});
+  useEffect(() => {
+    applyLoadedStateRef.current = applyLoadedState;
+  }, [applyLoadedState]);
+
+  const postIntent = useCallback(
+    async (payload: Record<string, unknown>) => {
+      if (!api) return null;
+      if (!stateInitializedRef.current) return null;
+      if (stateSaveInFlightRef.current) return null;
+
+      stateDirtyRef.current = true;
+      stateSaveInFlightRef.current = true;
+      try {
+        const data = await api.post<FunTargetStateRow>("/api/funtarget/intent", payload);
+        if (data) {
+          applyLoadedStateRef.current(data);
+          lastSavedStateHashRef.current = JSON.stringify(buildStatePayload());
+        }
+        return data;
+      } catch {
+        return null;
+      } finally {
+        stateSaveInFlightRef.current = false;
+        stateDirtyRef.current = false;
+      }
+    },
+    [api, buildStatePayload]
+  );
+
+  useEffect(() => {
+    postIntentRef.current = postIntent;
+  }, [postIntent]);
+
   const syncStateFromServer = useCallback(async () => {
     if (!api) return;
     if (!stateInitializedRef.current) return;
@@ -845,14 +881,7 @@ export function FunTargetGame() {
     lastRoundAtIsoRef.current = new Date().toISOString();
     fallbackRoundAnchorMsRef.current = null;
     refreshRoundPhase();
-    if (api) {
-      void api
-        .post<FunTargetStateRow>("/api/funtarget/intent", { intent: "SPIN_RESULT", spin_result: result })
-        .then(applyLoadedState)
-        .catch(() => {
-          // ignore
-        });
-    }
+    if (api) void postIntent({ intent: "SPIN_RESULT", spin_result: result });
   }, [api, applyLoadedState, betsByNumber, playSound, refreshRoundPhase, resolveRoundBets, stopSound]);
 
   const selectNumberClick = useCallback(
@@ -871,16 +900,9 @@ export function FunTargetGame() {
       const nums = Object.keys(updated).map(Number);
       setSelectedNumbers(nums);
       setSelectedNumber(value);
-      if (api) {
-        void api
-          .post<FunTargetStateRow>("/api/funtarget/intent", { intent: "SYNC_BETS", bets_json: updated })
-          .then(applyLoadedState)
-          .catch(() => {
-            // ignore
-          });
-      }
+      if (api) void postIntent({ intent: "SYNC_BETS", bets_json: updated });
     },
-    [api, applyLoadedState, betsByNumber, coins, isBetNumberDisabled, playSound, selectedChip]
+    [api, betsByNumber, coins, isBetNumberDisabled, playSound, postIntent, selectedChip]
   );
 
   const selectChipClick = useCallback(
@@ -927,15 +949,8 @@ export function FunTargetGame() {
     setIsBetConfirmed(false);
     setFooterMessage(DEFAULT_FOOTER_MESSAGE);
     refreshRoundPhase();
-    if (api) {
-      void api
-        .post<FunTargetStateRow>("/api/funtarget/intent", { intent: "SYNC_BETS", bets_json: {} })
-        .then(applyLoadedState)
-        .catch(() => {
-          // ignore
-        });
-    }
-  }, [api, applyLoadedState, betsByNumber, playSound, refreshRoundPhase]);
+    if (api) void postIntent({ intent: "SYNC_BETS", bets_json: {} });
+  }, [api, betsByNumber, playSound, postIntent, refreshRoundPhase]);
 
   const cancelSpecificBet = useCallback(() => {
     if (selectedNumber === null) return;
@@ -953,15 +968,8 @@ export function FunTargetGame() {
     setIsBetConfirmed(false);
     setFooterMessage(DEFAULT_FOOTER_MESSAGE);
     refreshRoundPhase();
-    if (api) {
-      void api
-        .post<FunTargetStateRow>("/api/funtarget/intent", { intent: "SYNC_BETS", bets_json: updated })
-        .then(applyLoadedState)
-        .catch(() => {
-          // ignore
-        });
-    }
-  }, [api, applyLoadedState, betsByNumber, playSound, refreshRoundPhase, selectedNumber]);
+    if (api) void postIntent({ intent: "SYNC_BETS", bets_json: updated });
+  }, [api, betsByNumber, playSound, postIntent, refreshRoundPhase, selectedNumber]);
 
   const takePayout = useCallback(() => {
     if (!pendingPayout) return;
@@ -975,15 +983,8 @@ export function FunTargetGame() {
     setFooterMessage(DEFAULT_FOOTER_MESSAGE);
     setBetOkHighlighted(true);
     refreshRoundPhase();
-    if (api) {
-      void api
-        .post<FunTargetStateRow>("/api/funtarget/intent", { intent: "TAKE_PAYOUT" })
-        .then(applyLoadedState)
-        .catch(() => {
-          // ignore
-        });
-    }
-  }, [api, applyLoadedState, pendingPayout, playSound, refreshRoundPhase, setBetOkHighlighted]);
+    if (api) void postIntent({ intent: "TAKE_PAYOUT" });
+  }, [api, pendingPayout, playSound, postIntent, refreshRoundPhase, setBetOkHighlighted]);
 
   const prevBet = useCallback(() => {
     if (isSpinning || isFinalTenSeconds || isBetConfirmed) return;
@@ -1004,15 +1005,8 @@ export function FunTargetGame() {
     setIsBetConfirmed(false);
     setFooterMessage(DEFAULT_FOOTER_MESSAGE);
     refreshRoundPhase();
-    if (api) {
-      void api
-        .post<FunTargetStateRow>("/api/funtarget/intent", { intent: "SYNC_BETS", bets_json: previousBets })
-        .then(applyLoadedState)
-        .catch(() => {
-          // ignore
-        });
-    }
-  }, [api, applyLoadedState, coins, isBetConfirmed, isFinalTenSeconds, isSpinning, playSound, refreshRoundPhase, selectedChip]);
+    if (api) void postIntent({ intent: "SYNC_BETS", bets_json: previousBets });
+  }, [api, coins, isBetConfirmed, isFinalTenSeconds, isSpinning, playSound, postIntent, refreshRoundPhase, selectedChip]);
 
   const resetGame = useCallback(() => {
     playSound("exit");
@@ -1048,15 +1042,8 @@ export function FunTargetGame() {
     lastRoundAtIsoRef.current = null;
     updateTimerFromAnchor();
     refreshRoundPhase();
-    if (api) {
-      void api
-        .post<FunTargetStateRow>("/api/funtarget/intent", { intent: "RESET_GAME" })
-        .then(applyLoadedState)
-        .catch(() => {
-          // ignore
-        });
-    }
-  }, [api, applyLoadedState, playSound, refreshRoundPhase, setBetOkHighlighted, updateTimerFromAnchor]);
+    if (api) void postIntent({ intent: "RESET_GAME" });
+  }, [api, playSound, postIntent, refreshRoundPhase, setBetOkHighlighted, updateTimerFromAnchor]);
 
   useEffect(() => {
     initializeSounds();
