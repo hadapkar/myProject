@@ -1,23 +1,21 @@
 package com.funtarget.backend.supabase;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import org.springframework.stereotype.Service;
 
 @Service
 public class SupabaseAuthService {
   private final SupabaseProperties props;
-  private final ObjectMapper objectMapper;
   private final HttpClient httpClient;
 
-  public SupabaseAuthService(SupabaseProperties props, ObjectMapper objectMapper) {
+  public SupabaseAuthService(SupabaseProperties props) {
     this.props = props;
-    this.objectMapper = objectMapper;
     this.httpClient =
         HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build();
   }
@@ -49,9 +47,9 @@ public class SupabaseAuthService {
         throw new IllegalArgumentException("Invalid session");
       }
 
-      JsonNode json = objectMapper.readTree(response.body());
-      String id = text(json, "id");
-      String email = text(json, "email");
+      String body = response.body() == null ? "" : response.body();
+      String id = extractJsonStringField(body, "id");
+      String email = extractJsonStringField(body, "email");
       if (id == null || id.isBlank()) {
         throw new IllegalArgumentException("Invalid session");
       }
@@ -71,11 +69,12 @@ public class SupabaseAuthService {
     return trimmed;
   }
 
-  private static String text(JsonNode node, String field) {
-    if (node == null || field == null) return null;
-    JsonNode child = node.get(field);
-    if (child == null || child.isNull()) return null;
-    return child.asText(null);
+  private static String extractJsonStringField(String json, String field) {
+    if (json == null || field == null || field.isBlank()) return null;
+    Pattern pattern =
+        Pattern.compile("\"" + Pattern.quote(field) + "\"\\s*:\\s*\"([^\"]*)\"");
+    Matcher matcher = pattern.matcher(json);
+    if (!matcher.find()) return null;
+    return matcher.group(1);
   }
 }
-
