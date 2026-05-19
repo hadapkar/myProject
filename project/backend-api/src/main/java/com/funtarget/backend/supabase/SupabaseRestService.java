@@ -15,9 +15,13 @@ public class SupabaseRestService {
 
   public SupabaseRestService(SupabaseProperties props) {
     this.props = props;
+    String base = normalizeUrl(props.url());
+    if (base.isBlank()) {
+      base = "http://localhost";
+    }
     this.restClient =
         RestClient.builder()
-            .baseUrl(normalizeUrl(props.url()) + "/rest/v1")
+            .baseUrl(base + "/rest/v1")
             .defaultHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
             .build();
   }
