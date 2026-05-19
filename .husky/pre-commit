@@ -1,1 +1,2 @@
-npm -C salesforce exec -- lint-staged --relative --diff "--cached -- ."
+cd salesforce
+npm exec -- lint-staged --relative --diff=--cached
