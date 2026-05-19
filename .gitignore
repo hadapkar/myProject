@@ -42,6 +42,11 @@ $RECYCLE.BIN/
 # Local environment variables
 .env
 
+# Legacy temp artifacts (keep under migration/legacy instead)
+/.tmp_apk/
+/.tmp_apex_run.apex
+/.tmp_login_page.html
+
 # Python Salesforce Functions
 **/__pycache__/
 **/.venv/

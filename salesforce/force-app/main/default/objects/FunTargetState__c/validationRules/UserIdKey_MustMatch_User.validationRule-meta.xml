@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<ValidationRule xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>UserIdKey_MustMatch_User</fullName>
+    <active>false</active>
+    <description
+  >Enforce one-state-per-user by requiring UserIdKey__c to match User__c Id.</description>
+    <errorConditionFormula>AND(
+NOT(ISBLANK(User__c)),
+NOT(ISBLANK(UserIdKey__c)),
+UserIdKey__c &lt;&gt; CASESAFEID(User__c)
+)</errorConditionFormula>
+    <errorDisplayField>UserIdKey__c</errorDisplayField>
+    <errorMessage>User Id Key must match the selected User.</errorMessage>
+</ValidationRule>

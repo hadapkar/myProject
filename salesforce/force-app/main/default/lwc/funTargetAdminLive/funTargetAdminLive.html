@@ -1,0 +1,34 @@
+<template>
+  <div class="live-panel">
+    <div class="live-meta-row">
+      <span class="label">Time (Sync)</span>
+      <span class="live-value">{syncedTimerText}</span>
+    </div>
+    <div class="live-meta-row">
+      <span class="label">Total Bet Amount</span>
+      <span class="live-value">{totalBetAmountDisplay}</span>
+    </div>
+    <div class="live-meta-row">
+      <span class="label">Last 10 Bet</span>
+      <span class="live-value">{lastTenResultsDisplay}</span>
+    </div>
+
+    <div class="label live-bet-label">Selected Bet Numbers (Read Only)</div>
+    <div class="live-bet-grid">
+      <template for:each={liveBetRow1} for:item="item">
+        <div key={item.value} class={item.className}>
+          <span class="live-bet-amount">{item.amountText}</span>
+          <span class="live-bet-number">{item.value}</span>
+        </div>
+      </template>
+    </div>
+    <div class="live-bet-grid">
+      <template for:each={liveBetRow2} for:item="item">
+        <div key={item.value} class={item.className}>
+          <span class="live-bet-amount">{item.amountText}</span>
+          <span class="live-bet-number">{item.value}</span>
+        </div>
+      </template>
+    </div>
+  </div>
+</template>

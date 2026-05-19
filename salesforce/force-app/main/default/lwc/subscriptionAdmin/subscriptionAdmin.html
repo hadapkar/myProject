@@ -1,0 +1,110 @@
+<template>
+  <lightning-card
+    title="Subscription Admin"
+    icon-name="standard:service_contract"
+  >
+    <div class="slds-p-horizontal_small slds-p-bottom_small">
+      <div class="slds-grid slds-wrap slds-gutters_small">
+        <div class="slds-col slds-size_1-of-1 slds-medium-size_6-of-12">
+          <lightning-input
+            type="search"
+            label="Search users"
+            value={searchKey}
+            onchange={handleSearchKeyChange}
+            placeholder="Name or username"
+          ></lightning-input>
+        </div>
+        <div
+          class="slds-col slds-size_1-of-1 slds-medium-size_6-of-12 slds-align_absolute-center"
+        >
+          <div class="actions">
+            <lightning-button
+              label="Refresh"
+              onclick={handleRefresh}
+            ></lightning-button>
+            <lightning-button
+              class="slds-m-left_x-small"
+              variant="brand"
+              label="Sync Selected"
+              onclick={handleSyncSelected}
+              disabled={disableSyncSelected}
+            ></lightning-button>
+            <lightning-button
+              class="slds-m-left_x-small"
+              variant="brand-outline"
+              label="Freeze"
+              onclick={handleFreezeSelected}
+              disabled={disableSyncSelected}
+            ></lightning-button>
+            <lightning-button
+              class="slds-m-left_x-small"
+              variant="neutral"
+              label="Unfreeze"
+              onclick={handleUnfreezeSelected}
+              disabled={disableSyncSelected}
+            ></lightning-button>
+            <lightning-helptext
+              class="slds-m-left_x-small"
+              content="Sync Selected re-checks the selected users and freezes/unfreezes based on Subscription End Date (no need to wait for the nightly job)."
+            ></lightning-helptext>
+          </div>
+        </div>
+      </div>
+
+      <div class="slds-grid slds-wrap slds-gutters_small slds-m-top_small">
+        <div class="slds-col slds-size_1-of-1 slds-medium-size_6-of-12">
+          <lightning-input
+            type="date"
+            label="Set subscription end for selected"
+            value={bulkSubscriptionEndDate}
+            onchange={handleBulkDateChange}
+          ></lightning-input>
+        </div>
+        <div
+          class="slds-col slds-size_1-of-1 slds-medium-size_6-of-12 slds-align_absolute-center"
+        >
+          <div class="actions">
+            <lightning-button
+              variant="brand-outline"
+              label="Apply Date + Sync"
+              onclick={handleApplyDateToSelected}
+              disabled={disableApplyDate}
+            ></lightning-button>
+            <lightning-button
+              variant="destructive-text"
+              label="Clear Date + Sync"
+              onclick={handleClearDateForSelected}
+              disabled={disableSyncSelected}
+            ></lightning-button>
+            <lightning-helptext
+              class="slds-m-left_x-small"
+              content="Tip: On mobile, use Apply/Clear buttons instead of inline editing in the table."
+            ></lightning-helptext>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <template if:true={isLoading}>
+      <div class="slds-is-relative slds-p-around_medium">
+        <lightning-spinner
+          alternative-text="Loading"
+          size="small"
+        ></lightning-spinner>
+      </div>
+    </template>
+
+    <div class="slds-p-horizontal_small slds-p-bottom_small">
+      <lightning-datatable
+        key-field="id"
+        data={rows}
+        columns={columns}
+        draft-values={draftValues}
+        onsave={handleSave}
+        onrowselection={handleRowSelection}
+        show-row-number-column={showRowNumbers}
+      >
+      </lightning-datatable>
+    </div>
+  </lightning-card>
+</template>

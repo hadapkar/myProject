@@ -1,8 +1,0 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<DigitalExperienceConfig xmlns="http://soap.sforce.com/2006/04/metadata">
-    <label>Fun Target</label>
-    <site>
-        <urlPathPrefix>funtarget</urlPathPrefix>
-    </site>
-    <space>site/Fun_Target1</space>
-</DigitalExperienceConfig>

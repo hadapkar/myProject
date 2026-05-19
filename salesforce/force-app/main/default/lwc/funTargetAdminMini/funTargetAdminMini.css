@@ -1,0 +1,152 @@
+:host {
+  display: block;
+}
+
+.container {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 0.5rem 0.75rem 0.75rem;
+}
+
+.admin-accordion {
+  --sds-c-accordion-summary-color-background: #ffffff;
+}
+
+.accordion-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.wheel-number-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  background: #f4f6f9;
+  border-radius: 0.5rem;
+  padding: 0.6rem 0.75rem;
+}
+
+.wheel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.wheel-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+.wheel-number-btn {
+  border: 1px solid #d1d5db;
+  border-radius: 0.4rem;
+  background: #ffffff;
+  color: #0f172a;
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1;
+  min-height: 2.5rem;
+  cursor: pointer;
+  transition: all 120ms ease;
+}
+
+.wheel-number-btn:hover {
+  border-color: #5b9eff;
+}
+
+.wheel-number-btn.selected {
+  background: #0b5cab;
+  border-color: #0b5cab;
+  color: #ffffff;
+}
+
+.wheel-number-btn:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.score-block {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  background: #f4f6f9;
+  border-radius: 0.5rem;
+  padding: 0.5rem 0.75rem;
+}
+
+.label {
+  font-size: 0.8rem;
+  color: #5c6670;
+}
+
+.score {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #0b5cab;
+}
+
+.live-panel-host {
+  display: block;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  width: 100%;
+}
+
+.actions-left {
+  display: flex;
+  align-items: center;
+}
+
+.actions-right {
+  display: flex;
+  align-items: center;
+  margin-left: auto;
+}
+
+.meta {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.meta-item {
+  font-size: 0.75rem;
+  color: #5c6670;
+}
+
+@media (max-width: 480px) {
+  .container {
+    gap: 0.6rem;
+    padding: 0.4rem 0.6rem 0.7rem;
+  }
+
+  .wheel-grid {
+    gap: 0.4rem;
+  }
+
+  .actions {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: nowrap;
+    gap: 0.4rem;
+  }
+
+  .actions-left,
+  .actions-right {
+    width: auto;
+  }
+
+  .actions-right {
+    margin-left: auto;
+  }
+}
