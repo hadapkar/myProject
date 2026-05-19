@@ -13,10 +13,10 @@ public class SupabaseRestService {
   private final SupabaseProperties props;
   private final RestClient restClient;
 
-  public SupabaseRestService(SupabaseProperties props, RestClient.Builder restClientBuilder) {
+  public SupabaseRestService(SupabaseProperties props) {
     this.props = props;
     this.restClient =
-        restClientBuilder
+        RestClient.builder()
             .baseUrl(normalizeUrl(props.url()) + "/rest/v1")
             .defaultHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
             .build();
