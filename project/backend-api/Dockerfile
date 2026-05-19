@@ -7,6 +7,9 @@ WORKDIR /app
 COPY gradlew gradlew.bat build.gradle settings.gradle ./
 COPY gradle gradle
 
+# Windows checkouts can produce CRLF and non-executable wrapper; fix both for Linux builds.
+RUN sed -i 's/\r$//' gradlew && chmod +x gradlew
+
 # Download dependencies (will be cached in Docker layer)
 RUN ./gradlew --no-daemon dependencies
 
@@ -25,4 +28,3 @@ EXPOSE 8080
 COPY --from=build /app/build/libs/*.jar /app/app.jar
 
 CMD ["java","-jar","/app/app.jar"]
-
