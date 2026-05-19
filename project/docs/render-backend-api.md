@@ -18,6 +18,7 @@ Docker uses `project/backend-api/Dockerfile`.
 
 - `SUPABASE_URL` = `https://ydljofhkpeusxoegnvfs.supabase.co`
 - `SUPABASE_ANON_KEY` = (your Supabase anon key)
+- `SUPABASE_SERVICE_ROLE_KEY` = (your Supabase service_role key, server-only)
 - `CORS_ALLOWED_ORIGINS` = `https://my-project-lg04pp43p-s-h-s-projects.vercel.app`
 
 Render sets `PORT` automatically; `application.properties` reads it and the Dockerfile exposes `8080`.
