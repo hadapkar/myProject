@@ -37,16 +37,16 @@ export default class FunTargetLogoAnimator extends LightningElement {
       return;
     }
 
-    // Let the animation naturally land on the final frame (Logo15.jpg),
-    // then stop there.
-    if (this._frameIndex === FINAL_FRAME_INDEX) {
-      this._pendingStop = false;
-      this._stopAnimation();
-      return;
-    }
-
-    this._pendingStop = true;
-    this._startAnimation();
+    // Stop the animation and show the final frame (Logo15.jpg).
+    // This keeps the in-spin animation behavior unchanged, but ensures the
+    // end state is always consistent.
+    this._pendingStop = false;
+    this._stopAnimation();
+    this._frameIndex =
+      FINAL_FRAME_INDEX >= 0 && FINAL_FRAME_INDEX < FRAME_URLS.length
+        ? FINAL_FRAME_INDEX
+        : 0;
+    this.frameUrl = FRAME_URLS[this._frameIndex];
   }
 
   @api
