@@ -223,6 +223,27 @@ private class FunTargetStateControllerTest {
   }
 
   @IsTest
+  static void testPredefinedWheelCreatesRowWhenMissing() {
+    // Ensure there is no existing row for this user.
+    Id userId = UserInfo.getUserId();
+    List<FunTargetState__c> rows = [
+      SELECT Id
+      FROM FunTargetState__c
+      WHERE UserIdKey__c = :String.valueOf(userId)
+      LIMIT 1
+    ];
+    if (!rows.isEmpty()) {
+      delete rows;
+    }
+
+    FunTargetStateController.StateDTO updated = FunTargetStateController.updatePredefinedWheelNumber(
+      3
+    );
+    System.assertEquals(3, updated.predefinedWheelNumber);
+    System.assertNotEquals(null, updated.lastRoundAt);
+  }
+
+  @IsTest
   static void testUpdateMyScoreOperations() {
     FunTargetStateController.getCurrentState();
 

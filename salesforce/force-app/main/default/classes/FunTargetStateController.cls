@@ -371,30 +371,38 @@ public with sharing class FunTargetStateController {
     }
 
     Id userId = UserInfo.getUserId();
-    FunTargetState__c stateRecord = new FunTargetState__c();
-    stateRecord.UserIdKey__c = String.valueOf(userId);
-    stateRecord.User__c = userId;
-    stateRecord.PredefinedWheelNumber__c = wheelNumber;
-    stateRecord.LastUpdatedFrom__c = 'Admin';
+    String userKey = String.valueOf(userId);
 
-    Database.UpsertResult result = Database.upsert(
-      stateRecord,
-      FunTargetState__c.Fields.UserIdKey__c,
-      false
-    );
-    if (!result.isSuccess()) {
-      Database.Error err = result.getErrors()[0];
-      throw new AuraHandledException(
-        err.getStatusCode() + ': ' + err.getMessage()
-      );
+    FunTargetState__c existingRecord = getStateRecord(false, false);
+    if (existingRecord != null) {
+      existingRecord.PredefinedWheelNumber__c = wheelNumber;
+      existingRecord.LastUpdatedFrom__c = 'Admin';
+      update existingRecord;
+      return toDto(getStateRecordById(existingRecord.Id));
     }
 
-    Id stateId = result.getId();
-    if (stateId == null) {
+    // Create a full default row so LastRoundAt__c is always populated.
+    FunTargetState__c newRow = new FunTargetState__c(
+      User__c = userId,
+      UserIdKey__c = userKey,
+      Score__c = 1000,
+      Last10Results__c = getDefaultLast10(),
+      TotalBetAmount__c = 0,
+      WinnerAmount__c = 0,
+      BetsJson__c = '{}',
+      PredefinedWheelNumber__c = wheelNumber,
+      LastUpdatedFrom__c = 'Admin',
+      LastRoundAt__c = System.now().addSeconds(-56)
+    );
+
+    try {
+      insert newRow;
+      return toDto(getStateRecordById(newRow.Id));
+    } catch (DmlException ex) {
+      // If another request created it concurrently, read existing row.
       FunTargetState__c fallbackRecord = getStateRecord(false, false);
       return fallbackRecord == null ? buildDefaultDto() : toDto(fallbackRecord);
     }
-    return toDto(getStateRecordById(stateId));
   }
 
   private static FunTargetState__c getStateRecord(
