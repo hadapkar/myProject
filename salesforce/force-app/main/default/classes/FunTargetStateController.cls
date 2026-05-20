@@ -204,7 +204,6 @@ public with sharing class FunTargetStateController {
       stateRecord.TotalBetAmount__c = 0;
       stateRecord.WinnerAmount__c = 0;
       stateRecord.BetsJson__c = '{}';
-      stateRecord.LastRoundAt__c = System.now().addSeconds(-56);
       changed = true;
     } else if (intent == 'CONFIRM_BET') {
       // Client uses this to validate lock and keep consistent flow.
@@ -283,9 +282,8 @@ public with sharing class FunTargetStateController {
     String safeSource = sanitizeUpdateSource(
       payload != null ? payload.lastUpdatedFrom : null
     );
-    Datetime incomingLastRoundAt = payload != null
-      ? payload.lastRoundAt
-      : existingLastRoundAt;
+    // Round timing is controlled by server-side spin persistence only.
+    Datetime incomingLastRoundAt = existingLastRoundAt;
     Decimal incomingRequestedScore = payload != null
       ? payload.score
       : existingScore;
@@ -321,10 +319,8 @@ public with sharing class FunTargetStateController {
       ? serializeBetsJson(sanitizedBets)
       : existingBetsJson;
     stateRecord.LastUpdatedFrom__c = safeSource;
-    stateRecord.LastRoundAt__c = payload != null &&
-      payload.lastRoundAt != null
-      ? payload.lastRoundAt
-      : existingLastRoundAt;
+    // Keep round timing anchored to server-side spin persistence only.
+    stateRecord.LastRoundAt__c = existingLastRoundAt;
 
     update stateRecord;
     return toDto(getStateRecordById(stateRecord.Id));
