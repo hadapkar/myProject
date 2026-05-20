@@ -7,7 +7,6 @@ const FRAME_URLS = Array.from(
   { length: 20 },
   (_, idx) => `${BAD_BASE}/Logo${idx}.jpg`
 );
-const FINAL_FRAME_INDEX = 15;
 
 export default class FunTargetLogoAnimator extends LightningElement {
   @track frameUrl = FRAME_URLS[0];
@@ -16,7 +15,6 @@ export default class FunTargetLogoAnimator extends LightningElement {
   _frameTimer;
   _spinning = false;
   _resetToken;
-  _pendingStop = false;
 
   @api
   get spinning() {
@@ -31,22 +29,12 @@ export default class FunTargetLogoAnimator extends LightningElement {
 
     this._spinning = nextValue;
     if (this._spinning) {
-      this._pendingStop = false;
       this._resetToFirstFrame();
       this._startAnimation();
       return;
     }
 
-    // Stop the animation and show the final frame (Logo15.jpg).
-    // This keeps the in-spin animation behavior unchanged, but ensures the
-    // end state is always consistent.
-    this._pendingStop = false;
     this._stopAnimation();
-    this._frameIndex =
-      FINAL_FRAME_INDEX >= 0 && FINAL_FRAME_INDEX < FRAME_URLS.length
-        ? FINAL_FRAME_INDEX
-        : 0;
-    this.frameUrl = FRAME_URLS[this._frameIndex];
   }
 
   @api
@@ -81,11 +69,6 @@ export default class FunTargetLogoAnimator extends LightningElement {
     this._frameTimer = window.setInterval(() => {
       this._frameIndex = (this._frameIndex + 1) % FRAME_URLS.length;
       this.frameUrl = FRAME_URLS[this._frameIndex];
-
-      if (this._pendingStop && this._frameIndex === FINAL_FRAME_INDEX) {
-        this._pendingStop = false;
-        this._stopAnimation();
-      }
     }, FRAME_INTERVAL_MS);
   }
 
