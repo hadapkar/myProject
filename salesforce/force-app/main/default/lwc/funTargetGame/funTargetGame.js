@@ -484,7 +484,7 @@ export default class FunTargetGame extends LightningElement {
     this.winnerValue = 0;
     this.highlightedBetNumber = null;
     this.isBetConfirmed = false;
-    this.showPrevBet = true;
+    this.showPrevBet = this._canApplyPrevBet();
     this.footerMessage = DEFAULT_FOOTER_MESSAGE;
     this._setBetOkHighlighted(true);
     this._refreshRoundPhase();
@@ -494,11 +494,6 @@ export default class FunTargetGame extends LightningElement {
   }
 
   prevBet() {
-    if (this.isSpinning || this.isFinalTenSeconds || this.isBetConfirmed) {
-      return;
-    }
-    this._playSound("button");
-    this.showPrevBet = false;
     if (!this._prevBet) {
       return;
     }
@@ -507,9 +502,23 @@ export default class FunTargetGame extends LightningElement {
       (sum, amount) => sum + amount,
       0
     );
-    if (this.coins < previousTotal) {
+
+    if (
+      this.isSpinning ||
+      this.isFinalTenSeconds ||
+      this.isBetConfirmed ||
+      this.coins < previousTotal
+    ) {
+      // Keep the button blinking only when the previous bet is actually
+      // actionable.
+      this.showPrevBet = this._canApplyPrevBet();
+      if (this.coins < previousTotal) {
+        this.footerMessage = "Not enough coins for previous bet";
+      }
       return;
     }
+    this._playSound("button");
+    this.showPrevBet = false;
 
     this.betsByNumber = previousBets;
     this.coins -= previousTotal;
@@ -523,6 +532,21 @@ export default class FunTargetGame extends LightningElement {
     this.footerMessage = DEFAULT_FOOTER_MESSAGE;
     this._refreshRoundPhase();
     this._persistBetsState();
+  }
+
+  _canApplyPrevBet() {
+    if (!this._prevBet) {
+      return false;
+    }
+    if (this.isSpinning || this.isFinalTenSeconds || this.isBetConfirmed) {
+      return false;
+    }
+    const previousBets = this._prevBet.betsByNumber || {};
+    const previousTotal = Object.values(previousBets).reduce(
+      (sum, amount) => sum + amount,
+      0
+    );
+    return previousTotal > 0 && this.coins >= previousTotal;
   }
 
   showAllBet() {
