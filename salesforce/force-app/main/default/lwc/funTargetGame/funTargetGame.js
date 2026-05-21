@@ -129,6 +129,7 @@ export default class FunTargetGame extends LightningElement {
   _roundEndsAtIso = null;
   _spinStartedRoundKey = null;
   _spinFinalizedRoundKey = null;
+  _suppressAutoSpin = false;
   _fallbackRoundAnchorMs = null;
   _serverClockOffsetMs = 0;
   _roundStartInProgress = false;
@@ -423,6 +424,7 @@ export default class FunTargetGame extends LightningElement {
       return;
     }
     this._playSound("bet");
+    this._suppressAutoSpin = false;
     this.isBetConfirmed = true;
     this.showPrevBet = false;
     this.footerMessage = "Your bet has been Accepted";
@@ -555,6 +557,7 @@ export default class FunTargetGame extends LightningElement {
 
   resetGame() {
     this._playSound("exit");
+    this._suppressAutoSpin = true;
     this.selectedNumber = null;
     this.selectedNumbers = [];
     this.betsByNumber = {};
@@ -826,6 +829,9 @@ export default class FunTargetGame extends LightningElement {
     if (
       this._crossedTimerSecond(previousSecond, currentSecond, SPIN_START_SECOND)
     ) {
+      if (this._suppressAutoSpin || this.totalBetAmount <= 0) {
+        return;
+      }
       const roundKey = this._getCurrentRoundKey();
       if (roundKey && this._spinStartedRoundKey === roundKey) {
         return;
