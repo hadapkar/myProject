@@ -24,6 +24,8 @@ public with sharing class FunTargetStateController {
     public Datetime lastModifiedDate;
     @AuraEnabled
     public Datetime serverNow;
+    @AuraEnabled
+    public Datetime roundEndsAt;
   }
 
   public class SiteIntentRequest {
@@ -541,6 +543,7 @@ public with sharing class FunTargetStateController {
     dto.lastRoundAt = System.now().addSeconds(-56);
     dto.lastModifiedDate = null;
     dto.serverNow = System.now();
+    dto.roundEndsAt = dto.lastRoundAt.addSeconds(55);
     return dto;
   }
 
@@ -777,7 +780,7 @@ public with sharing class FunTargetStateController {
 
     String formulaDefault = describe.getDefaultValueFormula();
     if (String.isBlank(formulaDefault)) {
-      return FALLBACK_LAST10;
+      return null;
     }
 
     // Text field defaults are returned as quoted formula strings, e.g. "1,2,3"
@@ -806,6 +809,9 @@ public with sharing class FunTargetStateController {
     dto.lastRoundAt = recordData.LastRoundAt__c;
     dto.lastModifiedDate = recordData.LastModifiedDate;
     dto.serverNow = System.now();
+    dto.roundEndsAt = recordData.LastRoundAt__c == null
+      ? null
+      : recordData.LastRoundAt__c.addSeconds(55);
     return dto;
   }
 }

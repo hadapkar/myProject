@@ -86,6 +86,7 @@
 .score-value {
   left: 130px;
   top: 148px;
+  font-size: 20px;
 }
 
 .time-value {
@@ -111,18 +112,21 @@
   justify-content: flex-start;
   text-align: right;
   padding-left: 18px;
+  font-size: 20px;
 }
 
 .last-value {
-  right: 36px;
+  right: -40px;
   top: 264px;
-  width: 180px;
+  width: 260px;
   height: 34px;
   justify-content: flex-start;
   text-align: left;
   padding-left: 18px;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.02em;
   font-size: 20px;
+  white-space: nowrap;
+  overflow: hidden;
 }
 
 .wheel-layer {

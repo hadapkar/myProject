@@ -6,6 +6,9 @@ import saveSpinResult from "@salesforce/apex/FunTargetStateController.saveSpinRe
 import applySiteIntentFlat from "@salesforce/apex/FunTargetStateController.applySiteIntentFlat";
 import saveState from "@salesforce/apex/FunTargetStateController.saveState";
 
+/* eslint-disable @lwc/lwc/no-async-operation */
+/* eslint-disable no-useless-return, no-unused-vars, no-await-in-loop */
+
 const SEGMENTS = 10;
 const SEGMENT_ANGLE = 360 / SEGMENTS;
 const POINTER_ALIGNMENT_OFFSET = 0;
@@ -123,6 +126,9 @@ export default class FunTargetGame extends LightningElement {
   _pendingSaveBeforeInit = false;
   _lastSavedStateHash = "";
   _lastRoundAtIso = null;
+  _roundEndsAtIso = null;
+  _spinStartedRoundKey = null;
+  _spinFinalizedRoundKey = null;
   _fallbackRoundAnchorMs = null;
   _serverClockOffsetMs = 0;
   _roundStartInProgress = false;
@@ -557,6 +563,9 @@ export default class FunTargetGame extends LightningElement {
     }
     this.logoResetToken += 1;
     this._lastRoundAtIso = null;
+    this._roundEndsAtIso = null;
+    this._spinStartedRoundKey = null;
+    this._spinFinalizedRoundKey = null;
     this._updateTimerFromAnchor();
     this._refreshRoundPhase();
     this._applySiteIntent("RESET_GAME").catch(() => {
@@ -663,12 +672,19 @@ export default class FunTargetGame extends LightningElement {
   }
 
   _updateTimerFromAnchor() {
-    const nextSecond = this._computeTimerSecond();
+    const computedSecond = this._computeTimerSecond();
+    const previousSecond = this._lastTimerSecond;
+    const nextSecond =
+      previousSecond !== null &&
+      previousSecond !== undefined &&
+      computedSecond > previousSecond &&
+      previousSecond !== 0
+        ? previousSecond
+        : computedSecond;
     if (nextSecond === this._lastTimerSecond) {
       return;
     }
 
-    const previousSecond = this._lastTimerSecond;
     this._lastTimerSecond = nextSecond;
     this._timeLeftSeconds = nextSecond;
     this._handleTimerSecondChange(previousSecond, nextSecond);
@@ -676,6 +692,14 @@ export default class FunTargetGame extends LightningElement {
   }
 
   _computeTimerSecond() {
+    const endsAtMs = this._getRoundEndsAtMs();
+    if (Number.isFinite(endsAtMs)) {
+      const deltaSeconds = Math.floor(
+        (endsAtMs - this._getServerNowMs()) / 1000
+      );
+      return ((deltaSeconds % ROUND_SECONDS) + ROUND_SECONDS) % ROUND_SECONDS;
+    }
+
     const anchorMs = this._getRoundAnchorMs();
     if (!Number.isFinite(anchorMs)) {
       return 59;
@@ -689,6 +713,24 @@ export default class FunTargetGame extends LightningElement {
       (SPIN_RESULT_SECOND - (elapsedSeconds % ROUND_SECONDS) + ROUND_SECONDS) %
       ROUND_SECONDS
     );
+  }
+
+  _getRoundEndsAtMs() {
+    if (this._roundEndsAtIso) {
+      const parsedEndMs = new Date(this._roundEndsAtIso).getTime();
+      if (Number.isFinite(parsedEndMs)) {
+        return parsedEndMs;
+      }
+    }
+
+    if (this._lastRoundAtIso) {
+      const parsedAnchorMs = new Date(this._lastRoundAtIso).getTime();
+      if (Number.isFinite(parsedAnchorMs)) {
+        return parsedAnchorMs + SPIN_RESULT_SECOND * 1000;
+      }
+    }
+
+    return null;
   }
 
   _getRoundAnchorMs() {
@@ -760,6 +802,11 @@ export default class FunTargetGame extends LightningElement {
     if (
       this._crossedTimerSecond(previousSecond, currentSecond, SPIN_START_SECOND)
     ) {
+      const roundKey = this._getCurrentRoundKey();
+      if (roundKey && this._spinStartedRoundKey === roundKey) {
+        return;
+      }
+      this._spinStartedRoundKey = roundKey;
       this._startAutoSpinRound();
     }
 
@@ -771,6 +818,11 @@ export default class FunTargetGame extends LightningElement {
         SPIN_RESULT_SECOND
       )
     ) {
+      const roundKey = this._getCurrentRoundKey();
+      if (roundKey && this._spinFinalizedRoundKey === roundKey) {
+        return;
+      }
+      this._spinFinalizedRoundKey = roundKey;
       this._finalizeAutoSpinRound();
     }
   }
@@ -796,6 +848,19 @@ export default class FunTargetGame extends LightningElement {
     }
 
     return false;
+  }
+
+  _getCurrentRoundKey() {
+    if (this._roundEndsAtIso) {
+      return this._roundEndsAtIso;
+    }
+    if (this._lastRoundAtIso) {
+      return this._lastRoundAtIso;
+    }
+    const endsAtMs = this._getRoundEndsAtMs();
+    return Number.isFinite(endsAtMs)
+      ? String(Math.floor(endsAtMs / 1000))
+      : null;
   }
 
   _updateTimerText() {
@@ -898,7 +963,11 @@ export default class FunTargetGame extends LightningElement {
     this.spinEasing = "cubic-bezier(0.22, 0.9, 0.26, 1.05)";
     this.isBetConfirmed = false;
     this.footerMessage = POST_SPIN_FOOTER_MESSAGE;
-    this._lastRoundAtIso = new Date(this._getServerNowMs()).toISOString();
+    const serverNowMs = this._getServerNowMs();
+    this._lastRoundAtIso = new Date(serverNowMs).toISOString();
+    this._roundEndsAtIso = new Date(
+      serverNowMs + SPIN_RESULT_SECOND * 1000
+    ).toISOString();
     this._fallbackRoundAnchorMs = null;
     this._refreshRoundPhase();
     this._persistSpinResult(result, usedPredefinedNumber);
@@ -1090,15 +1159,49 @@ export default class FunTargetGame extends LightningElement {
         this._predefinedWheelNumber = this._normalizeWheelNumber(
           state.predefinedWheelNumber
         );
-        this._stateLastModified =
-          this._safeIsoDate(state.lastModifiedDate) || this._stateLastModified;
+        const incomingLastModified = this._safeIsoDate(state.lastModifiedDate);
+        if (incomingLastModified && this._stateLastModified) {
+          const incomingMs = new Date(incomingLastModified).getTime();
+          const currentMs = new Date(this._stateLastModified).getTime();
+          if (
+            Number.isFinite(incomingMs) &&
+            Number.isFinite(currentMs) &&
+            incomingMs <= currentMs
+          ) {
+            return;
+          }
+        }
+        if (incomingLastModified) {
+          this._stateLastModified = incomingLastModified;
+        }
         const incomingLastRoundAt = this._safeIsoDate(state.lastRoundAt);
+        const incomingRoundEndsAt = this._safeIsoDate(state.roundEndsAt);
+        const nextRoundEndsAt =
+          incomingRoundEndsAt ||
+          (incomingLastRoundAt
+            ? new Date(
+                new Date(incomingLastRoundAt).getTime() +
+                  SPIN_RESULT_SECOND * 1000
+              ).toISOString()
+            : null);
         if (incomingLastRoundAt) {
           if (incomingLastRoundAt !== this._lastRoundAtIso) {
             this._lastRoundAtIso = incomingLastRoundAt;
+            this._roundEndsAtIso = nextRoundEndsAt;
+            this._spinStartedRoundKey = null;
+            this._spinFinalizedRoundKey = null;
             this._fallbackRoundAnchorMs = null;
             this._lastTimerSecond = null;
           }
+        } else if (
+          nextRoundEndsAt &&
+          nextRoundEndsAt !== this._roundEndsAtIso
+        ) {
+          this._roundEndsAtIso = nextRoundEndsAt;
+          this._spinStartedRoundKey = null;
+          this._spinFinalizedRoundKey = null;
+          this._fallbackRoundAnchorMs = null;
+          this._lastTimerSecond = null;
         } else if (!this._lastRoundAtIso) {
           this._syncFallbackRoundAnchor(this._stateLastModified);
         }
@@ -1131,8 +1234,17 @@ export default class FunTargetGame extends LightningElement {
     this.selectedNumber =
       this.selectedNumbers[this.selectedNumbers.length - 1] ?? null;
     this._lastRoundAtIso = this._safeIsoDate(state.lastRoundAt);
+    this._roundEndsAtIso =
+      this._safeIsoDate(state.roundEndsAt) ||
+      (this._lastRoundAtIso
+        ? new Date(
+            new Date(this._lastRoundAtIso).getTime() + SPIN_RESULT_SECOND * 1000
+          ).toISOString()
+        : null);
+    this._spinStartedRoundKey = null;
+    this._spinFinalizedRoundKey = null;
     this._stateLastModified = this._safeIsoDate(state.lastModifiedDate);
-    if (this._lastRoundAtIso) {
+    if (this._roundEndsAtIso || this._lastRoundAtIso) {
       this._fallbackRoundAnchorMs = null;
     } else {
       this._syncFallbackRoundAnchor(this._stateLastModified);
