@@ -44,6 +44,7 @@ const SOUND_FILES = {
   bet: `${SOUND_BASE}/bet.wav`,
   button: `${SOUND_BASE}/button.WAV`,
   exit: `${SOUND_BASE}/exit.wav`,
+  clock: `${SOUND_BASE}/wallClockTicking30.wav`,
   loading: `${SOUND_BASE}/loading.wav`,
   lose: `${SOUND_BASE}/lose.wav`,
   take: `${SOUND_BASE}/take.wav`,
@@ -139,6 +140,7 @@ export default class FunTargetGame extends LightningElement {
   _liveStateSyncInFlight = false;
   _sounds = {};
   _soundLoadingPlayed = false;
+  _clockLoopStarted = false;
   _audioUnlocked = false;
   _audioUnlockInProgress = false;
   _pendingSoundKey = null;
@@ -1613,6 +1615,7 @@ export default class FunTargetGame extends LightningElement {
       }
     });
     this._sounds = {};
+    this._clockLoopStarted = false;
   }
 
   _registerAudioUnlockListeners() {
@@ -1668,6 +1671,7 @@ export default class FunTargetGame extends LightningElement {
             sampleAudio.muted = false;
             this._audioUnlocked = true;
             this._unregisterAudioUnlockListeners();
+            this._startClockLoop();
             if (this._pendingSoundKey) {
               const pending = this._pendingSoundKey;
               this._pendingSoundKey = null;
@@ -1687,10 +1691,31 @@ export default class FunTargetGame extends LightningElement {
       sampleAudio.muted = false;
       this._audioUnlocked = true;
       this._unregisterAudioUnlockListeners();
+      this._startClockLoop();
       this._audioUnlockInProgress = false;
     } catch (error) {
       sampleAudio.muted = false;
       this._audioUnlockInProgress = false;
+    }
+  }
+
+  _startClockLoop() {
+    if (this._clockLoopStarted) {
+      return;
+    }
+    const clockAudio = this._sounds.clock;
+    if (!clockAudio) {
+      return;
+    }
+    this._clockLoopStarted = true;
+    try {
+      clockAudio.loop = true;
+      clockAudio.currentTime = 0;
+      clockAudio.play();
+    } catch (error) {
+      // If blocked, we don't retry aggressively; the next user gesture will
+      // already re-trigger audio unlock and start.
+      this._clockLoopStarted = false;
     }
   }
 
