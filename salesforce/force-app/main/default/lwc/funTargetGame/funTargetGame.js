@@ -129,7 +129,7 @@ export default class FunTargetGame extends LightningElement {
   _roundEndsAtIso = null;
   _spinStartedRoundKey = null;
   _spinFinalizedRoundKey = null;
-  _suppressAutoSpin = false;
+  _exitSuppressUntilRoundKey = null;
   _fallbackRoundAnchorMs = null;
   _serverClockOffsetMs = 0;
   _roundStartInProgress = false;
@@ -424,7 +424,6 @@ export default class FunTargetGame extends LightningElement {
       return;
     }
     this._playSound("bet");
-    this._suppressAutoSpin = false;
     this.isBetConfirmed = true;
     this.showPrevBet = false;
     this.footerMessage = "Your bet has been Accepted";
@@ -557,7 +556,6 @@ export default class FunTargetGame extends LightningElement {
 
   resetGame() {
     this._playSound("exit");
-    this._suppressAutoSpin = true;
     this.selectedNumber = null;
     this.selectedNumbers = [];
     this.betsByNumber = {};
@@ -593,6 +591,9 @@ export default class FunTargetGame extends LightningElement {
     this._roundEndsAtIso = null;
     this._spinStartedRoundKey = null;
     this._spinFinalizedRoundKey = null;
+    // Prevent an immediate auto-spin triggered by timer re-anchoring. Allow
+    // the next real round boundary (0:00) to start spinning normally.
+    this._exitSuppressUntilRoundKey = this._getCurrentRoundKey();
     this._updateTimerFromAnchor();
     this._refreshRoundPhase();
     this._applySiteIntent("RESET_GAME").catch(() => {
@@ -829,10 +830,10 @@ export default class FunTargetGame extends LightningElement {
     if (
       this._crossedTimerSecond(previousSecond, currentSecond, SPIN_START_SECOND)
     ) {
-      if (this._suppressAutoSpin || this.totalBetAmount <= 0) {
+      const roundKey = this._getCurrentRoundKey();
+      if (roundKey && this._exitSuppressUntilRoundKey === roundKey) {
         return;
       }
-      const roundKey = this._getCurrentRoundKey();
       if (roundKey && this._spinStartedRoundKey === roundKey) {
         return;
       }
@@ -1220,6 +1221,7 @@ export default class FunTargetGame extends LightningElement {
             this._roundEndsAtIso = nextRoundEndsAt;
             this._spinStartedRoundKey = null;
             this._spinFinalizedRoundKey = null;
+            this._exitSuppressUntilRoundKey = null;
             this._fallbackRoundAnchorMs = null;
             this._lastTimerSecond = null;
           }
@@ -1230,6 +1232,7 @@ export default class FunTargetGame extends LightningElement {
           this._roundEndsAtIso = nextRoundEndsAt;
           this._spinStartedRoundKey = null;
           this._spinFinalizedRoundKey = null;
+          this._exitSuppressUntilRoundKey = null;
           this._fallbackRoundAnchorMs = null;
           this._lastTimerSecond = null;
         } else if (!this._lastRoundAtIso) {
@@ -1273,6 +1276,7 @@ export default class FunTargetGame extends LightningElement {
         : null);
     this._spinStartedRoundKey = null;
     this._spinFinalizedRoundKey = null;
+    this._exitSuppressUntilRoundKey = null;
     this._stateLastModified = this._safeIsoDate(state.lastModifiedDate);
     if (this._roundEndsAtIso || this._lastRoundAtIso) {
       this._fallbackRoundAnchorMs = null;
