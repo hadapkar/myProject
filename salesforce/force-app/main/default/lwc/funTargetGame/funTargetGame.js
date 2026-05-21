@@ -44,7 +44,7 @@ const SOUND_FILES = {
   bet: `${SOUND_BASE}/bet.wav`,
   button: `${SOUND_BASE}/button.WAV`,
   exit: `${SOUND_BASE}/exit.wav`,
-  clock: `${SOUND_BASE}/wallClockTicking30.wav`,
+  clock: `${SOUND_BASE}/clock_ticking.wav`,
   loading: `${SOUND_BASE}/loading.wav`,
   lose: `${SOUND_BASE}/lose.wav`,
   take: `${SOUND_BASE}/take.wav`,
