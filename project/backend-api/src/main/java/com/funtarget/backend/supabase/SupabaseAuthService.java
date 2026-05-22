@@ -44,7 +44,13 @@ public class SupabaseAuthService {
 
       var response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
       if (response.statusCode() < 200 || response.statusCode() >= 300) {
-        throw new IllegalArgumentException("Invalid session");
+        String body = response.body() == null ? "" : response.body().trim();
+        String preview = body.length() > 180 ? body.substring(0, 180) + "…" : body;
+        throw new IllegalArgumentException(
+            "Invalid session (status "
+                + response.statusCode()
+                + (preview.isBlank() ? "" : (", body=" + preview))
+                + ")");
       }
 
       String body = response.body() == null ? "" : response.body();
