@@ -36,6 +36,22 @@ jobs:
       - name: Flutter pub get
         run: flutter pub get
 
+      - name: Debug config presence (no values)
+        shell: bash
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          API_BASE_URL: ${{ secrets.API_BASE_URL }}
+        run: |
+          echo "secret_source=${{ github.secret_source }}"
+          for v in SUPABASE_URL SUPABASE_ANON_KEY API_BASE_URL; do
+            if [ -z "${!v}" ]; then
+              echo "$v=EMPTY"
+            else
+              echo "$v=SET"
+            fi
+          done
+
       - name: Build Flutter web (release)
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
@@ -67,4 +83,3 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
-
