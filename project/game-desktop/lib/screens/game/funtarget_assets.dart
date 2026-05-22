@@ -8,6 +8,8 @@ class FunTargetAssets {
   static const arrow = "$_base/Arrow.png";
   static const arrowGlow = "$_base/ArrowGlow.png";
   static const arrowSprite = "$_base/ArrowSprite.png";
+  static const targetTimeGlowOn = "$_base/TargetTimeGlow.jpg";
+  static const targetTimeGlowOff = "$_base/TargetTimeGlow2.png";
 
   static const oneCoin = "$_base/oneCoin.jpg";
   static const fiveCoin = "$_base/fiveCoin.jpg";

@@ -1,3 +1,4 @@
+import "dart:async";
 import "dart:math";
 
 import "package:flutter/material.dart";
@@ -182,7 +183,9 @@ class _StageBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final last10Text = last10.join(", ");
+    final last10Text = last10.isEmpty
+        ? ""
+        : last10.reversed.map((n) => n.toString()).join(" ");
     return ClipRRect(
       borderRadius: BorderRadius.circular(8),
       child: Stack(
@@ -190,8 +193,7 @@ class _StageBody extends StatelessWidget {
           Positioned.fill(
             child: Image.asset(
               FunTargetAssets.background,
-              // For pixel-perfect overlays, avoid `cover` cropping.
-              fit: BoxFit.fill,
+              fit: BoxFit.cover,
               errorBuilder: (context, error, stackTrace) {
                 return ColoredBox(
                   color: const Color(0xFF120804),
@@ -213,7 +215,8 @@ class _StageBody extends StatelessWidget {
             top: 148,
             width: 180,
             height: 34,
-            child: _ValueBox(text: score.toStringAsFixed(2), fontSize: 20, alignLeft: true),
+            child:
+                _ValueBox(text: score.toStringAsFixed(0), fontSize: 20, alignLeft: true),
           ),
           Positioned(
             left: 130,
@@ -227,7 +230,11 @@ class _StageBody extends StatelessWidget {
             top: 142,
             width: 180,
             height: 34,
-            child: _ValueBox(text: winnerAmount.toStringAsFixed(2), fontSize: 20, alignRight: true),
+            child: _ValueBox(
+              text: winnerAmount.toStringAsFixed(0),
+              fontSize: 20,
+              alignRight: true,
+            ),
           ),
           Positioned(
             right: -40,
@@ -235,6 +242,17 @@ class _StageBody extends StatelessWidget {
             width: 260,
             height: 34,
             child: _ValueBox(text: last10Text, fontSize: 20, alignLeft: true, singleLine: true),
+          ),
+
+          // Final-ten timer glow stack (matches LWC: blinks in last 10 seconds).
+          Positioned(
+            left: 0,
+            top: 214,
+            width: 241,
+            height: 119,
+            child: IgnorePointer(
+              child: _TimerGlowStack(isBlinking: timeLeftSeconds <= 10),
+            ),
           ),
 
           // Wheel layer.
@@ -254,18 +272,29 @@ class _StageBody extends StatelessWidget {
             ),
           ),
 
-          // Arrow (blinking is implemented later; keep static now).
+          // Wheel center logo animation (matches Salesforce funTargetLogoAnimator).
+          Positioned(
+            left: (FunTargetStage.designWidth / 2) - 75,
+            top: 248,
+            width: 150,
+            height: 150,
+            child: IgnorePointer(
+              child: ClipOval(
+                child: _LogoAnimator(spinning: isSpinning),
+              ),
+            ),
+          ),
+
+          // Arrow (blink behavior matches LWC).
           Positioned(
             left: (FunTargetStage.designWidth / 2) - 44,
             top: 44,
             width: 88,
             height: 92,
             child: IgnorePointer(
-              child: Stack(
-                children: [
-                  Positioned.fill(child: Image.asset(FunTargetAssets.arrowGlow, fit: BoxFit.contain)),
-                  Positioned.fill(child: Image.asset(FunTargetAssets.arrow, fit: BoxFit.contain)),
-                ],
+              child: _ArrowStack(
+                isSpinning: isSpinning,
+                isFinalTenSeconds: timeLeftSeconds <= 10,
               ),
             ),
           ),
@@ -286,20 +315,26 @@ class _StageBody extends StatelessWidget {
           // Bet number buttons (0-9 with glow).
           ..._betNumberButtons(),
 
-          // Total bet amount display.
+          // Bet amounts shown above each number (matches LWC bet-amount-layer).
+          ..._betAmountVisuals(),
+
+          // Total bet amount (bottom-left; matches LWC .total-bet-amount).
           Positioned(
-            left: 445,
-            top: 628,
-            width: 140,
-            height: 24,
-            child: Center(
+            left: 22,
+            bottom: 11,
+            child: IgnorePointer(
               child: Text(
-                totalBetAmount.toStringAsFixed(2),
+                totalBetAmount.toStringAsFixed(0),
                 style: const TextStyle(
-                  color: Color(0xFF1F1208),
+                  color: Color(0xFFFFE7A1),
+                  fontSize: 14,
                   fontWeight: FontWeight.w800,
-                  fontSize: 18,
-                  shadows: [Shadow(offset: Offset(0, 1), blurRadius: 0, color: Color.fromRGBO(255, 243, 192, 0.7))],
+                  shadows: [
+                    Shadow(offset: Offset(-1, -1), blurRadius: 0, color: Color(0xFF2A0E07)),
+                    Shadow(offset: Offset(1, -1), blurRadius: 0, color: Color(0xFF2A0E07)),
+                    Shadow(offset: Offset(-1, 1), blurRadius: 0, color: Color(0xFF2A0E07)),
+                    Shadow(offset: Offset(1, 1), blurRadius: 0, color: Color(0xFF2A0E07)),
+                  ],
                 ),
               ),
             ),
@@ -448,26 +483,33 @@ class _StageBody extends StatelessWidget {
       return Positioned(
         left: left,
         top: top,
-        width: 54,
-        height: 54,
+        width: 55,
+        height: 40,
         child: GestureDetector(
           onTap: () => onChipSelected(value),
           child: DecoratedBox(
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(30),
-              boxShadow: selected
-                  ? [
-                      const BoxShadow(
-                        color: Color.fromRGBO(255, 220, 120, 0.75),
-                        blurRadius: 12,
-                        spreadRadius: 2,
-                      )
-                    ]
-                  : const [],
+              boxShadow: [
+                const BoxShadow(
+                  color: Color.fromRGBO(0, 0, 0, 0.45),
+                  offset: Offset(0, 2),
+                  blurRadius: 3,
+                ),
+                if (selected)
+                  const BoxShadow(
+                    color: Color.fromRGBO(255, 237, 158, 0.95),
+                    offset: Offset(0, 0),
+                    blurRadius: 9,
+                  ),
+              ],
             ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(30),
-              child: Image.asset(image, fit: BoxFit.cover),
+            child: Transform.translate(
+              offset: selected ? const Offset(0, -1) : Offset.zero,
+              child: Transform.scale(
+                scale: selected ? 1.07 : 1.0,
+                alignment: Alignment.center,
+                child: Image.asset(image, fit: BoxFit.fill),
+              ),
             ),
           ),
         ),
@@ -480,10 +522,11 @@ class _StageBody extends StatelessWidget {
     const top = 657.0;
     const startLeft = 25.0;
     const step = 103.0;
+    const leftShift = -15.0;
 
     return List<Widget>.generate(order.length, (index) {
       final value = order[index];
-      final left = startLeft + index * step;
+      final left = startLeft + index * step + leftShift;
       final hasBet = (betsByNumber[value] ?? 0) > 0;
       final isResult = highlightedBetNumber == value;
 
@@ -497,29 +540,75 @@ class _StageBody extends StatelessWidget {
           child: Stack(
             children: [
               Positioned.fill(
-                child: Opacity(
-                  opacity: hasBet || isResult ? 1 : 0.65,
-                  child: Image.asset(FunTargetAssets.betGlow(value), fit: BoxFit.fill),
-                ),
+                child: hasBet
+                    ? Opacity(
+                        opacity: 1,
+                        child: Image.asset(
+                          FunTargetAssets.betGlow(value),
+                          fit: BoxFit.fill,
+                        ),
+                      )
+                    : isResult
+                        ? _BlinkingOpacity(
+                            period: const Duration(milliseconds: 450),
+                            child: Image.asset(
+                              FunTargetAssets.betGlow(value),
+                              fit: BoxFit.fill,
+                            ),
+                          )
+                        : const SizedBox.shrink(),
               ),
-              if (hasBet || isResult)
-                Positioned.fill(
-                  child: AnimatedOpacity(
-                    opacity: isResult ? 1 : 0,
-                    duration: const Duration(milliseconds: 180),
-                    child: DecoratedBox(
-                      decoration: BoxDecoration(
-                        border: Border.all(color: const Color(0xFFFFD676), width: 2),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                    ),
-                  ),
-                ),
             ],
           ),
         ),
       );
     });
+  }
+
+  List<Widget> _betAmountVisuals() {
+    const betAmountTop = 631.0; // BET_NUMBER_ROW_TOP - 26 in the LWC.
+    const startLeft = 25.0;
+    const step = 103.0;
+    const leftShift = -15.0;
+
+    const order = [1, 2, 3, 4, 5, 6, 7, 8, 9, 0];
+    final visuals = <Widget>[];
+
+    for (var i = 0; i < order.length; i++) {
+      final value = order[i];
+      final amount = betsByNumber[value] ?? 0;
+      if (amount <= 0) continue;
+
+      visuals.add(
+        Positioned(
+          left: startLeft + i * step + leftShift,
+          top: betAmountTop,
+          width: 76,
+          height: 22,
+          child: IgnorePointer(
+            child: Center(
+              child: Text(
+                amount.toString(),
+                style: const TextStyle(
+                  color: Color(0xFF1F1208),
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
+                  shadows: [
+                    Shadow(
+                      offset: Offset(0, 1),
+                      blurRadius: 0,
+                      color: Color.fromRGBO(255, 243, 192, 0.7),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    return visuals;
   }
 }
 
@@ -576,12 +665,221 @@ class _ValueBox extends StatelessWidget {
           overflow: singleLine ? TextOverflow.ellipsis : TextOverflow.visible,
           style: TextStyle(
             color: const Color(0xFF241406),
-            fontWeight: FontWeight.w800,
+            fontFamily: "Times New Roman",
+            fontWeight: FontWeight.w700,
             fontSize: fontSize,
             shadows: const [Shadow(offset: Offset(0, 1), blurRadius: 0, color: Color.fromRGBO(255, 255, 255, 0.6))],
           ),
         ),
       ),
+    );
+  }
+}
+
+class _BlinkingOpacity extends StatefulWidget {
+  final Duration period;
+  final Widget child;
+  final bool startOn;
+
+  const _BlinkingOpacity({
+    required this.period,
+    required this.child,
+    this.startOn = true,
+  });
+
+  @override
+  State<_BlinkingOpacity> createState() => _BlinkingOpacityState();
+}
+
+class _BlinkingOpacityState extends State<_BlinkingOpacity> {
+  Timer? _timer;
+  late bool _on;
+
+  @override
+  void initState() {
+    super.initState();
+    _on = widget.startOn;
+    _startTimer();
+  }
+
+  @override
+  void didUpdateWidget(covariant _BlinkingOpacity oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.period != widget.period) {
+      _stopTimer();
+      _startTimer();
+    }
+    if (oldWidget.startOn != widget.startOn) {
+      _on = widget.startOn;
+    }
+  }
+
+  void _startTimer() {
+    _timer ??= Timer.periodic(widget.period ~/ 2, (_) {
+      if (!mounted) return;
+      setState(() => _on = !_on);
+    });
+  }
+
+  void _stopTimer() {
+    _timer?.cancel();
+    _timer = null;
+  }
+
+  @override
+  void dispose() {
+    _stopTimer();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Opacity(opacity: _on ? 1 : 0, child: widget.child);
+  }
+}
+
+class _TimerGlowStack extends StatelessWidget {
+  final bool isBlinking;
+
+  const _TimerGlowStack({required this.isBlinking});
+
+  @override
+  Widget build(BuildContext context) {
+    if (!isBlinking) {
+      return Image.asset(FunTargetAssets.targetTimeGlowOff, fit: BoxFit.fill);
+    }
+
+    return Stack(
+      children: [
+        Positioned.fill(
+          child: _BlinkingOpacity(
+            period: const Duration(milliseconds: 900),
+            startOn: true,
+            child: Image.asset(FunTargetAssets.targetTimeGlowOn, fit: BoxFit.fill),
+          ),
+        ),
+        Positioned.fill(
+          child: _BlinkingOpacity(
+            period: const Duration(milliseconds: 900),
+            startOn: false,
+            child: Image.asset(FunTargetAssets.targetTimeGlowOff, fit: BoxFit.fill),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _ArrowStack extends StatelessWidget {
+  final bool isSpinning;
+  final bool isFinalTenSeconds;
+
+  const _ArrowStack({
+    required this.isSpinning,
+    required this.isFinalTenSeconds,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isGlowDisabledWindow = !isSpinning && isFinalTenSeconds;
+    if (isGlowDisabledWindow) {
+      return Image.asset(FunTargetAssets.arrow, fit: BoxFit.contain);
+    }
+
+    final period = isSpinning
+        ? const Duration(milliseconds: 180)
+        : const Duration(milliseconds: 900);
+
+    return Stack(
+      children: [
+        Positioned.fill(
+          child: _BlinkingOpacity(
+            period: period,
+            startOn: true,
+            child: Image.asset(FunTargetAssets.arrowGlow, fit: BoxFit.contain),
+          ),
+        ),
+        Positioned.fill(
+          child: _BlinkingOpacity(
+            period: period,
+            startOn: false,
+            child: Image.asset(FunTargetAssets.arrow, fit: BoxFit.contain),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _LogoAnimator extends StatefulWidget {
+  final bool spinning;
+
+  const _LogoAnimator({required this.spinning});
+
+  @override
+  State<_LogoAnimator> createState() => _LogoAnimatorState();
+}
+
+class _LogoAnimatorState extends State<_LogoAnimator> {
+  static const _frameInterval = Duration(milliseconds: 90);
+  static const _frameCount = 20;
+  static const _base = "assets/funTargrtAsset/media/BAD/golo";
+
+  Timer? _timer;
+  int _index = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.spinning) {
+      _start();
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant _LogoAnimator oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.spinning == oldWidget.spinning) return;
+
+    if (widget.spinning) {
+      _reset();
+      _start();
+    } else {
+      _stop();
+    }
+  }
+
+  @override
+  void dispose() {
+    _stop();
+    super.dispose();
+  }
+
+  void _reset() {
+    _index = 0;
+  }
+
+  void _start() {
+    _timer ??= Timer.periodic(_frameInterval, (_) {
+      if (!mounted) return;
+      setState(() {
+        _index = (_index + 1) % _frameCount;
+      });
+    });
+  }
+
+  void _stop() {
+    _timer?.cancel();
+    _timer = null;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final path = "$_base/Logo$_index.jpg";
+    return Image.asset(
+      path,
+      fit: BoxFit.cover,
+      gaplessPlayback: true,
     );
   }
 }
