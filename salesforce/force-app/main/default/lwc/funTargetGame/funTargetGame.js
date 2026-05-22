@@ -141,6 +141,14 @@ export default class FunTargetGame extends LightningElement {
   _sounds = {};
   _soundLoadingPlayed = false;
   _clockLoopStarted = false;
+  _clockLoopMode = null;
+  _clockCtx = null;
+  _clockBuffer = null;
+  _clockSchedulerTimer = null;
+  _clockNextStartTime = null;
+  _clockActiveNodes = [];
+  _clockCrossfadeSeconds = 0.06;
+  _clockScheduleAheadSeconds = 6;
   _audioUnlocked = false;
   _audioUnlockInProgress = false;
   _pendingSoundKey = null;
@@ -1606,6 +1614,7 @@ export default class FunTargetGame extends LightningElement {
   }
 
   _disposeSounds() {
+    this._stopClockLoopWebAudio();
     Object.values(this._sounds).forEach((audio) => {
       try {
         audio.pause();
@@ -1616,6 +1625,7 @@ export default class FunTargetGame extends LightningElement {
     });
     this._sounds = {};
     this._clockLoopStarted = false;
+    this._clockLoopMode = null;
   }
 
   _registerAudioUnlockListeners() {
@@ -1669,6 +1679,9 @@ export default class FunTargetGame extends LightningElement {
             sampleAudio.pause();
             sampleAudio.currentTime = 0;
             sampleAudio.muted = false;
+            if (isMutedWarmup) {
+              return;
+            }
             this._audioUnlocked = true;
             this._unregisterAudioUnlockListeners();
             this._startClockLoop();
@@ -1689,9 +1702,11 @@ export default class FunTargetGame extends LightningElement {
       sampleAudio.pause();
       sampleAudio.currentTime = 0;
       sampleAudio.muted = false;
-      this._audioUnlocked = true;
-      this._unregisterAudioUnlockListeners();
-      this._startClockLoop();
+      if (!isMutedWarmup) {
+        this._audioUnlocked = true;
+        this._unregisterAudioUnlockListeners();
+        this._startClockLoop();
+      }
       this._audioUnlockInProgress = false;
     } catch (error) {
       sampleAudio.muted = false;
@@ -1703,20 +1718,195 @@ export default class FunTargetGame extends LightningElement {
     if (this._clockLoopStarted) {
       return;
     }
-    const clockAudio = this._sounds.clock;
-    if (!clockAudio) {
+    this._clockLoopStarted = true;
+    this._startClockLoopAsync().catch(() => {
+      // no-op
+    });
+  }
+
+  async _startClockLoopAsync() {
+    const started = await this._startClockLoopWebAudio();
+    if (started) {
+      this._clockLoopMode = "webaudio";
       return;
     }
-    this._clockLoopStarted = true;
+
+    const clockAudio = this._sounds.clock;
+    if (!clockAudio) {
+      this._clockLoopStarted = false;
+      return;
+    }
+
     try {
+      this._clockLoopMode = "html";
       clockAudio.loop = true;
       clockAudio.currentTime = 0;
-      clockAudio.play();
+      await clockAudio.play();
     } catch (error) {
       // If blocked, we don't retry aggressively; the next user gesture will
       // already re-trigger audio unlock and start.
+      this._clockLoopMode = null;
       this._clockLoopStarted = false;
     }
+  }
+
+  async _startClockLoopWebAudio() {
+    const AudioContextCtor = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContextCtor) {
+      return false;
+    }
+
+    try {
+      if (!this._clockCtx) {
+        this._clockCtx = new AudioContextCtor();
+      }
+    } catch (error) {
+      this._clockCtx = null;
+      return false;
+    }
+
+    try {
+      if (this._clockCtx.state === "suspended") {
+        await this._clockCtx.resume();
+      }
+    } catch (error) {
+      // resume can fail on some platforms; we still attempt playback
+    }
+    if (this._clockCtx.state !== "running") {
+      return false;
+    }
+
+    try {
+      if (!this._clockBuffer) {
+        const response = await fetch(SOUND_FILES.clock, {
+          cache: "force-cache"
+        });
+        if (!response.ok) {
+          return false;
+        }
+        const arrayBuffer = await response.arrayBuffer();
+        // Safari may detach the buffer; slice(0) avoids re-use issues.
+        const decoded = await this._clockCtx.decodeAudioData(
+          arrayBuffer.slice(0)
+        );
+        this._clockBuffer = decoded;
+      }
+    } catch (error) {
+      this._clockBuffer = null;
+      return false;
+    }
+
+    this._startClockScheduler();
+    return true;
+  }
+
+  _startClockScheduler() {
+    if (!this._clockCtx || !this._clockBuffer) {
+      return;
+    }
+
+    if (this._clockSchedulerTimer) {
+      return;
+    }
+
+    const now = this._clockCtx.currentTime;
+    this._clockNextStartTime = now + 0.05;
+
+    // Scheduling params tuned to hide audible seams when looping non-seamless files.
+    this._clockCrossfadeSeconds = 0.06;
+    this._clockScheduleAheadSeconds = 6;
+    this._clockSchedulerTimer = window.setInterval(() => {
+      try {
+        this._scheduleClockAhead();
+      } catch (error) {
+        // no-op; scheduler will try again on next tick
+      }
+    }, 800);
+
+    // Kick immediately so sound starts right away.
+    this._scheduleClockAhead();
+  }
+
+  _scheduleClockAhead() {
+    if (!this._clockCtx || !this._clockBuffer) {
+      return;
+    }
+    const crossfade = Math.max(0.02, this._clockCrossfadeSeconds || 0.06);
+    const scheduleAhead = Math.max(2, this._clockScheduleAheadSeconds || 6);
+    const bufferDuration = this._clockBuffer.duration || 0;
+    if (!bufferDuration || bufferDuration <= crossfade * 2) {
+      return;
+    }
+
+    const cutoff = this._clockCtx.currentTime + scheduleAhead;
+    while (
+      this._clockNextStartTime !== null &&
+      this._clockNextStartTime < cutoff
+    ) {
+      const startTime = this._clockNextStartTime;
+      const stopTime = startTime + bufferDuration;
+      const nextStart = startTime + bufferDuration - crossfade;
+
+      const source = this._clockCtx.createBufferSource();
+      source.buffer = this._clockBuffer;
+
+      const gain = this._clockCtx.createGain();
+      gain.gain.setValueAtTime(0, startTime);
+      gain.gain.linearRampToValueAtTime(1, startTime + crossfade);
+      gain.gain.setValueAtTime(1, stopTime - crossfade);
+      gain.gain.linearRampToValueAtTime(0, stopTime);
+
+      source.connect(gain);
+      gain.connect(this._clockCtx.destination);
+
+      source.start(startTime);
+      source.stop(stopTime);
+
+      this._clockActiveNodes.push({ source, gain });
+      // Cleanup when ended (best-effort; some browsers delay events when backgrounded).
+      source.onended = () => {
+        this._clockActiveNodes = this._clockActiveNodes.filter(
+          (node) => node.source !== source
+        );
+      };
+
+      this._clockNextStartTime = nextStart;
+    }
+  }
+
+  _stopClockLoopWebAudio() {
+    if (this._clockSchedulerTimer) {
+      window.clearInterval(this._clockSchedulerTimer);
+      this._clockSchedulerTimer = null;
+    }
+    this._clockNextStartTime = null;
+
+    this._clockActiveNodes.forEach(({ source, gain }) => {
+      try {
+        source.onended = null;
+      } catch (error) {
+        // no-op
+      }
+      try {
+        source.stop();
+      } catch (error) {
+        // no-op
+      }
+      try {
+        source.disconnect();
+      } catch (error) {
+        // no-op
+      }
+      try {
+        gain.disconnect();
+      } catch (error) {
+        // no-op
+      }
+    });
+    this._clockActiveNodes = [];
+
+    // We keep the AudioContext around for reuse within the same session to avoid
+    // needing another decode; closing can be unreliable on some mobile browsers.
   }
 
   _playLoadingSoundOnce() {
