@@ -9,6 +9,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.util.List;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -34,12 +35,31 @@ public class SupabaseTokenAuthFilter extends OncePerRequestFilter {
             new UsernamePasswordAuthenticationToken(
                 user, null, List.of(new SimpleGrantedAuthority("ROLE_PLAYER")));
         SecurityContextHolder.getContext().setAuthentication(auth);
+      } catch (IllegalStateException e) {
+        // Configuration error: tell the client explicitly so setup is fast.
+        response.setStatus(500);
+        response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+        response
+            .getWriter()
+            .write("{\"error\":\"server_misconfigured\",\"message\":\"" + e.getMessage() + "\"}");
+        return;
+      } catch (IllegalArgumentException e) {
+        // Invalid token/session.
+        response.setStatus(401);
+        response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+        response
+            .getWriter()
+            .write("{\"error\":\"unauthorized\",\"message\":\"" + e.getMessage() + "\"}");
+        return;
       } catch (Exception ignored) {
-        // Leave unauthenticated; endpoints will enforce auth where needed.
+        // Unexpected error: fail closed.
+        response.setStatus(401);
+        response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+        response.getWriter().write("{\"error\":\"unauthorized\"}");
+        return;
       }
     }
 
     filterChain.doFilter(request, response);
   }
 }
-
