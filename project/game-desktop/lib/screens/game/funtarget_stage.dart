@@ -191,6 +191,18 @@ class _StageBody extends StatelessWidget {
             child: Image.asset(
               FunTargetAssets.background,
               fit: BoxFit.cover,
+              errorBuilder: (context, error, stackTrace) {
+                return ColoredBox(
+                  color: const Color(0xFF120804),
+                  child: Center(
+                    child: Text(
+                      "Missing asset: ${FunTargetAssets.background}",
+                      style: const TextStyle(color: Colors.white70),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                );
+              },
             ),
           ),
 
@@ -327,38 +339,42 @@ class _StageBody extends StatelessWidget {
             blink: false,
             onPressed: onCancelSpecific,
           ),
-          Visibility(
-            visible: !showPrevBet,
-            maintainState: true,
-            maintainAnimation: true,
-            maintainSize: true,
-            child: _ActionButton(
-              right: 0,
-              bottom: 162,
-              width: 154,
-              height: 42,
-              glowOn: FunTargetAssets.betOkGlowOn,
-              glowOff: FunTargetAssets.betOkGlowOff,
-              label: "Bet Ok",
-              blink: betOkBlink,
-              onPressed: onBetOk,
+          Positioned(
+            right: 0,
+            bottom: 162,
+            width: 154,
+            height: 42,
+            child: Visibility(
+              visible: !showPrevBet,
+              maintainState: true,
+              maintainAnimation: true,
+              maintainSize: true,
+              child: _ActionButtonBody(
+                glowOn: FunTargetAssets.betOkGlowOn,
+                glowOff: FunTargetAssets.betOkGlowOff,
+                label: "Bet Ok",
+                blink: betOkBlink,
+                onPressed: onBetOk,
+              ),
             ),
           ),
-          Visibility(
-            visible: showPrevBet,
-            maintainState: true,
-            maintainAnimation: true,
-            maintainSize: true,
-            child: _ActionButton(
-              right: 0,
-              bottom: 162,
-              width: 154,
-              height: 41,
-              glowOn: FunTargetAssets.prevGlowOn,
-              glowOff: FunTargetAssets.prevGlowOff,
-              label: "Prev Bet",
-              blink: showPrevBet,
-              onPressed: onPrevBet,
+          Positioned(
+            right: 0,
+            bottom: 162,
+            width: 154,
+            height: 41,
+            child: Visibility(
+              visible: showPrevBet,
+              maintainState: true,
+              maintainAnimation: true,
+              maintainSize: true,
+              child: _ActionButtonBody(
+                glowOn: FunTargetAssets.prevGlowOn,
+                glowOff: FunTargetAssets.prevGlowOff,
+                label: "Prev Bet",
+                blink: showPrevBet,
+                onPressed: onPrevBet,
+              ),
             ),
           ),
           _ActionButton(
@@ -604,43 +620,85 @@ class _ActionButton extends StatelessWidget {
       bottom: bottom,
       width: width,
       height: height,
-      child: GestureDetector(
-        onTap: onPressed,
-        child: Stack(
-          children: [
-            Positioned.fill(
-              child: Opacity(
-                opacity: blink ? 0.35 : 1,
-                child: Image.asset(glowOff, fit: BoxFit.fill),
-              ),
+      child: _ActionButtonBody(
+        glowOn: glowOn,
+        glowOff: glowOff,
+        label: label,
+        labelFontSize: labelFontSize,
+        blink: blink,
+        onPressed: onPressed,
+      ),
+    );
+  }
+}
+
+class _ActionButtonBody extends StatelessWidget {
+  final String glowOn;
+  final String glowOff;
+  final String label;
+  final double labelFontSize;
+  final bool blink;
+  final VoidCallback onPressed;
+
+  const _ActionButtonBody({
+    required this.glowOn,
+    required this.glowOff,
+    required this.label,
+    this.labelFontSize = 17,
+    required this.blink,
+    required this.onPressed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onPressed,
+      child: Stack(
+        children: [
+          Positioned.fill(
+            child: Opacity(
+              opacity: blink ? 0.35 : 1,
+              child: Image.asset(glowOff, fit: BoxFit.fill),
             ),
-            Positioned.fill(
-              child: Opacity(
-                opacity: blink ? 0.65 : 0,
-                child: Image.asset(glowOn, fit: BoxFit.fill),
-              ),
+          ),
+          Positioned.fill(
+            child: Opacity(
+              opacity: blink ? 0.65 : 0,
+              child: Image.asset(glowOn, fit: BoxFit.fill),
             ),
-            Positioned.fill(
-              child: Center(
-                child: Text(
-                  label,
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: const Color(0xFFFFE6A8),
-                    fontSize: labelFontSize,
-                    fontWeight: FontWeight.w800,
-                    shadows: const [
-                      Shadow(offset: Offset(-1, -1), blurRadius: 0, color: Color(0xFF3F0B06)),
-                      Shadow(offset: Offset(1, -1), blurRadius: 0, color: Color(0xFF3F0B06)),
-                      Shadow(offset: Offset(-1, 1), blurRadius: 0, color: Color(0xFF3F0B06)),
-                      Shadow(offset: Offset(1, 1), blurRadius: 0, color: Color(0xFF3F0B06)),
-                    ],
-                  ),
+          ),
+          Positioned.fill(
+            child: Center(
+              child: Text(
+                label,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: const Color(0xFFFFE6A8),
+                  fontSize: labelFontSize,
+                  fontWeight: FontWeight.w800,
+                  shadows: const [
+                    Shadow(
+                        offset: Offset(-1, -1),
+                        blurRadius: 0,
+                        color: Color(0xFF3F0B06)),
+                    Shadow(
+                        offset: Offset(1, -1),
+                        blurRadius: 0,
+                        color: Color(0xFF3F0B06)),
+                    Shadow(
+                        offset: Offset(-1, 1),
+                        blurRadius: 0,
+                        color: Color(0xFF3F0B06)),
+                    Shadow(
+                        offset: Offset(1, 1),
+                        blurRadius: 0,
+                        color: Color(0xFF3F0B06)),
+                  ],
                 ),
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

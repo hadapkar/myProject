@@ -403,72 +403,84 @@ class _GameScreenState extends State<GameScreen> {
     final email = user?.email ?? "-";
     return Scaffold(
       backgroundColor: const Color(0xFF0B1220),
-      appBar: AppBar(
-        title: const Text("FunTarget (Flutter)"),
-        actions: [
-          IconButton(
-            tooltip: "Refresh",
-            onPressed: _load,
-            icon: const Icon(Icons.refresh),
-          ),
-          TextButton(
-            onPressed: _signOut,
-            child: const Text("Sign out"),
-          ),
-        ],
-      ),
       body: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: _onUserGesture,
-        child: SingleChildScrollView(
-          child: Padding(
-            padding: const EdgeInsets.all(12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                if (_error != null)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 8),
-                    child: Text(
-                      _error!,
-                      style: const TextStyle(color: Colors.redAccent),
+        child: SafeArea(
+          child: Stack(
+            children: [
+              Align(
+                alignment: Alignment.topCenter,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      if (_error != null)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 8),
+                          child: Text(
+                            _error!,
+                            style: const TextStyle(color: Colors.redAccent),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      if (state == null)
+                        const Padding(
+                          padding: EdgeInsets.all(24),
+                          child: Text("Loading state..."),
+                        )
+                      else
+                        FunTargetStage(
+                          email: email,
+                          timeLeftSeconds: _timeLeft,
+                          score: state.score,
+                          totalBetAmount: state.totalBetAmount,
+                          winnerAmount: state.winnerAmount,
+                          last10: state.last10Results,
+                          selectedChip: _selectedChip,
+                          onChipSelected: _selectChip,
+                          betsByNumber: _betsByNumber,
+                          highlightedBetNumber: _highlightedBetNumber,
+                          betNumbersDisabled:
+                              _isSpinning || _isFinalTenSeconds || _isBetConfirmed,
+                          onBetNumberPressed: _selectBetNumber,
+                          isSpinning: _isSpinning,
+                          wheelRotationDegrees: _rotationDegrees,
+                          betOkBlink: _betOkHighlighted,
+                          takeBlink: (state.winnerAmount > 0),
+                          showPrevBet: _showPrevBet,
+                          onTake: _takePayout,
+                          onCancelBet: _cancelBet,
+                          onCancelSpecific: _cancelSpecificBet,
+                          onBetOk: _placeBetOk,
+                          onPrevBet: _prevBetRestore,
+                          onExit: _resetGame,
+                          footerMessage: _footerMessage,
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+              Positioned(
+                top: 4,
+                right: 8,
+                child: Row(
+                  children: [
+                    IconButton(
+                      tooltip: "Refresh",
+                      onPressed: _load,
+                      icon: const Icon(Icons.refresh, color: Colors.white70),
                     ),
-                  ),
-                if (state == null)
-                  const Padding(
-                    padding: EdgeInsets.all(24),
-                    child: Text("Loading state..."),
-                  )
-                else
-                  FunTargetStage(
-                    email: email,
-                    timeLeftSeconds: _timeLeft,
-                    score: state.score,
-                    totalBetAmount: state.totalBetAmount,
-                    winnerAmount: state.winnerAmount,
-                    last10: state.last10Results,
-                    selectedChip: _selectedChip,
-                    onChipSelected: _selectChip,
-                    betsByNumber: _betsByNumber,
-                    highlightedBetNumber: _highlightedBetNumber,
-                    betNumbersDisabled:
-                        _isSpinning || _isFinalTenSeconds || _isBetConfirmed,
-                    onBetNumberPressed: _selectBetNumber,
-                    isSpinning: _isSpinning,
-                    wheelRotationDegrees: _rotationDegrees,
-                    betOkBlink: _betOkHighlighted,
-                    takeBlink: (state.winnerAmount > 0),
-                    showPrevBet: _showPrevBet,
-                    onTake: _takePayout,
-                    onCancelBet: _cancelBet,
-                    onCancelSpecific: _cancelSpecificBet,
-                    onBetOk: _placeBetOk,
-                    onPrevBet: _prevBetRestore,
-                    onExit: _resetGame,
-                    footerMessage: _footerMessage,
-                  ),
-              ],
-            ),
+                    TextButton(
+                      onPressed: _signOut,
+                      child: const Text("Sign out"),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
         ),
       ),
