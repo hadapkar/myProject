@@ -190,7 +190,8 @@ class _StageBody extends StatelessWidget {
           Positioned.fill(
             child: Image.asset(
               FunTargetAssets.background,
-              fit: BoxFit.cover,
+              // For pixel-perfect overlays, avoid `cover` cropping.
+              fit: BoxFit.fill,
               errorBuilder: (context, error, stackTrace) {
                 return ColoredBox(
                   color: const Color(0xFF120804),
@@ -275,7 +276,7 @@ class _StageBody extends StatelessWidget {
             right: 0,
             bottom: 146,
             child: IgnorePointer(
-              child: Image.asset(FunTargetAssets.title, fit: BoxFit.contain),
+              child: Image.asset(FunTargetAssets.title, fit: BoxFit.fill),
             ),
           ),
 
