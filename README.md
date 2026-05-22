@@ -1,11 +1,16 @@
 # FunTarget Platform (Monorepo)
 
-This repository contains both the **legacy Salesforce implementation** and the **new platform** (web game, backend APIs, admin app, database).
+This repository contains both the **legacy Salesforce implementation** and the **new platform** (clients, backend APIs, database, migration, docs).
 
 ## Folders
 
-- `salesforce/` — legacy Salesforce DX project (Apex, LWC, metadata)
-- `project/` — new platform workspace (web game, backend APIs, admin app, database, migration, docs)
+- `salesforce/` — legacy Salesforce DX project (Apex, LWC, metadata). Do not modify unless explicitly requested.
+- `project/` — new platform workspace:
+  - `project/game-desktop/` — Flutter Windows `.exe` (primary client going forward)
+  - `project/backend-api/` — Spring Boot (deploy on Render)
+  - `project/database/` — DB docs/notes (source-of-truth migrations live in `supabase/`)
+  - `project/migration/` — Salesforce → Postgres mapping + tools
+  - `project/docs/` — setup + runbooks
 
 ## Common commands
 
@@ -17,8 +22,3 @@ Salesforce:
 Git hooks (one-time per clone):
 
 - `npm install`
-
-## Notes
-
-- Salesforce is kept for reference and incremental migration.
-- New platform development will live under `project/game-web/`, `project/backend-api/`, and `project/admin-app/`.
