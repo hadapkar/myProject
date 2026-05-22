@@ -56,6 +56,8 @@ class _GameScreenState extends State<GameScreen> {
   int _currentNumber = 0;
   double _rotationDegrees = 0;
   bool _isSpinning = false;
+  Duration _spinDuration = const Duration(milliseconds: 2800);
+  Curve _spinCurve = const Cubic(0.22, 0.9, 0.26, 1.05);
   String _footerMessage = _defaultFooterMessage;
 
   bool _autoSpinActive = false;
@@ -222,6 +224,8 @@ class _GameScreenState extends State<GameScreen> {
       _autoSpinActive = true;
       setState(() {
         _isSpinning = true;
+        _spinDuration = const Duration(milliseconds: 5000);
+        _spinCurve = const Cubic(0.1, 0.95, 0.15, 1.0);
       });
       unawaited(_sounds.playOnce("wheelStart", FunTargetAssets.soundWheelStart));
       setState(() {
@@ -242,6 +246,8 @@ class _GameScreenState extends State<GameScreen> {
       _isSpinning = false;
       _isBetConfirmed = false;
       _footerMessage = _postSpinFooterMessage;
+      _spinDuration = const Duration(milliseconds: 2800);
+      _spinCurve = const Cubic(0.22, 0.9, 0.26, 1.05);
     });
 
     unawaited(_sounds.stop("wheelStart"));
@@ -401,6 +407,8 @@ class _GameScreenState extends State<GameScreen> {
 
     final state = _state;
     final email = user?.email ?? "-";
+    final totalBet = _sumBets(_betsByNumber);
+    final shouldBlinkBetOk = !_showPrevBet && !_isBetConfirmed && totalBet > 0;
     return Scaffold(
       backgroundColor: const Color(0xFF0B1220),
       body: GestureDetector(
@@ -441,7 +449,7 @@ class _GameScreenState extends State<GameScreen> {
                                 email: email,
                                 timeLeftSeconds: _timeLeft,
                                 score: state.score,
-                                totalBetAmount: state.totalBetAmount,
+                                totalBetAmount: totalBet.toDouble(),
                                 winnerAmount: state.winnerAmount,
                                 last10: state.last10Results,
                                 selectedChip: _selectedChip,
@@ -454,7 +462,9 @@ class _GameScreenState extends State<GameScreen> {
                                 onBetNumberPressed: _selectBetNumber,
                                 isSpinning: _isSpinning,
                                 wheelRotationDegrees: _rotationDegrees,
-                                betOkBlink: _betOkHighlighted,
+                                wheelSpinDuration: _spinDuration,
+                                wheelSpinCurve: _spinCurve,
+                                betOkBlink: shouldBlinkBetOk,
                                 takeBlink: (state.winnerAmount > 0),
                                 showPrevBet: _showPrevBet,
                                 onTake: _takePayout,

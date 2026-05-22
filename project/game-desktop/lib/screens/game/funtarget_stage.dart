@@ -26,6 +26,10 @@ class FunTargetStage extends StatelessWidget {
 
   final bool isSpinning;
   final double wheelRotationDegrees;
+  final Duration wheelSpinDuration;
+  final Curve wheelSpinCurve;
+  final Duration wheelSpinDuration;
+  final Curve wheelSpinCurve;
 
   final bool betOkBlink;
   final bool takeBlink;
@@ -56,6 +60,8 @@ class FunTargetStage extends StatelessWidget {
     required this.onBetNumberPressed,
     required this.isSpinning,
     required this.wheelRotationDegrees,
+    required this.wheelSpinDuration,
+    required this.wheelSpinCurve,
     required this.betOkBlink,
     required this.takeBlink,
     required this.showPrevBet,
@@ -102,6 +108,8 @@ class FunTargetStage extends StatelessWidget {
                   onBetNumberPressed: onBetNumberPressed,
                   isSpinning: isSpinning,
                   wheelRotationDegrees: wheelRotationDegrees,
+                  wheelSpinDuration: wheelSpinDuration,
+                  wheelSpinCurve: wheelSpinCurve,
                   betOkBlink: betOkBlink,
                   takeBlink: takeBlink,
                   showPrevBet: showPrevBet,
@@ -169,6 +177,8 @@ class _StageBody extends StatelessWidget {
     required this.onBetNumberPressed,
     required this.isSpinning,
     required this.wheelRotationDegrees,
+    required this.wheelSpinDuration,
+    required this.wheelSpinCurve,
     required this.betOkBlink,
     required this.takeBlink,
     required this.showPrevBet,
@@ -265,6 +275,8 @@ class _StageBody extends StatelessWidget {
                     width: 460,
                     child: _Wheel(
                       rotationDegrees: wheelRotationDegrees,
+                      duration: wheelSpinDuration,
+                      curve: wheelSpinCurve,
                     ),
                   ),
                 ),
@@ -613,16 +625,44 @@ class _StageBody extends StatelessWidget {
   }
 }
 
-class _Wheel extends StatelessWidget {
+class _Wheel extends StatefulWidget {
   final double rotationDegrees;
-  const _Wheel({required this.rotationDegrees});
+  final Duration duration;
+  final Curve curve;
+
+  const _Wheel({
+    required this.rotationDegrees,
+    required this.duration,
+    required this.curve,
+  });
+
+  @override
+  State<_Wheel> createState() => _WheelState();
+}
+
+class _WheelState extends State<_Wheel> {
+  late double _fromDegrees;
+
+  @override
+  void initState() {
+    super.initState();
+    _fromDegrees = widget.rotationDegrees;
+  }
+
+  @override
+  void didUpdateWidget(covariant _Wheel oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.rotationDegrees != widget.rotationDegrees) {
+      _fromDegrees = oldWidget.rotationDegrees;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return TweenAnimationBuilder<double>(
-      tween: Tween<double>(begin: 0, end: rotationDegrees),
-      duration: const Duration(milliseconds: 2800),
-      curve: Curves.easeOutCubic,
+      tween: Tween<double>(begin: _fromDegrees, end: widget.rotationDegrees),
+      duration: widget.duration,
+      curve: widget.curve,
       builder: (context, value, child) {
         return Transform.rotate(
           angle: (value % 360) * pi / 180,
@@ -956,16 +996,25 @@ class _ActionButtonBody extends StatelessWidget {
       child: Stack(
         children: [
           Positioned.fill(
-            child: Opacity(
-              opacity: blink ? 0.35 : 1,
-              child: Image.asset(glowOff, fit: BoxFit.fill),
-            ),
+            child: blink
+                ? _BlinkingOpacity(
+                    period: const Duration(milliseconds: 900),
+                    startOn: false,
+                    child: Image.asset(glowOff, fit: BoxFit.fill),
+                  )
+                : Image.asset(glowOff, fit: BoxFit.fill),
           ),
           Positioned.fill(
-            child: Opacity(
-              opacity: blink ? 0.65 : 0,
-              child: Image.asset(glowOn, fit: BoxFit.fill),
-            ),
+            child: blink
+                ? _BlinkingOpacity(
+                    period: const Duration(milliseconds: 900),
+                    startOn: true,
+                    child: Image.asset(glowOn, fit: BoxFit.fill),
+                  )
+                : Opacity(
+                    opacity: 0,
+                    child: Image.asset(glowOn, fit: BoxFit.fill),
+                  ),
           ),
           Positioned.fill(
             child: Center(
