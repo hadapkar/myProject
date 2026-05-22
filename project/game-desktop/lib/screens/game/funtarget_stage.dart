@@ -432,13 +432,14 @@ class _StageBody extends StatelessWidget {
             right: 250,
             bottom: 10,
             child: Text(
-              footerMessage,
+              footerMessage.toUpperCase(),
               textAlign: TextAlign.center,
               style: const TextStyle(
                 fontSize: 12,
-                fontWeight: FontWeight.w800,
+                fontFamily: "Times New Roman",
+                fontWeight: FontWeight.w700,
                 color: Color(0xFF3A1D06),
-                letterSpacing: 1.6,
+                letterSpacing: 1.2,
               ),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
