@@ -30,5 +30,21 @@ class FunTargetApi {
     final jsonMap = jsonDecode(res.body) as Map<String, dynamic>;
     return FunTargetState.fromJson(jsonMap);
   }
-}
 
+  Future<FunTargetState> postIntent(Map<String, dynamic> payload) async {
+    final token = await _accessToken();
+    final res = await http.post(
+      _uri("/api/funtarget/intent"),
+      headers: {
+        "Authorization": "Bearer $token",
+        "Content-Type": "application/json",
+      },
+      body: jsonEncode(payload),
+    );
+    if (res.statusCode < 200 || res.statusCode >= 300) {
+      throw StateError("Backend error ${res.statusCode}: ${res.body}");
+    }
+    final jsonMap = jsonDecode(res.body) as Map<String, dynamic>;
+    return FunTargetState.fromJson(jsonMap);
+  }
+}
