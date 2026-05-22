@@ -31,7 +31,8 @@ public class SecurityConfig {
         .addFilterBefore(new SupabaseTokenAuthFilter(authService), UsernamePasswordAuthenticationFilter.class)
         .authorizeHttpRequests(
             auth ->
-                auth.requestMatchers(HttpMethod.GET, "/healthz").permitAll()
+                auth.requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+                    .requestMatchers(HttpMethod.GET, "/healthz").permitAll()
                     .requestMatchers("/api/**").authenticated()
                     .anyRequest()
                     .permitAll())
