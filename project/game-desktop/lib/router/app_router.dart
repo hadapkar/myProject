@@ -3,6 +3,7 @@ import "package:supabase_flutter/supabase_flutter.dart";
 
 import "../screens/game/game_screen.dart";
 import "../screens/login/login_screen.dart";
+import "go_router_refresh_stream.dart";
 
 String _initialLocation() {
   final session = Supabase.instance.client.auth.currentSession;
