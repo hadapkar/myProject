@@ -71,6 +71,7 @@ class _GameScreenState extends State<GameScreen> {
 
   bool _isFinalTenSeconds = false;
   int? _lastTimerSecond;
+  bool _loadingSoundPlayed = false;
 
   @override
   void initState() {
@@ -262,6 +263,7 @@ class _GameScreenState extends State<GameScreen> {
         _spinDuration = const Duration(milliseconds: 5000);
         _spinCurve = const Cubic(0.1, 0.95, 0.15, 1.0);
       });
+      unawaited(_sounds.stop("wheelStart"));
       unawaited(_sounds.playOnce("wheelStart", FunTargetAssets.soundWheelStart));
       setState(() {
         _rotationDegrees = _rotationDegrees + 12 * 360 + delta;
@@ -310,6 +312,10 @@ class _GameScreenState extends State<GameScreen> {
 
   void _onUserGesture() {
     unawaited(_sounds.unlockFromGesture());
+    if (!_loadingSoundPlayed) {
+      _loadingSoundPlayed = true;
+      unawaited(_sounds.playOnce("loading", FunTargetAssets.soundLoading));
+    }
     unawaited(_sounds.startClockIfNeeded(FunTargetAssets.soundClock));
   }
 
