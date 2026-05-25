@@ -67,7 +67,11 @@ class _GameScreenState extends State<GameScreen> {
   bool _autoSpinActive = false;
   int? _autoSpinResult;
   bool _roundStartInProgress = false;
-  int? _exitSuppressUntilRoundKey;
+  String? _exitSuppressUntilRoundKey;
+  String? _spinStartedRoundKey;
+  String? _spinFinalizedRoundKey;
+  String? _lastRoundAtIso;
+  String? _roundEndsAtIso;
 
   bool _isFinalTenSeconds = false;
   int? _lastTimerSecond;
@@ -106,6 +110,20 @@ class _GameScreenState extends State<GameScreen> {
           serverNow.toUtc().millisecondsSinceEpoch - DateTime.now().millisecondsSinceEpoch;
     }
     final updatedFrom = state.lastUpdatedFrom.trim().toLowerCase();
+
+    final nextLastRoundAtIso = state.lastRoundAt?.toIso8601String();
+    final nextRoundEndsAtIso = state.roundEndsAt?.toIso8601String();
+    final lastRoundChanged =
+        (nextLastRoundAtIso != null && nextLastRoundAtIso != _lastRoundAtIso) ||
+            (nextRoundEndsAtIso != null && nextRoundEndsAtIso != _roundEndsAtIso);
+    if (lastRoundChanged) {
+      _spinStartedRoundKey = null;
+      _spinFinalizedRoundKey = null;
+      _exitSuppressUntilRoundKey = null;
+      _lastTimerSecond = null;
+      _lastRoundAtIso = nextLastRoundAtIso;
+      _roundEndsAtIso = nextRoundEndsAtIso;
+    }
     setState(() {
       _state = state;
       _lastRoundAt = lastRoundAt;
@@ -188,16 +206,22 @@ class _GameScreenState extends State<GameScreen> {
 
     // Start spin at 0:00.
     if (_crossedSecond(prev, curr, _spinStartSecond)) {
-      final nowKey = _currentRoundKey();
-      if (_exitSuppressUntilRoundKey != null &&
-          _exitSuppressUntilRoundKey == nowKey) {
-        return;
+      final roundKey = _getCurrentRoundKey();
+      if (roundKey != null) {
+        if (_exitSuppressUntilRoundKey == roundKey) return;
+        if (_spinStartedRoundKey == roundKey) return;
+        _spinStartedRoundKey = roundKey;
       }
       _startAutoSpinRound();
     }
 
     // Finalize at 0:55.
     if (_autoSpinActive && _crossedSecond(prev, curr, _spinResultSecond)) {
+      final roundKey = _getCurrentRoundKey();
+      if (roundKey != null) {
+        if (_spinFinalizedRoundKey == roundKey) return;
+        _spinFinalizedRoundKey = roundKey;
+      }
       _finalizeAutoSpinRound();
     }
   }
@@ -211,9 +235,18 @@ class _GameScreenState extends State<GameScreen> {
     return curr == target;
   }
 
-  int _currentRoundKey() {
-    final ms = DateTime.now().millisecondsSinceEpoch;
-    return ms ~/ 60000;
+  String? _getCurrentRoundKey() {
+    final state = _state;
+    final endsAtMs = state?.roundEndsAt?.millisecondsSinceEpoch;
+    if (endsAtMs != null) {
+      return (endsAtMs ~/ 1000).toString();
+    }
+    final anchorMs = state?.lastRoundAt?.millisecondsSinceEpoch;
+    if (anchorMs != null) {
+      final derivedEndsAtMs = anchorMs + (_spinResultSecond * 1000);
+      return (derivedEndsAtMs ~/ 1000).toString();
+    }
+    return null;
   }
 
   double _targetAngleForNumber(int value) {
@@ -458,6 +491,7 @@ class _GameScreenState extends State<GameScreen> {
 
   void _resetGame() {
     _onUserGesture();
+    final suppressKey = _getCurrentRoundKey();
     setState(() {
       _selectedNumber = null;
       _selectedNumbers = [];
@@ -474,7 +508,9 @@ class _GameScreenState extends State<GameScreen> {
       _autoSpinActive = false;
       _autoSpinResult = null;
       _lastTimerSecond = null;
-      _exitSuppressUntilRoundKey = _currentRoundKey();
+      _exitSuppressUntilRoundKey = suppressKey;
+      _spinStartedRoundKey = null;
+      _spinFinalizedRoundKey = null;
       _coins = 0;
       _winnerAmount = 0;
       _last10Results = const [];
