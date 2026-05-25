@@ -346,15 +346,24 @@ class _GameScreenState extends State<GameScreen> {
     _onUserGesture();
     final pending = _state?.winnerAmount ?? 0;
     if (pending <= 0) return;
+    final projectedScore = (_state?.score ?? 0) + pending;
     unawaited(_sounds.playOnce("take", FunTargetAssets.soundTake));
     setState(() {
       _highlightedBetNumber = null;
       _isBetConfirmed = false;
-      _showPrevBet = true;
+      _showPrevBet = _canApplyPrevBetWithScore(projectedScore);
       _footerMessage = _defaultFooterMessage;
       _betOkHighlighted = true;
     });
     unawaited(_postIntent({"intent": "TAKE_PAYOUT"}));
+  }
+
+  bool _canApplyPrevBetWithScore(double availableScore) {
+    final prev = _prevBet;
+    if (prev == null || prev.isEmpty) return false;
+    if (_isSpinning || _isFinalTenSeconds || _isBetConfirmed) return false;
+    final previousTotal = _sumBets(prev);
+    return previousTotal > 0 && availableScore >= previousTotal;
   }
 
   void _prevBetRestore() {
@@ -362,6 +371,17 @@ class _GameScreenState extends State<GameScreen> {
     if (_isSpinning || _isFinalTenSeconds || _isBetConfirmed) return;
     final prev = _prevBet;
     if (prev == null || prev.isEmpty) return;
+
+    final previousTotal = _sumBets(prev);
+    final score = _state?.score ?? 0;
+    if (score < previousTotal) {
+      setState(() {
+        _showPrevBet = _canApplyPrevBetWithScore(score);
+        _footerMessage = "Not enough coins for previous bet";
+      });
+      return;
+    }
+
     setState(() {
       _showPrevBet = false;
       _betsByNumber = Map<int, int>.from(prev);
@@ -408,7 +428,13 @@ class _GameScreenState extends State<GameScreen> {
     final state = _state;
     final email = user?.email ?? "-";
     final totalBet = _sumBets(_betsByNumber);
-    final shouldBlinkBetOk = !_showPrevBet && !_isBetConfirmed && totalBet > 0;
+    final winnerAmount = state?.winnerAmount ?? 0;
+    final isBettingPhase =
+        !_isSpinning && !_isFinalTenSeconds && winnerAmount <= 0;
+    final shouldBlinkBetOk =
+        isBettingPhase && !_showPrevBet && !_isBetConfirmed && totalBet > 0;
+    final betOkDisabled =
+        !isBettingPhase || _isBetConfirmed || totalBet <= 0;
     return Scaffold(
       backgroundColor: const Color(0xFF0B1220),
       body: GestureDetector(
@@ -433,14 +459,18 @@ class _GameScreenState extends State<GameScreen> {
                           betsByNumber: _betsByNumber,
                           highlightedBetNumber: _highlightedBetNumber,
                           betNumbersDisabled:
-                              _isSpinning || _isFinalTenSeconds || _isBetConfirmed,
+                              _isSpinning ||
+                              _isFinalTenSeconds ||
+                              _isBetConfirmed ||
+                              winnerAmount > 0,
                           onBetNumberPressed: _selectBetNumber,
                           isSpinning: _isSpinning,
                           wheelRotationDegrees: _rotationDegrees,
                           wheelSpinDuration: _spinDuration,
                           wheelSpinCurve: _spinCurve,
                           betOkBlink: shouldBlinkBetOk,
-                          takeBlink: (state.winnerAmount > 0),
+                          betOkDisabled: betOkDisabled,
+                          takeBlink: winnerAmount > 0,
                           showPrevBet: _showPrevBet,
                           onTake: _takePayout,
                           onCancelBet: _cancelBet,

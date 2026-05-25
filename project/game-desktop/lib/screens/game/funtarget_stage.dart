@@ -30,6 +30,7 @@ class FunTargetStage extends StatelessWidget {
   final Curve wheelSpinCurve;
 
   final bool betOkBlink;
+  final bool betOkDisabled;
   final bool takeBlink;
   final bool showPrevBet;
 
@@ -61,6 +62,7 @@ class FunTargetStage extends StatelessWidget {
     required this.wheelSpinDuration,
     required this.wheelSpinCurve,
     required this.betOkBlink,
+    required this.betOkDisabled,
     required this.takeBlink,
     required this.showPrevBet,
     required this.onTake,
@@ -118,6 +120,7 @@ class FunTargetStage extends StatelessWidget {
                   wheelSpinDuration: wheelSpinDuration,
                   wheelSpinCurve: wheelSpinCurve,
                   betOkBlink: betOkBlink,
+                  betOkDisabled: betOkDisabled,
                   takeBlink: takeBlink,
                   showPrevBet: showPrevBet,
                   onTake: onTake,
@@ -159,6 +162,7 @@ class _StageBody extends StatelessWidget {
   final Curve wheelSpinCurve;
 
   final bool betOkBlink;
+  final bool betOkDisabled;
   final bool takeBlink;
   final bool showPrevBet;
 
@@ -189,6 +193,7 @@ class _StageBody extends StatelessWidget {
     required this.wheelSpinDuration,
     required this.wheelSpinCurve,
     required this.betOkBlink,
+    required this.betOkDisabled,
     required this.takeBlink,
     required this.showPrevBet,
     required this.onTake,
@@ -411,6 +416,7 @@ class _StageBody extends StatelessWidget {
                 glowOff: FunTargetAssets.betOkGlowOff,
                 label: "Bet Ok",
                 blink: betOkBlink,
+                enabled: !betOkDisabled,
                 onPressed: onBetOk,
               ),
             ),
@@ -562,22 +568,17 @@ class _StageBody extends StatelessWidget {
           child: Stack(
             children: [
               Positioned.fill(
-                child: hasBet
-                    ? Opacity(
-                        opacity: 1,
+                child: isResult
+                    ? _BlinkingOpacity(
+                        period: const Duration(milliseconds: 450),
+                        startOn: true,
                         child: Image.asset(
                           FunTargetAssets.betGlow(value),
                           fit: BoxFit.fill,
                         ),
                       )
-                    : isResult
-                        ? _BlinkingOpacity(
-                            period: const Duration(milliseconds: 450),
-                            child: Image.asset(
-                              FunTargetAssets.betGlow(value),
-                              fit: BoxFit.fill,
-                            ),
-                          )
+                    : hasBet
+                        ? Image.asset(FunTargetAssets.betGlow(value), fit: BoxFit.fill)
                         : const SizedBox.shrink(),
               ),
             ],
@@ -987,6 +988,7 @@ class _ActionButtonBody extends StatelessWidget {
   final String label;
   final double labelFontSize;
   final bool blink;
+  final bool enabled;
   final VoidCallback onPressed;
 
   const _ActionButtonBody({
@@ -995,13 +997,14 @@ class _ActionButtonBody extends StatelessWidget {
     required this.label,
     this.labelFontSize = 17,
     required this.blink,
+    this.enabled = true,
     required this.onPressed,
   });
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: onPressed,
+      onTap: enabled ? onPressed : null,
       child: Stack(
         children: [
           Positioned.fill(
