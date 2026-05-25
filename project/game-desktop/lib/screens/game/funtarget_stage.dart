@@ -265,7 +265,13 @@ class _StageBody extends StatelessWidget {
             top: 264,
             width: 260,
             height: 34,
-            child: _ValueBox(text: last10Text, fontSize: 20, alignLeft: true, singleLine: true),
+            child: _ValueBox(
+              text: last10Text,
+              fontSize: 20,
+              alignLeft: true,
+              singleLine: true,
+              letterSpacing: 0.4,
+            ),
           ),
 
           // Final-ten timer glow stack (matches LWC: blinks in last 10 seconds).
@@ -682,6 +688,7 @@ class _ValueBox extends StatelessWidget {
   final bool alignLeft;
   final bool alignRight;
   final bool singleLine;
+  final double? letterSpacing;
 
   const _ValueBox({
     required this.text,
@@ -689,11 +696,12 @@ class _ValueBox extends StatelessWidget {
     this.alignLeft = false,
     this.alignRight = false,
     this.singleLine = false,
+    this.letterSpacing,
   });
 
   @override
   Widget build(BuildContext context) {
-    final alignment = alignLeft ? Alignment.centerLeft : Alignment.center;
+    final alignment = (alignLeft || alignRight) ? Alignment.centerLeft : Alignment.center;
     // Match LWC quirks:
     // - score/time: left-aligned with left padding
     // - winner: flex-start + text-align right + left padding (it sits off the right edge)
@@ -702,17 +710,27 @@ class _ValueBox extends StatelessWidget {
       alignment: alignment,
       child: Padding(
         padding: EdgeInsets.only(left: (alignLeft || effectiveAlignRight) ? 18 : 0),
-        child: Text(
-          text,
-          maxLines: singleLine ? 1 : null,
-          overflow: singleLine ? TextOverflow.ellipsis : TextOverflow.visible,
-          textAlign: effectiveAlignRight ? TextAlign.right : TextAlign.left,
-          style: TextStyle(
-            color: const Color(0xFF241406),
-            fontFamily: "Times New Roman",
-            fontWeight: FontWeight.w700,
-            fontSize: fontSize,
-            shadows: const [Shadow(offset: Offset(0, 1), blurRadius: 0, color: Color.fromRGBO(255, 255, 255, 0.6))],
+        child: SizedBox(
+          width: double.infinity,
+          child: Text(
+            text,
+            maxLines: singleLine ? 1 : null,
+            overflow: singleLine ? TextOverflow.ellipsis : TextOverflow.visible,
+            textAlign: effectiveAlignRight ? TextAlign.right : TextAlign.left,
+            style: TextStyle(
+              color: const Color(0xFF241406),
+              fontFamily: "Times New Roman",
+              fontWeight: FontWeight.w700,
+              fontSize: fontSize,
+              letterSpacing: letterSpacing,
+              shadows: const [
+                Shadow(
+                  offset: Offset(0, 1),
+                  blurRadius: 0,
+                  color: Color.fromRGBO(255, 255, 255, 0.6),
+                )
+              ],
+            ),
           ),
         ),
       ),
