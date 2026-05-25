@@ -28,8 +28,6 @@ class FunTargetStage extends StatelessWidget {
   final double wheelRotationDegrees;
   final Duration wheelSpinDuration;
   final Curve wheelSpinCurve;
-  final Duration wheelSpinDuration;
-  final Curve wheelSpinCurve;
 
   final bool betOkBlink;
   final bool takeBlink;
@@ -78,15 +76,24 @@ class FunTargetStage extends StatelessWidget {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final width = constraints.maxWidth.isFinite ? constraints.maxWidth : designWidth;
-        final scale = width / designWidth;
+        final maxWidth =
+            constraints.maxWidth.isFinite ? constraints.maxWidth : designWidth;
+        final maxHeight = constraints.maxHeight.isFinite
+            ? constraints.maxHeight
+            : (designHeight * heightScale);
+
+        final scaleW = maxWidth / designWidth;
+        final scaleH = maxHeight / (designHeight * heightScale);
+        final scale = min(scaleW, scaleH);
+
+        final outerWidth = designWidth * scale;
         final outerHeight = designHeight * scale * heightScale;
 
         return SizedBox(
-          width: width,
+          width: outerWidth,
           height: outerHeight,
           child: Align(
-            alignment: Alignment.topCenter,
+            alignment: Alignment.center,
             child: Transform(
               alignment: Alignment.topCenter,
               transform: Matrix4.diagonal3Values(scale, scale * heightScale, 1),
@@ -148,6 +155,8 @@ class _StageBody extends StatelessWidget {
 
   final bool isSpinning;
   final double wheelRotationDegrees;
+  final Duration wheelSpinDuration;
+  final Curve wheelSpinCurve;
 
   final bool betOkBlink;
   final bool takeBlink;
