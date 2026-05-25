@@ -560,21 +560,30 @@ class _GameScreenState extends State<GameScreen> {
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
+              // Dev/admin controls: keep available but out of the "game art" area.
               Positioned(
-                top: 4,
-                right: 8,
-                child: Row(
-                  children: [
-                    IconButton(
-                      tooltip: "Refresh",
-                      onPressed: _load,
-                      icon: const Icon(Icons.refresh, color: Colors.white70),
-                    ),
-                    TextButton(
-                      onPressed: _signOut,
-                      child: const Text("Sign out"),
-                    ),
-                  ],
+                right: 10,
+                bottom: 10,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: const Color.fromRGBO(11, 18, 32, 0.55),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: const Color.fromRGBO(255, 255, 255, 0.08)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IconButton(
+                        tooltip: "Refresh",
+                        onPressed: _load,
+                        icon: const Icon(Icons.refresh, color: Colors.white70),
+                      ),
+                      TextButton(
+                        onPressed: _signOut,
+                        child: const Text("Sign out"),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ],

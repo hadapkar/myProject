@@ -473,15 +473,7 @@ class _StageBody extends StatelessWidget {
             ),
           ),
 
-          // User label (top-left, outside the "game art" feel but useful for parity).
-          Positioned(
-            left: 16,
-            top: 12,
-            child: Text(
-              "User: $email",
-              style: const TextStyle(color: Colors.white70, fontSize: 12),
-            ),
-          ),
+          // Intentionally no extra "User:" label overlay (parity with Salesforce LWC).
         ],
       ),
     );
