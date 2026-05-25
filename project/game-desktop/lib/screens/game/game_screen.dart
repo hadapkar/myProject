@@ -46,6 +46,9 @@ class _GameScreenState extends State<GameScreen> {
 
   int _selectedChip = 1;
   Map<int, int> _betsByNumber = {};
+  double _coins = 0;
+  double _winnerAmount = 0;
+  List<int> _last10Results = const [];
   int? _selectedNumber;
   List<int> _selectedNumbers = [];
   int? _highlightedBetNumber;
@@ -99,6 +102,9 @@ class _GameScreenState extends State<GameScreen> {
       _state = state;
       _lastRoundAt = lastRoundAt;
       _betsByNumber = state.betsByNumber;
+      _coins = state.score;
+      _winnerAmount = state.winnerAmount;
+      _last10Results = state.last10Results;
       _selectedNumbers = _betsByNumber.keys.toList(growable: false);
       _selectedNumber = _selectedNumbers.isEmpty ? null : _selectedNumbers.last;
       _highlightedBetNumber = null;
@@ -144,8 +150,9 @@ class _GameScreenState extends State<GameScreen> {
 
     // Forfeit payout after 30s.
     if (_crossedSecond(prev, curr, _payoutForfeitSecond)) {
-      final winner = _state?.winnerAmount ?? 0;
+      final winner = _winnerAmount;
       if (winner > 0) {
+        setState(() => _winnerAmount = 0);
         unawaited(_postIntent({"intent": "FORFEIT_PAYOUT"}));
       }
     }
@@ -240,6 +247,11 @@ class _GameScreenState extends State<GameScreen> {
     final result = _autoSpinResult;
     if (!_autoSpinActive || result == null) return;
 
+    final stake = _betsByNumber[result] ?? 0;
+    final winValue = stake > 0 ? stake * 9 : 0;
+    final nextLast10 =
+        [result, ..._last10Results].take(10).toList(growable: false);
+
     setState(() {
       _currentNumber = result;
       _highlightedBetNumber = result;
@@ -248,13 +260,16 @@ class _GameScreenState extends State<GameScreen> {
       _footerMessage = _postSpinFooterMessage;
       _spinDuration = const Duration(milliseconds: 2800);
       _spinCurve = const Cubic(0.22, 0.9, 0.26, 1.05);
+      _winnerAmount = winValue.toDouble();
+      _betsByNumber = {};
+      _selectedNumbers = const [];
+      _selectedNumber = null;
+      _last10Results = nextLast10;
     });
 
     unawaited(_sounds.stop("wheelStart"));
     unawaited(_sounds.playOnce("wheelEnd", FunTargetAssets.soundWheelEnd));
 
-    final stake = _betsByNumber[result] ?? 0;
-    final winValue = stake > 0 ? stake * 9 : 0;
     unawaited(_sounds.playOnce(
         winValue > 0 ? "win" : "lose",
         winValue > 0 ? FunTargetAssets.soundWin : FunTargetAssets.soundLose));
@@ -279,14 +294,14 @@ class _GameScreenState extends State<GameScreen> {
   void _selectBetNumber(int number) {
     _onUserGesture();
     if (_isSpinning || _isFinalTenSeconds || _isBetConfirmed) return;
-    final score = _state?.score ?? 0;
-    if (score < _selectedChip) return;
+    if (_coins < _selectedChip) return;
 
     final updated = Map<int, int>.from(_betsByNumber);
     updated[number] = (updated[number] ?? 0) + _selectedChip;
 
     setState(() {
       _betsByNumber = updated;
+      _coins = (_coins - _selectedChip).clamp(0, double.infinity);
       _selectedNumbers = updated.keys.toList(growable: false);
       _selectedNumber = number;
       _showPrevBet = false;
@@ -313,6 +328,7 @@ class _GameScreenState extends State<GameScreen> {
 
   void _cancelBet() {
     _onUserGesture();
+    final refund = _sumBets(_betsByNumber).toDouble();
     setState(() {
       _selectedNumber = null;
       _selectedNumbers = [];
@@ -320,6 +336,7 @@ class _GameScreenState extends State<GameScreen> {
       _betsByNumber = {};
       _isBetConfirmed = false;
       _footerMessage = _defaultFooterMessage;
+      _coins = _coins + refund;
     });
     unawaited(_sounds.playOnce("button", FunTargetAssets.soundButton));
     unawaited(_postIntent({"intent": "SYNC_BETS", "bets_json": {}}));
@@ -330,9 +347,11 @@ class _GameScreenState extends State<GameScreen> {
     final target = _selectedNumber;
     if (target == null) return;
     final updated = Map<int, int>.from(_betsByNumber);
+    final refund = (updated[target] ?? 0).toDouble();
     updated.remove(target);
     setState(() {
       _betsByNumber = updated;
+      _coins = _coins + refund;
       _selectedNumbers = updated.keys.toList(growable: false);
       _selectedNumber = null;
       _isBetConfirmed = false;
@@ -344,13 +363,15 @@ class _GameScreenState extends State<GameScreen> {
 
   void _takePayout() {
     _onUserGesture();
-    final pending = _state?.winnerAmount ?? 0;
+    final pending = _winnerAmount;
     if (pending <= 0) return;
-    final projectedScore = (_state?.score ?? 0) + pending;
+    final projectedScore = _coins + pending;
     unawaited(_sounds.playOnce("take", FunTargetAssets.soundTake));
     setState(() {
       _highlightedBetNumber = null;
       _isBetConfirmed = false;
+      _coins = projectedScore;
+      _winnerAmount = 0;
       _showPrevBet = _canApplyPrevBetWithScore(projectedScore);
       _footerMessage = _defaultFooterMessage;
       _betOkHighlighted = true;
@@ -373,7 +394,7 @@ class _GameScreenState extends State<GameScreen> {
     if (prev == null || prev.isEmpty) return;
 
     final previousTotal = _sumBets(prev);
-    final score = _state?.score ?? 0;
+    final score = _coins;
     if (score < previousTotal) {
       setState(() {
         _showPrevBet = _canApplyPrevBetWithScore(score);
@@ -412,6 +433,9 @@ class _GameScreenState extends State<GameScreen> {
       _autoSpinResult = null;
       _lastTimerSecond = null;
       _exitSuppressUntilRoundKey = _currentRoundKey();
+      _coins = 0;
+      _winnerAmount = 0;
+      _last10Results = const [];
     });
     unawaited(_sounds.playOnce("exit", FunTargetAssets.soundExit));
     unawaited(_postIntent({"intent": "RESET_GAME"}));
@@ -428,7 +452,7 @@ class _GameScreenState extends State<GameScreen> {
     final state = _state;
     final email = user?.email ?? "-";
     final totalBet = _sumBets(_betsByNumber);
-    final winnerAmount = state?.winnerAmount ?? 0;
+    final winnerAmount = _winnerAmount;
     final isBettingPhase =
         !_isSpinning && !_isFinalTenSeconds && winnerAmount <= 0;
     final shouldBlinkBetOk =
@@ -450,10 +474,10 @@ class _GameScreenState extends State<GameScreen> {
                         child: FunTargetStage(
                           email: email,
                           timeLeftSeconds: _timeLeft,
-                          score: state.score,
+                          score: _coins,
                           totalBetAmount: totalBet.toDouble(),
-                          winnerAmount: state.winnerAmount,
-                          last10: state.last10Results,
+                          winnerAmount: _winnerAmount,
+                          last10: _last10Results,
                           selectedChip: _selectedChip,
                           onChipSelected: _selectChip,
                           betsByNumber: _betsByNumber,
