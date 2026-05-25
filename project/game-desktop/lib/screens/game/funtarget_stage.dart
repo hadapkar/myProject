@@ -701,19 +701,20 @@ class _ValueBox extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final alignment = alignRight
-        ? Alignment.centerRight
-        : alignLeft
-            ? Alignment.centerLeft
-            : Alignment.center;
+    final alignment = alignLeft ? Alignment.centerLeft : Alignment.center;
+    // Match LWC quirks:
+    // - score/time: left-aligned with left padding
+    // - winner: flex-start + text-align right + left padding (it sits off the right edge)
+    final effectiveAlignRight = alignRight && !alignLeft;
     return Align(
       alignment: alignment,
       child: Padding(
-        padding: EdgeInsets.only(left: alignLeft ? 18 : 0, right: alignRight ? 18 : 0),
+        padding: EdgeInsets.only(left: (alignLeft || effectiveAlignRight) ? 18 : 0),
         child: Text(
           text,
           maxLines: singleLine ? 1 : null,
           overflow: singleLine ? TextOverflow.ellipsis : TextOverflow.visible,
+          textAlign: effectiveAlignRight ? TextAlign.right : TextAlign.left,
           style: TextStyle(
             color: const Color(0xFF241406),
             fontFamily: "Times New Roman",
@@ -1003,6 +1004,7 @@ class _ActionButtonBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final labelText = label.toUpperCase();
     return GestureDetector(
       onTap: enabled ? onPressed : null,
       child: Stack(
@@ -1031,12 +1033,13 @@ class _ActionButtonBody extends StatelessWidget {
           Positioned.fill(
             child: Center(
               child: Text(
-                label,
+                labelText,
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   color: const Color(0xFFFFE6A8),
                   fontSize: labelFontSize,
-                  fontWeight: FontWeight.w800,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: labelFontSize <= 10 ? 0 : 0.3,
                   shadows: const [
                     Shadow(
                         offset: Offset(-1, -1),
