@@ -104,11 +104,19 @@ class _GameScreenState extends State<GameScreen> {
       _serverClockOffsetMs =
           serverNow.toUtc().millisecondsSinceEpoch - DateTime.now().millisecondsSinceEpoch;
     }
+    final updatedFrom = state.lastUpdatedFrom.trim().toLowerCase();
     setState(() {
       _state = state;
       _lastRoundAt = lastRoundAt;
       _betsByNumber = state.betsByNumber;
-      _coins = state.score;
+      // Match LWC behavior: avoid overwriting site-side in-round coins with stale server value.
+      // Only force-sync coins when updated by an external actor (Admin/Mobile) or when we are
+      // not currently in an active bet flow.
+      if (updatedFrom == "admin" ||
+          updatedFrom == "mobile" ||
+          state.betsByNumber.isEmpty) {
+        _coins = state.score;
+      }
       _winnerAmount = state.winnerAmount;
       _last10Results = state.last10Results;
       _selectedNumbers = _betsByNumber.keys.toList(growable: false);

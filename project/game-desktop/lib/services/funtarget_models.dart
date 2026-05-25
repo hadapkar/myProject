@@ -8,6 +8,7 @@ class FunTargetState {
   final DateTime? roundEndsAt;
   final DateTime? lastModifiedDate;
   final DateTime? serverNow;
+  final String lastUpdatedFrom;
   final Map<int, int> betsByNumber;
 
   FunTargetState({
@@ -20,6 +21,7 @@ class FunTargetState {
     required this.roundEndsAt,
     required this.lastModifiedDate,
     required this.serverNow,
+    required this.lastUpdatedFrom,
     required this.betsByNumber,
   });
 
@@ -83,6 +85,7 @@ class FunTargetState {
       roundEndsAt: _toDateTime(json["roundEndsAt"]),
       lastModifiedDate: _toDateTime(json["lastModifiedDate"] ?? json["updated_at"]),
       serverNow: _toDateTime(json["serverNow"]),
+      lastUpdatedFrom: (json["last_updated_from"] ?? "").toString(),
       betsByNumber: _toBets(json["bets_json"]),
     );
   }
