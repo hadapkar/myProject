@@ -5,6 +5,9 @@ class FunTargetState {
   final List<int> last10Results;
   final int? predefinedWheelNumber;
   final DateTime? lastRoundAt;
+  final DateTime? roundEndsAt;
+  final DateTime? lastModifiedDate;
+  final DateTime? serverNow;
   final Map<int, int> betsByNumber;
 
   FunTargetState({
@@ -14,6 +17,9 @@ class FunTargetState {
     required this.last10Results,
     required this.predefinedWheelNumber,
     required this.lastRoundAt,
+    required this.roundEndsAt,
+    required this.lastModifiedDate,
+    required this.serverNow,
     required this.betsByNumber,
   });
 
@@ -73,7 +79,10 @@ class FunTargetState {
       winnerAmount: _toDouble(json["winner_amount"], 0),
       last10Results: _toLast10(json["last10_results"]),
       predefinedWheelNumber: _toWheelNumber(json["predefined_wheel_number"]),
-      lastRoundAt: _toDateTime(json["last_round_at"]),
+      lastRoundAt: _toDateTime(json["lastRoundAt"] ?? json["last_round_at"]),
+      roundEndsAt: _toDateTime(json["roundEndsAt"]),
+      lastModifiedDate: _toDateTime(json["lastModifiedDate"] ?? json["updated_at"]),
+      serverNow: _toDateTime(json["serverNow"]),
       betsByNumber: _toBets(json["bets_json"]),
     );
   }

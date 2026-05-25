@@ -2,7 +2,9 @@ package com.funtarget.backend.funtarget;
 
 import com.funtarget.backend.supabase.SupabaseRestService;
 import com.funtarget.backend.supabase.SupabaseUser;
+import java.time.Duration;
 import java.time.Instant;
+import java.time.format.DateTimeParseException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -17,6 +19,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/funtarget")
 public class FunTargetIntentController {
   private static final List<Integer> DEFAULT_LAST_RESULTS = List.of(8, 8, 9, 0, 2, 9, 6, 4, 3, 7);
+  private static final Duration ROUND_ENDS_AT_OFFSET = Duration.ofSeconds(55);
 
   private final SupabaseRestService supabaseRest;
 
@@ -27,7 +30,7 @@ public class FunTargetIntentController {
   @GetMapping("/state")
   public Map<String, Object> state(Authentication authentication) {
     SupabaseUser user = requireUser(authentication);
-    return supabaseRest.getOrCreateFunTargetState(user.id());
+    return enrichState(supabaseRest.getOrCreateFunTargetState(user.id()));
   }
 
   @PostMapping("/intent")
@@ -100,7 +103,39 @@ public class FunTargetIntentController {
       default -> throw new IllegalArgumentException("Unknown intent");
     }
 
-    return supabaseRest.patchFunTargetState(user.id(), patch);
+    return enrichState(supabaseRest.patchFunTargetState(user.id(), patch));
+  }
+
+  private static Map<String, Object> enrichState(Map<String, Object> row) {
+    Map<String, Object> out = new HashMap<>(row == null ? Map.of() : row);
+
+    // Match Salesforce LWC field naming for timer parity.
+    out.put("serverNow", Instant.now().toString());
+
+    String lastRoundAt = asIso(row == null ? null : row.get("last_round_at"));
+    if (lastRoundAt != null) {
+      out.put("lastRoundAt", lastRoundAt);
+      try {
+        Instant anchor = Instant.parse(lastRoundAt);
+        out.put("roundEndsAt", anchor.plus(ROUND_ENDS_AT_OFFSET).toString());
+      } catch (DateTimeParseException ignored) {
+        // no-op
+      }
+    }
+
+    String lastModifiedDate = asIso(row == null ? null : row.get("updated_at"));
+    if (lastModifiedDate != null) {
+      out.put("lastModifiedDate", lastModifiedDate);
+    }
+
+    return out;
+  }
+
+  private static String asIso(Object value) {
+    if (value == null) return null;
+    String text = String.valueOf(value).trim();
+    if (text.isBlank() || "null".equalsIgnoreCase(text)) return null;
+    return text;
   }
 
   private static SupabaseUser requireUser(Authentication authentication) {
@@ -190,4 +225,3 @@ public class FunTargetIntentController {
     return next.subList(0, 10);
   }
 }
-

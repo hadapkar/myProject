@@ -28,6 +28,7 @@ class _GameScreenState extends State<GameScreen> {
   Timer? _timer;
   int _timeLeft = 59;
   DateTime? _lastRoundAt;
+  int _serverClockOffsetMs = 0;
 
   // Local UI/game state (mirrors Salesforce behavior; backend is authoritative).
   static const int _segments = 10;
@@ -98,6 +99,11 @@ class _GameScreenState extends State<GameScreen> {
 
   void _applyLoadedState(FunTargetState state) {
     final lastRoundAt = state.lastRoundAt;
+    final serverNow = state.serverNow;
+    if (serverNow != null) {
+      _serverClockOffsetMs =
+          serverNow.toUtc().millisecondsSinceEpoch - DateTime.now().millisecondsSinceEpoch;
+    }
     setState(() {
       _state = state;
       _lastRoundAt = lastRoundAt;
@@ -114,27 +120,41 @@ class _GameScreenState extends State<GameScreen> {
 
   void _startTimer(DateTime? lastRoundAt) {
     _timer?.cancel();
-    if (lastRoundAt == null) {
-      setState(() => _timeLeft = 59);
-      return;
-    }
-
     void tick() {
-      final seconds =
-          TimerAnchor.computeTimeLeftSeconds(lastRoundAt, DateTime.now());
+      final state = _state;
+      final serverNowMs =
+          DateTime.now().millisecondsSinceEpoch + _serverClockOffsetMs;
+      final seconds = TimerAnchor.computeTimeLeftSeconds(
+        serverNowMs: serverNowMs,
+        roundEndsAtMs: state?.roundEndsAt?.millisecondsSinceEpoch,
+        lastRoundAtMs: state?.lastRoundAt?.millisecondsSinceEpoch,
+        lastModifiedMs: state?.lastModifiedDate?.millisecondsSinceEpoch,
+      );
       if (seconds == _timeLeft && seconds == _lastTimerSecond) return;
 
       final prev = _lastTimerSecond;
       _lastTimerSecond = seconds;
+
+      // Match LWC: prevent upward jumps (except wrap at 0 -> 59).
+      final nextSeconds = _clampNoIncrease(prev, seconds);
+
       setState(() {
-        _timeLeft = seconds;
-        _isFinalTenSeconds = seconds <= _finalTenSecond;
+        _timeLeft = nextSeconds;
+        _isFinalTenSeconds = nextSeconds <= _finalTenSecond;
       });
-      _handleTimerSecondChange(prev, seconds);
+      _handleTimerSecondChange(prev, nextSeconds);
     }
 
     tick();
     _timer = Timer.periodic(const Duration(milliseconds: 250), (_) => tick());
+  }
+
+  int _clampNoIncrease(int? previousSecond, int computedSecond) {
+    if (previousSecond == null) return computedSecond;
+    if (computedSecond > previousSecond && previousSecond != 0) {
+      return previousSecond;
+    }
+    return computedSecond;
   }
 
   void _handleTimerSecondChange(int? prev, int curr) {
