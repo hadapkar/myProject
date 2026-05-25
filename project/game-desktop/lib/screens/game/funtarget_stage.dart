@@ -217,7 +217,9 @@ class _StageBody extends StatelessWidget {
           Positioned.fill(
             child: Image.asset(
               FunTargetAssets.background,
-              fit: BoxFit.cover,
+              // Use fill (not cover) so pixel coordinates line up exactly with the
+              // 1024x768 design grid (avoids subtle cropping/offset on some devices).
+              fit: BoxFit.fill,
               errorBuilder: (context, error, stackTrace) {
                 return ColoredBox(
                   color: const Color(0xFF120804),
