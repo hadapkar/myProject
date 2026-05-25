@@ -56,7 +56,7 @@ class _GameScreenState extends State<GameScreen> {
   bool _isBetConfirmed = false;
   bool _betOkHighlighted = false;
   bool _showPrevBet = false;
-  Map<int, int>? _prevBet;
+  _PrevBetSnapshot? _prevBet;
   int _currentNumber = 0;
   double _rotationDegrees = 0;
   bool _isSpinning = false;
@@ -341,7 +341,11 @@ class _GameScreenState extends State<GameScreen> {
       _showPrevBet = false;
       _footerMessage = "Your bet has been Accepted";
       _betOkHighlighted = false;
-      _prevBet = Map<int, int>.from(_betsByNumber);
+      _prevBet = _PrevBetSnapshot(
+        betsByNumber: Map<int, int>.from(_betsByNumber),
+        selectedChip: _selectedChip,
+        selectedNumber: _selectedNumber,
+      );
     });
     unawaited(_sounds.playOnce("bet", FunTargetAssets.soundBet));
   }
@@ -401,9 +405,9 @@ class _GameScreenState extends State<GameScreen> {
 
   bool _canApplyPrevBetWithScore(double availableScore) {
     final prev = _prevBet;
-    if (prev == null || prev.isEmpty) return false;
+    if (prev == null || prev.betsByNumber.isEmpty) return false;
     if (_isSpinning || _isFinalTenSeconds || _isBetConfirmed) return false;
-    final previousTotal = _sumBets(prev);
+    final previousTotal = _sumBets(prev.betsByNumber);
     return previousTotal > 0 && availableScore >= previousTotal;
   }
 
@@ -411,9 +415,9 @@ class _GameScreenState extends State<GameScreen> {
     _onUserGesture();
     if (_isSpinning || _isFinalTenSeconds || _isBetConfirmed) return;
     final prev = _prevBet;
-    if (prev == null || prev.isEmpty) return;
+    if (prev == null || prev.betsByNumber.isEmpty) return;
 
-    final previousTotal = _sumBets(prev);
+    final previousTotal = _sumBets(prev.betsByNumber);
     final score = _coins;
     if (score < previousTotal) {
       setState(() {
@@ -425,13 +429,17 @@ class _GameScreenState extends State<GameScreen> {
 
     setState(() {
       _showPrevBet = false;
-      _betsByNumber = Map<int, int>.from(prev);
-      _selectedNumbers = prev.keys.toList(growable: false);
-      _selectedNumber = _selectedNumbers.isEmpty ? null : _selectedNumbers.last;
+      _betsByNumber = Map<int, int>.from(prev.betsByNumber);
+      _coins = (_coins - previousTotal).clamp(0, double.infinity);
+      _selectedNumbers = prev.betsByNumber.keys.toList(growable: false);
+      _selectedNumber =
+          _selectedNumbers.isEmpty ? prev.selectedNumber : _selectedNumbers.last;
+      _selectedChip = prev.selectedChip;
       _footerMessage = _defaultFooterMessage;
     });
     unawaited(_sounds.playOnce("button", FunTargetAssets.soundButton));
-    unawaited(_postIntent({"intent": "SYNC_BETS", "bets_json": prev}));
+    unawaited(
+        _postIntent({"intent": "SYNC_BETS", "bets_json": prev.betsByNumber}));
   }
 
   void _resetGame() {
@@ -561,4 +569,16 @@ class _GameScreenState extends State<GameScreen> {
       ),
     );
   }
+}
+
+class _PrevBetSnapshot {
+  final Map<int, int> betsByNumber;
+  final int selectedChip;
+  final int? selectedNumber;
+
+  const _PrevBetSnapshot({
+    required this.betsByNumber,
+    required this.selectedChip,
+    required this.selectedNumber,
+  });
 }
