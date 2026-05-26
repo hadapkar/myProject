@@ -1,0 +1,74 @@
+name: Flutter Windows Desktop (Artifact)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "project/game-desktop/**"
+      - ".github/workflows/flutter-windows-desktop.yml"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: project/game-desktop
+        shell: bash
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: "stable"
+          cache: true
+
+      - name: Enable Windows desktop
+        run: flutter config --enable-windows-desktop
+
+      - name: Flutter pub get
+        run: flutter pub get
+
+      - name: Ensure Windows runner exists
+        run: |
+          if [ ! -d "windows" ]; then
+            flutter create . --platforms=windows
+          fi
+
+      - name: Build Windows (release)
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          API_BASE_URL: ${{ secrets.API_BASE_URL }}
+        run: |
+          if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_ANON_KEY" ] || [ -z "$API_BASE_URL" ]; then
+            echo "Missing required secrets SUPABASE_URL / SUPABASE_ANON_KEY / API_BASE_URL" >&2
+            exit 1
+          fi
+          flutter build windows --release \
+            --dart-define=SUPABASE_URL="$SUPABASE_URL" \
+            --dart-define=SUPABASE_ANON_KEY="$SUPABASE_ANON_KEY" \
+            --dart-define=API_BASE_URL="$API_BASE_URL"
+
+      - name: Package artifact (zip)
+        run: |
+          set -euo pipefail
+          OUT_DIR="build/windows/x64/runner/Release"
+          if [ ! -d "$OUT_DIR" ]; then
+            echo "Expected output dir not found: $OUT_DIR" >&2
+            ls -la build/windows || true
+            exit 1
+          fi
+          cd "$OUT_DIR"
+          7z a -tzip "../../../../funtarget-windows.zip" ./*
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: funtarget-windows
+          path: project/game-desktop/build/funtarget-windows.zip

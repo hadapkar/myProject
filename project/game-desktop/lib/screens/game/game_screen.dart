@@ -97,6 +97,17 @@ class _GameScreenState extends State<GameScreen> {
     try {
       final state = await _api.getState();
       _applyLoadedState(state);
+    } on StateError catch (e) {
+      final text = e.message;
+      // If session/token is invalid, route back to login (Supabase guard will redirect).
+      if (text.contains("Not authenticated") || text.contains("Backend error 401")) {
+        if (mounted) {
+          setState(() => _error = "Session expired. Please sign in again.");
+        }
+        await Supabase.instance.client.auth.signOut();
+        return;
+      }
+      setState(() => _error = text);
     } catch (e) {
       setState(() => _error = e.toString());
     }
@@ -548,7 +559,7 @@ class _GameScreenState extends State<GameScreen> {
               Positioned.fill(
                 child: state == null
                     ? const Center(child: Text("Loading state..."))
-                    : Center(
+                    : SizedBox.expand(
                         child: FunTargetStage(
                           email: email,
                           timeLeftSeconds: _timeLeft,
