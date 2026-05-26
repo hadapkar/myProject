@@ -48,13 +48,20 @@ public class SecurityConfig {
     cors.setAllowCredentials(true);
 
     if (allowedOrigins != null && !allowedOrigins.isBlank()) {
+      // Explicit origins (comma-separated).
       cors.setAllowedOrigins(Arrays.stream(allowedOrigins.split(","))
           .map(String::trim)
           .filter(s -> !s.isBlank())
           .toList());
     } else {
-      // Safer default: only allow localhost if not configured.
-      cors.setAllowedOrigins(List.of("http://localhost:3000"));
+      // Default dev + preview origins when not configured.
+      // Use origin *patterns* so local ports / preview subdomains work without manual env setup.
+      cors.setAllowedOriginPatterns(
+          List.of(
+              "http://localhost:*",
+              "http://127.0.0.1:*",
+              "https://*.vercel.app",
+              "https://*.github.io"));
     }
 
     UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
