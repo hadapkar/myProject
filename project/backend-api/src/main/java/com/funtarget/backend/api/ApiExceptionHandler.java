@@ -25,7 +25,7 @@ public class ApiExceptionHandler {
   @ExceptionHandler(RestClientResponseException.class)
   public ResponseEntity<ApiError> upstream(RestClientResponseException e, HttpServletRequest req) {
     // Supabase/PostgREST failures.
-    String msg = "Upstream error (" + e.getRawStatusCode() + ")";
+    String msg = "Upstream error (" + e.getStatusCode().value() + ")";
     return error(HttpStatus.BAD_GATEWAY, "upstream_error", msg, req);
   }
 

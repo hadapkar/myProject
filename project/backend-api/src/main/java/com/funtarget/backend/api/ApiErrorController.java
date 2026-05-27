@@ -3,14 +3,13 @@ package com.funtarget.backend.api;
 import com.funtarget.backend.security.RequestIdFilter;
 import jakarta.servlet.http.HttpServletRequest;
 import java.time.Instant;
-import org.springframework.boot.web.servlet.error.ErrorController;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-public class ApiErrorController implements ErrorController {
+public class ApiErrorController {
 
   @RequestMapping("/error")
   public ResponseEntity<ApiError> error(HttpServletRequest request) {
