@@ -12,7 +12,7 @@ Future<void> downloadAndInstallPlatform({
   final appExePath = Platform.resolvedExecutable;
   final appDir = Directory(File(appExePath).parent.path);
   final appExeName = File(appExePath).uri.pathSegments.isEmpty
-      ? "FunTarget.exe"
+      ? "KingMaker.exe"
       : File(appExePath).uri.pathSegments.last;
 
   final tempDir = await Directory.systemTemp.createTemp("funtarget_update_");
