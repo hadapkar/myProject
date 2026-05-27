@@ -18,7 +18,6 @@ Docker uses `project/backend-api/Dockerfile`.
 
 - `SUPABASE_URL` = `https://ydljofhkpeusxoegnvfs.supabase.co`
 - `SUPABASE_ANON_KEY` = (your Supabase anon key)
-- `SUPABASE_SERVICE_ROLE_KEY` = (your Supabase service_role key, server-only)
 - `CORS_ALLOWED_ORIGINS` = comma-separated list of browser origins allowed to call the API, e.g.
   - `https://hadapkar.github.io` (Flutter Web on GitHub Pages)
   - `http://localhost:3000` (local dev)
@@ -29,6 +28,7 @@ Render sets `PORT` automatically; `application.properties` reads it and the Dock
 ## Notes
 
 - If `CORS_ALLOWED_ORIGINS` is empty, the backend defaults to allowing only localhost. Set it explicitly on Render.
+- The backend calls Supabase using the **user access token** (RLS enforced). A `service_role` key is intentionally not used.
 
 ## Verify
 

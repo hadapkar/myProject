@@ -1,12 +1,17 @@
 package com.funtarget.backend.security;
 
 import com.funtarget.backend.supabase.SupabaseAuthService;
+import com.funtarget.backend.api.ApiError;
+import jakarta.servlet.http.HttpServletRequest;
+import java.io.IOException;
+import java.time.Instant;
 import java.util.Arrays;
 import java.util.List;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
+import org.springframework.http.MediaType;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -35,7 +40,16 @@ public class SecurityConfig {
         .cors(Customizer.withDefaults())
         .httpBasic(basic -> basic.disable())
         .formLogin(form -> form.disable())
-        .addFilterBefore(new SupabaseTokenAuthFilter(authService), UsernamePasswordAuthenticationFilter.class)
+        .exceptionHandling(
+            eh ->
+                eh.authenticationEntryPoint(
+                        (req, res, ex) ->
+                            writeJson(res, req, 401, "unauthorized", "Unauthorized"))
+                    .accessDeniedHandler(
+                        (req, res, ex) ->
+                            writeJson(res, req, 403, "forbidden", "Forbidden")))
+        .addFilterBefore(new RequestIdFilter(), UsernamePasswordAuthenticationFilter.class)
+        .addFilterAfter(new SupabaseTokenAuthFilter(authService), RequestIdFilter.class)
         .addFilterAfter(rateLimitFilter, SupabaseTokenAuthFilter.class)
         .authorizeHttpRequests(
             auth ->
@@ -69,5 +83,47 @@ public class SecurityConfig {
     UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
     source.registerCorsConfiguration("/**", cors);
     return source;
+  }
+
+  private static void writeJson(
+      jakarta.servlet.http.HttpServletResponse response,
+      HttpServletRequest request,
+      int status,
+      String error,
+      String message)
+      throws IOException {
+    response.setStatus(status);
+    response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+    String path = request == null ? "" : request.getRequestURI();
+    String requestId = request == null ? "" : String.valueOf(request.getAttribute(RequestIdFilter.ATTR));
+    ApiError body = new ApiError(error, message, status, path, Instant.now(), requestId);
+    response
+        .getWriter()
+        .write(
+            "{"
+                + "\"error\":\""
+                + escape(body.error())
+                + "\","
+                + "\"message\":\""
+                + escape(body.message())
+                + "\","
+                + "\"status\":"
+                + body.status()
+                + ","
+                + "\"path\":\""
+                + escape(body.path())
+                + "\","
+                + "\"time\":\""
+                + body.time()
+                + "\","
+                + "\"requestId\":\""
+                + escape(body.requestId())
+                + "\""
+                + "}");
+  }
+
+  private static String escape(String s) {
+    if (s == null) return "";
+    return s.replace("\\", "\\\\").replace("\"", "\\\"");
   }
 }

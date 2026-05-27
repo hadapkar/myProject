@@ -15,6 +15,7 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.filter.OncePerRequestFilter;
+import com.funtarget.backend.security.RequestIdFilter;
 
 public class SupabaseTokenAuthFilter extends OncePerRequestFilter {
   private final SupabaseAuthService authService;
@@ -38,15 +39,15 @@ public class SupabaseTokenAuthFilter extends OncePerRequestFilter {
         SecurityContextHolder.getContext().setAuthentication(auth);
       } catch (IllegalStateException e) {
         // Configuration error: tell the client explicitly so setup is fast.
-        writeJson(response, 500, "server_misconfigured", e.getMessage(), request.getRequestURI());
+        writeJson(response, request, 500, "server_misconfigured", e.getMessage(), request.getRequestURI());
         return;
       } catch (IllegalArgumentException e) {
         // Invalid token/session.
-        writeJson(response, 401, "unauthorized", e.getMessage(), request.getRequestURI());
+        writeJson(response, request, 401, "unauthorized", e.getMessage(), request.getRequestURI());
         return;
       } catch (Exception ignored) {
         // Unexpected error: fail closed.
-        writeJson(response, 401, "unauthorized", "Unauthorized", request.getRequestURI());
+        writeJson(response, request, 401, "unauthorized", "Unauthorized", request.getRequestURI());
         return;
       }
     }
@@ -55,10 +56,11 @@ public class SupabaseTokenAuthFilter extends OncePerRequestFilter {
   }
 
   private static void writeJson(
-      HttpServletResponse response, int status, String error, String message, String path)
+      HttpServletResponse response, HttpServletRequest request, int status, String error, String message, String path)
       throws IOException {
     response.setStatus(status);
     response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+    String requestId = request == null ? "" : String.valueOf(request.getAttribute(RequestIdFilter.ATTR));
     response
         .getWriter()
         .write(
@@ -77,6 +79,9 @@ public class SupabaseTokenAuthFilter extends OncePerRequestFilter {
                 + "\","
                 + "\"time\":\""
                 + Instant.now()
+                + "\","
+                + "\"requestId\":\""
+                + escape(requestId)
                 + "\""
                 + "}");
   }

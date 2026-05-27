@@ -15,6 +15,7 @@ import org.springframework.http.MediaType;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.filter.OncePerRequestFilter;
+import com.funtarget.backend.security.RequestIdFilter;
 
 /**
  * Simple in-memory fixed-window rate limiting for /api/* endpoints.
@@ -59,8 +60,9 @@ public class RateLimitFilter extends OncePerRequestFilter {
     if (next > limitPerMinute) {
       response.setStatus(429);
       response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+      String requestId = String.valueOf(request.getAttribute(RequestIdFilter.ATTR));
       ApiError err =
-          new ApiError("rate_limited", "Too many requests", 429, request.getRequestURI(), Instant.now());
+          new ApiError("rate_limited", "Too many requests", 429, request.getRequestURI(), Instant.now(), requestId);
       response.getWriter().write(toJson(err));
       return;
     }
@@ -99,12 +101,14 @@ public class RateLimitFilter extends OncePerRequestFilter {
   private static String toJson(ApiError err) {
     String path = err.path() == null ? "" : err.path();
     String msg = err.message() == null ? "" : err.message();
+    String rid = err.requestId() == null ? "" : err.requestId();
     return "{"
         + "\"error\":\"" + escape(err.error()) + "\","
         + "\"message\":\"" + escape(msg) + "\","
         + "\"status\":" + err.status() + ","
         + "\"path\":\"" + escape(path) + "\","
-        + "\"time\":\"" + err.time() + "\""
+        + "\"time\":\"" + err.time() + "\","
+        + "\"requestId\":\"" + escape(rid) + "\""
         + "}";
   }
 
@@ -122,4 +126,3 @@ public class RateLimitFilter extends OncePerRequestFilter {
     }
   }
 }
-

@@ -26,22 +26,22 @@ public class SupabaseRestService {
             .build();
   }
 
-  public Map<String, Object> getOrCreateFunTargetState(String userId) {
-    Map<String, Object> existing = tryGetFunTargetState(userId);
+  public Map<String, Object> getOrCreateFunTargetState(String accessToken, String userId) {
+    Map<String, Object> existing = tryGetFunTargetState(accessToken, userId);
     if (existing != null) {
       return existing;
     }
 
-    upsertFunTargetState(List.of(Map.of("user_id", userId)));
-    Map<String, Object> created = tryGetFunTargetState(userId);
+    upsertFunTargetState(accessToken, List.of(Map.of("user_id", userId)));
+    Map<String, Object> created = tryGetFunTargetState(accessToken, userId);
     if (created == null) {
       throw new IllegalStateException("Unable to create fun_target_state row");
     }
     return created;
   }
 
-  public Map<String, Object> tryGetFunTargetState(String userId) {
-    requireServiceRole();
+  public Map<String, Object> tryGetFunTargetState(String accessToken, String userId) {
+    requireConfigured();
     try {
       return restClient
           .get()
@@ -52,8 +52,8 @@ public class SupabaseRestService {
                       .queryParam("select", "*")
                       .queryParam("user_id", "eq." + userId)
                       .build())
-          .header("apikey", props.serviceRoleKey())
-          .header(HttpHeaders.AUTHORIZATION, "Bearer " + props.serviceRoleKey())
+          .header("apikey", props.anonKey())
+          .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
           .header(HttpHeaders.ACCEPT, "application/vnd.pgrst.object+json")
           .retrieve()
           .body(Map.class);
@@ -66,16 +66,17 @@ public class SupabaseRestService {
     }
   }
 
-  public Map<String, Object> patchFunTargetState(String userId, Map<String, Object> patch) {
-    requireServiceRole();
+  public Map<String, Object> patchFunTargetState(
+      String accessToken, String userId, Map<String, Object> patch) {
+    requireConfigured();
     List<Map<String, Object>> updated =
         restClient
             .patch()
             .uri(
                 uriBuilder ->
                     uriBuilder.path("/fun_target_state").queryParam("user_id", "eq." + userId).build())
-            .header("apikey", props.serviceRoleKey())
-            .header(HttpHeaders.AUTHORIZATION, "Bearer " + props.serviceRoleKey())
+            .header("apikey", props.anonKey())
+            .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
             .header("Prefer", "return=representation")
             .body(patch)
             .retrieve()
@@ -87,26 +88,22 @@ public class SupabaseRestService {
     return updated.get(0);
   }
 
-  private void upsertFunTargetState(List<Map<String, Object>> rows) {
-    requireServiceRole();
+  private void upsertFunTargetState(String accessToken, List<Map<String, Object>> rows) {
+    requireConfigured();
     restClient
         .post()
         .uri(uriBuilder -> uriBuilder.path("/fun_target_state").queryParam("on_conflict", "user_id").build())
-        .header("apikey", props.serviceRoleKey())
-        .header(HttpHeaders.AUTHORIZATION, "Bearer " + props.serviceRoleKey())
+        .header("apikey", props.anonKey())
+        .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
         .header("Prefer", "resolution=merge-duplicates,return=representation")
         .body(rows)
         .retrieve()
         .toBodilessEntity();
   }
 
-  private void requireServiceRole() {
-    if (props == null
-        || props.url() == null
-        || props.url().isBlank()
-        || props.serviceRoleKey() == null
-        || props.serviceRoleKey().isBlank()) {
-      throw new IllegalStateException("SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY must be set");
+  private void requireConfigured() {
+    if (props == null || props.url() == null || props.url().isBlank() || props.anonKey() == null || props.anonKey().isBlank()) {
+      throw new IllegalStateException("SUPABASE_URL and SUPABASE_ANON_KEY must be set");
     }
   }
 

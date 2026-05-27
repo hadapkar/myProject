@@ -7,6 +7,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.client.RestClientResponseException;
+import com.funtarget.backend.security.RequestIdFilter;
 
 @RestControllerAdvice
 public class ApiExceptionHandler {
@@ -36,8 +37,8 @@ public class ApiExceptionHandler {
   private static ResponseEntity<ApiError> error(
       HttpStatus status, String code, String message, HttpServletRequest req) {
     String path = req != null ? req.getRequestURI() : null;
-    ApiError body = new ApiError(code, message, status.value(), path, Instant.now());
+    String requestId = req != null ? String.valueOf(req.getAttribute(RequestIdFilter.ATTR)) : null;
+    ApiError body = new ApiError(code, message, status.value(), path, Instant.now(), requestId);
     return ResponseEntity.status(status).body(body);
   }
 }
-

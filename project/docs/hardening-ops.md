@@ -8,7 +8,6 @@ Set these in your Render service:
 
 - `SUPABASE_URL`
 - `SUPABASE_ANON_KEY`
-- `SUPABASE_SERVICE_ROLE_KEY` (server-only)
 - `CORS_ALLOWED_ORIGINS` (required now)
 - `RATE_LIMIT_PER_MINUTE` (optional; default `120`)
 
@@ -27,9 +26,10 @@ After updating env vars, trigger a redeploy on Render.
 
 ## 2) Apply Supabase migrations (prod)
 
-The hardening migration is:
+The hardening migrations are:
 
 - `supabase/migrations/20260527090000_hardening.sql`
+- `supabase/migrations/20260527123000_audit_trigger_security_definer.sql`
 
 ### Option A: Supabase CLI (recommended)
 
@@ -52,4 +52,3 @@ If you can’t use the CLI, open Supabase Dashboard → SQL Editor and run the S
   - `GET /api/me` with `Authorization: Bearer <supabase_access_token>` returns your id/email
 - Game:
   - Flutter web/desktop can load `GET /api/funtarget/state`
-

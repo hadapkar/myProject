@@ -41,3 +41,14 @@ Additional migrations add:
 
 - Constraints on `public.fun_target_state` (valid last10 length/digits, bets_json shape, non-negative amounts)
 - `public.audit_logs` with a trigger that logs inserts/updates to `fun_target_state`
+
+## Security / RLS (summary)
+
+- `public.fun_target_state` uses RLS:
+  - players can read/write only their own row (`user_id = auth.uid()`)
+  - admins (users present in `public.admin_users`) can read/update all rows
+- `public.audit_logs` is readable only by admins.
+
+Notes:
+
+- The backend API calls PostgREST using the **user access token** + the Supabase `anon` key, so RLS is enforced end-to-end.

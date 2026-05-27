@@ -2,12 +2,14 @@ package com.funtarget.backend.funtarget;
 
 import com.funtarget.backend.supabase.SupabaseRestService;
 import com.funtarget.backend.supabase.SupabaseUser;
+import jakarta.servlet.http.HttpServletRequest;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.format.DateTimeParseException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import org.springframework.http.HttpHeaders;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -28,18 +30,20 @@ public class FunTargetIntentController {
   }
 
   @GetMapping("/state")
-  public Map<String, Object> state(Authentication authentication) {
+  public Map<String, Object> state(Authentication authentication, HttpServletRequest request) {
     SupabaseUser user = requireUser(authentication);
-    return enrichState(supabaseRest.getOrCreateFunTargetState(user.id()));
+    String token = requireAccessToken(request);
+    return enrichState(supabaseRest.getOrCreateFunTargetState(token, user.id()));
   }
 
   @PostMapping("/intent")
   public Map<String, Object> intent(
-      Authentication authentication, @RequestBody Map<String, Object> body) {
+      Authentication authentication, HttpServletRequest request, @RequestBody Map<String, Object> body) {
     SupabaseUser user = requireUser(authentication);
+    String token = requireAccessToken(request);
     String intent = String.valueOf(body.getOrDefault("intent", "")).trim().toUpperCase();
 
-    Map<String, Object> current = supabaseRest.getOrCreateFunTargetState(user.id());
+    Map<String, Object> current = supabaseRest.getOrCreateFunTargetState(token, user.id());
     Map<String, Object> patch = new HashMap<>();
 
     switch (intent) {
@@ -103,7 +107,7 @@ public class FunTargetIntentController {
       default -> throw new IllegalArgumentException("Unknown intent");
     }
 
-    return enrichState(supabaseRest.patchFunTargetState(user.id(), patch));
+    return enrichState(supabaseRest.patchFunTargetState(token, user.id(), patch));
   }
 
   private static Map<String, Object> enrichState(Map<String, Object> row) {
@@ -147,6 +151,16 @@ public class FunTargetIntentController {
       return user;
     }
     throw new IllegalArgumentException("Unauthenticated");
+  }
+
+  private static String requireAccessToken(HttpServletRequest request) {
+    if (request == null) throw new IllegalArgumentException("Unauthenticated");
+    String header = request.getHeader(HttpHeaders.AUTHORIZATION);
+    if (header == null) throw new IllegalArgumentException("Unauthenticated");
+    if (!header.startsWith("Bearer ")) throw new IllegalArgumentException("Unauthenticated");
+    String token = header.substring("Bearer ".length()).trim();
+    if (token.isBlank()) throw new IllegalArgumentException("Unauthenticated");
+    return token;
   }
 
   private static Map<Integer, Integer> normalizeBets(Object value) {

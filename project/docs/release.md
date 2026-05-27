@@ -25,6 +25,6 @@ This repo publishes the Windows desktop build as a zip attached to a GitHub Rele
    - GitHub Release should contain: `funtarget-windows.zip`
 6. Smoke test (when possible)
    - Unzip
-   - Create `config.json` next to the `.exe` (or set env vars)
+   - Run `FunTarget.exe` (no setup required; CI embeds config into the build)
    - Login + run a full round
-
+   - Confirm updater: open the in-app Update dialog and ensure it says “No updates available.”
