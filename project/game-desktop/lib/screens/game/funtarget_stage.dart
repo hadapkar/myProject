@@ -504,6 +504,7 @@ class _StageBody extends StatelessWidget {
         width: 55,
         height: 40,
         child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
           onTap: () => onChipSelected(value),
           child: DecoratedBox(
             decoration: BoxDecoration(
@@ -554,11 +555,11 @@ class _StageBody extends StatelessWidget {
         width: 76,
         height: 72,
         child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
           onTap: betNumbersDisabled ? null : () => onBetNumberPressed(value),
           child: Stack(
             fit: StackFit.expand,
             children: [
-              const SizedBox.expand(),
               Positioned.fill(
                 child: isResult
                     ? _BlinkingOpacity(
