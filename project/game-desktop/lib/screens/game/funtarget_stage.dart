@@ -75,72 +75,56 @@ class FunTargetStage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Scale the fixed 1024x768 "design canvas" uniformly to fit the available space.
-    // This keeps visuals and hit-testing aligned (important for clickable bet numbers).
+    // Stretch the fixed 1024x768 "design canvas" to fill the available space.
+    // We intentionally use a non-uniform scale so the game fills both left/right
+    // and top/bottom on any desktop window size.
     return LayoutBuilder(
       builder: (context, constraints) {
-        final maxW = constraints.maxWidth.isFinite ? constraints.maxWidth : designWidth;
-        final maxH = constraints.maxHeight.isFinite ? constraints.maxHeight : designHeight;
+        final maxW =
+            constraints.maxWidth.isFinite ? constraints.maxWidth : designWidth;
+        final maxH =
+            constraints.maxHeight.isFinite ? constraints.maxHeight : designHeight;
 
-        final scale = min(maxW / designWidth, maxH / designHeight);
-        final fittedW = designWidth * scale;
-        final fittedH = designHeight * scale;
-
-        return Stack(
-          children: [
-            Positioned.fill(
-              child: Opacity(
-                opacity: 0.25,
-                child: Image.asset(
-                  FunTargetAssets.background,
-                  fit: BoxFit.cover,
-                ),
+        return SizedBox(
+          width: maxW,
+          height: maxH,
+          child: FittedBox(
+            fit: BoxFit.fill,
+            alignment: Alignment.center,
+            child: SizedBox(
+              width: designWidth,
+              height: designHeight,
+              child: _StageBody(
+                email: email,
+                timeLeftSeconds: timeLeftSeconds,
+                score: score,
+                totalBetAmount: totalBetAmount,
+                winnerAmount: winnerAmount,
+                last10: last10,
+                selectedChip: selectedChip,
+                onChipSelected: onChipSelected,
+                betsByNumber: betsByNumber,
+                highlightedBetNumber: highlightedBetNumber,
+                betNumbersDisabled: betNumbersDisabled,
+                onBetNumberPressed: onBetNumberPressed,
+                isSpinning: isSpinning,
+                wheelRotationDegrees: wheelRotationDegrees,
+                wheelSpinDuration: wheelSpinDuration,
+                wheelSpinCurve: wheelSpinCurve,
+                betOkBlink: betOkBlink,
+                betOkDisabled: betOkDisabled,
+                takeBlink: takeBlink,
+                showPrevBet: showPrevBet,
+                onTake: onTake,
+                onCancelBet: onCancelBet,
+                onCancelSpecific: onCancelSpecific,
+                onBetOk: onBetOk,
+                onPrevBet: onPrevBet,
+                onExit: onExit,
+                footerMessage: footerMessage,
               ),
             ),
-            Center(
-              child: SizedBox(
-                width: fittedW,
-                height: fittedH,
-                child: FittedBox(
-                  fit: BoxFit.fill,
-                  alignment: Alignment.center,
-                  child: SizedBox(
-                    width: designWidth,
-                    height: designHeight,
-                    child: _StageBody(
-                      email: email,
-                      timeLeftSeconds: timeLeftSeconds,
-                      score: score,
-                      totalBetAmount: totalBetAmount,
-                      winnerAmount: winnerAmount,
-                      last10: last10,
-                      selectedChip: selectedChip,
-                      onChipSelected: onChipSelected,
-                      betsByNumber: betsByNumber,
-                      highlightedBetNumber: highlightedBetNumber,
-                      betNumbersDisabled: betNumbersDisabled,
-                      onBetNumberPressed: onBetNumberPressed,
-                      isSpinning: isSpinning,
-                      wheelRotationDegrees: wheelRotationDegrees,
-                      wheelSpinDuration: wheelSpinDuration,
-                      wheelSpinCurve: wheelSpinCurve,
-                      betOkBlink: betOkBlink,
-                      betOkDisabled: betOkDisabled,
-                      takeBlink: takeBlink,
-                      showPrevBet: showPrevBet,
-                      onTake: onTake,
-                      onCancelBet: onCancelBet,
-                      onCancelSpecific: onCancelSpecific,
-                      onBetOk: onBetOk,
-                      onPrevBet: onPrevBet,
-                      onExit: onExit,
-                      footerMessage: footerMessage,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ],
+          ),
         );
       },
     );
