@@ -221,12 +221,12 @@ class _StageBody extends StatelessWidget {
               // 1024x768 design grid (avoids subtle cropping/offset on some devices).
               fit: BoxFit.fill,
               errorBuilder: (context, error, stackTrace) {
-                return ColoredBox(
-                  color: const Color(0xFF120804),
+                return const ColoredBox(
+                  color: Color(0xFF120804),
                   child: Center(
                     child: Text(
                       "Missing asset: ${FunTargetAssets.background}",
-                      style: const TextStyle(color: Colors.white70),
+                      style: TextStyle(color: Colors.white70),
                       textAlign: TextAlign.center,
                     ),
                   ),
@@ -506,11 +506,10 @@ class _StageBody extends StatelessWidget {
       final value = coinValues[index];
       final image = coinImages[index];
       final left = coinLefts[index];
-      final top = coinTop;
       final selected = value == selectedChip;
       return Positioned(
         left: left,
-        top: top,
+        top: coinTop,
         width: 55,
         height: 40,
         child: GestureDetector(

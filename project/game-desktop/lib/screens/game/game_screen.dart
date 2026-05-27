@@ -27,7 +27,6 @@ class _GameScreenState extends State<GameScreen> {
 
   Timer? _timer;
   int _timeLeft = 59;
-  DateTime? _lastRoundAt;
   int _serverClockOffsetMs = 0;
 
   // Local UI/game state (mirrors Salesforce behavior; backend is authoritative).
@@ -54,10 +53,8 @@ class _GameScreenState extends State<GameScreen> {
   List<int> _selectedNumbers = [];
   int? _highlightedBetNumber;
   bool _isBetConfirmed = false;
-  bool _betOkHighlighted = false;
   bool _showPrevBet = false;
   _PrevBetSnapshot? _prevBet;
-  int _currentNumber = 0;
   double _rotationDegrees = 0;
   bool _isSpinning = false;
   Duration _spinDuration = const Duration(milliseconds: 2800);
@@ -137,7 +134,6 @@ class _GameScreenState extends State<GameScreen> {
     }
     setState(() {
       _state = state;
-      _lastRoundAt = lastRoundAt;
       _betsByNumber = state.betsByNumber;
       // Match LWC behavior: avoid overwriting site-side in-round coins with stale server value.
       // Only force-sync coins when updated by an external actor (Admin/Mobile) or when we are
@@ -153,10 +149,10 @@ class _GameScreenState extends State<GameScreen> {
       _selectedNumber = _selectedNumbers.isEmpty ? null : _selectedNumbers.last;
       _highlightedBetNumber = null;
     });
-    _startTimer(lastRoundAt);
+    _startTimer();
   }
 
-  void _startTimer(DateTime? lastRoundAt) {
+  void _startTimer() {
     _timer?.cancel();
     void tick() {
       final state = _state;
@@ -199,11 +195,6 @@ class _GameScreenState extends State<GameScreen> {
     // Clear highlight at configured second.
     if (_crossedSecond(prev, curr, _resultHighlightClearSecond)) {
       setState(() => _highlightedBetNumber = null);
-    }
-
-    // Turn off BetOk highlight entering final 10.
-    if (_crossedSecond(prev, curr, _finalTenSecond)) {
-      setState(() => _betOkHighlighted = false);
     }
 
     // Forfeit payout after 30s.
@@ -289,7 +280,6 @@ class _GameScreenState extends State<GameScreen> {
     try {
       setState(() {
         _highlightedBetNumber = null;
-        _betOkHighlighted = false;
         _isBetConfirmed = true;
         _footerMessage = _spinFooterMessage;
       });
@@ -327,7 +317,6 @@ class _GameScreenState extends State<GameScreen> {
         [result, ..._last10Results].take(10).toList(growable: false);
 
     setState(() {
-      _currentNumber = result;
       _highlightedBetNumber = result;
       _isSpinning = false;
       _isBetConfirmed = false;
@@ -398,7 +387,6 @@ class _GameScreenState extends State<GameScreen> {
       _isBetConfirmed = true;
       _showPrevBet = false;
       _footerMessage = "Your bet has been Accepted";
-      _betOkHighlighted = false;
       _prevBet = _PrevBetSnapshot(
         betsByNumber: Map<int, int>.from(_betsByNumber),
         selectedChip: _selectedChip,
@@ -421,7 +409,7 @@ class _GameScreenState extends State<GameScreen> {
       _coins = _coins + refund;
     });
     unawaited(_sounds.playOnce("button", FunTargetAssets.soundButton));
-    unawaited(_postIntent({"intent": "SYNC_BETS", "bets_json": {}}));
+    unawaited(_postIntent({"intent": "SYNC_BETS", "bets_json": const <int, int>{}}));
   }
 
   void _cancelSpecificBet() {
@@ -456,7 +444,6 @@ class _GameScreenState extends State<GameScreen> {
       _winnerAmount = 0;
       _showPrevBet = _canApplyPrevBetWithScore(projectedScore);
       _footerMessage = _defaultFooterMessage;
-      _betOkHighlighted = true;
     });
     unawaited(_postIntent({"intent": "TAKE_PAYOUT"}));
   }
@@ -508,12 +495,10 @@ class _GameScreenState extends State<GameScreen> {
       _selectedNumbers = [];
       _betsByNumber = {};
       _highlightedBetNumber = null;
-      _betOkHighlighted = false;
       _isBetConfirmed = false;
       _showPrevBet = false;
       _footerMessage = _defaultFooterMessage;
       _selectedChip = 1;
-      _currentNumber = 0;
       _rotationDegrees = 0;
       _isSpinning = false;
       _autoSpinActive = false;
