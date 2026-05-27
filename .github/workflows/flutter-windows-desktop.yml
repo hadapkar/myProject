@@ -71,6 +71,14 @@ jobs:
             --dart-define=API_BASE_URL="$API_BASE_URL" \
             --dart-define=APP_VERSION="0.0.0+${GITHUB_SHA:0:7}"
 
+      - name: Ensure exe is named KingMaker.exe
+        run: |
+          set -euo pipefail
+          OUT_DIR="build/windows/x64/runner/Release"
+          if [ -f "$OUT_DIR/funtarget_game.exe" ] && [ ! -f "$OUT_DIR/KingMaker.exe" ]; then
+            mv "$OUT_DIR/funtarget_game.exe" "$OUT_DIR/KingMaker.exe"
+          fi
+
       - name: Verify release output contains assets
         run: |
           set -euo pipefail

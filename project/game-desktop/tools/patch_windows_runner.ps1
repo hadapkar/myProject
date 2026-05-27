@@ -44,29 +44,56 @@ $sizeMarker
 #
 # 2) Patch Windows binary name (controls .exe file name)
 #
-$windowsCmake = Join-Path $ProjectDir "windows\CMakeLists.txt"
-if (Test-Path $windowsCmake) {
-  $cmakeContent = Get-Content -Raw $windowsCmake
+function Patch-BinaryNameInCmakeFile {
+  param(
+    [Parameter(Mandatory = $true)]
+    [string]$Path
+  )
+
+  if (-not (Test-Path $Path)) {
+    return $false
+  }
+
+  $cmakeContent = Get-Content -Raw $Path
   $cmakeMarker = "# KINGMAKER_BINARY_NAME"
-  if ($cmakeContent -notlike "*$cmakeMarker*") {
-    # Note: use single-quoted regex strings; PowerShell does not support backslash-escaping quotes.
-    $pattern = 'set\\(BINARY_NAME\\s+"[^"]+"\\)'
-    $replacement = @"
+  if ($cmakeContent -like "*$cmakeMarker*") {
+    Write-Host "Binary name already patched: $Path"
+    return $true
+  }
+
+  # Note: use single-quoted regex strings; PowerShell does not support backslash-escaping quotes.
+  # Match either: set(BINARY_NAME "foo") or set(BINARY_NAME foo)
+  $pattern = 'set\\(BINARY_NAME\\s+("?[A-Za-z0-9_\\-]+"?)\\)'
+  $replacement = @"
 $cmakeMarker
 set(BINARY_NAME "$appBinaryName")
 "@
-    $patchedCmake = [System.Text.RegularExpressions.Regex]::Replace($cmakeContent, $pattern, $replacement, 1)
-    if ($patchedCmake -ne $cmakeContent) {
-      Set-Content -Path $windowsCmake -Value $patchedCmake -NoNewline
-      Write-Host "Patched binary name: $windowsCmake"
-    } else {
-      Write-Warning "Could not patch BINARY_NAME in: $windowsCmake"
-    }
-  } else {
-    Write-Host "Binary name already patched: $windowsCmake"
+
+  $patchedCmake = [System.Text.RegularExpressions.Regex]::Replace($cmakeContent, $pattern, $replacement, 1)
+  if ($patchedCmake -ne $cmakeContent) {
+    Set-Content -Path $Path -Value $patchedCmake -NoNewline
+    Write-Host "Patched binary name: $Path"
+    return $true
   }
-} else {
-  Write-Warning "windows/CMakeLists.txt not found; skipping binary name patch."
+
+  return $false
+}
+
+# 2) Patch Windows binary name (controls .exe file name)
+$cmakeCandidates = @(
+  (Join-Path $ProjectDir "windows\CMakeLists.txt"),
+  (Join-Path $ProjectDir "windows\runner\CMakeLists.txt")
+)
+
+$patchedAny = $false
+foreach ($cmakePath in $cmakeCandidates) {
+  if (Patch-BinaryNameInCmakeFile -Path $cmakePath) {
+    $patchedAny = $true
+  }
+}
+
+if (-not $patchedAny) {
+  Write-Warning "Could not patch BINARY_NAME in any CMakeLists.txt under windows/. The output exe may keep the default name."
 }
 
 #
