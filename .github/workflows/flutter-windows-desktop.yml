@@ -43,6 +43,15 @@ jobs:
             flutter create . --platforms=windows
           fi
 
+      - name: Patch Windows runner defaults
+        shell: pwsh
+        run: |
+          ./tools/patch_windows_runner.ps1 -ProjectDir "${{ github.workspace }}\\project\\game-desktop"
+
+      - name: Verify Windows runner patch applied
+        run: |
+          grep -R "FUNTARGET_WINDOW_DEFAULTS" -n windows/runner/main.cpp
+
       - name: Build Windows (release)
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
