@@ -58,3 +58,10 @@ In Flutter, these will be copied into this module under `assets/` and referenced
 ## Non-negotiable requirement
 
 The Flutter implementation must match the **Salesforce LWC game logic** (round timing, spin/result seconds, payout rules, state transitions). We will treat the Salesforce behavior as the reference and port it exactly.
+
+## Windows builds (no local Flutter needed)
+
+Two options:
+
+- **CI Artifact (every push):** GitHub Actions → `Flutter Windows Desktop (Artifact)` → download `funtarget-windows.zip`.
+- **GitHub Release (versioned):** push a git tag like `v0.1.0` and GitHub will attach `funtarget-windows.zip` to the release.

@@ -1,0 +1,75 @@
+name: Release - Windows Desktop
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: project/game-desktop
+        shell: bash
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: "stable"
+          cache: true
+
+      - name: Enable Windows desktop
+        run: flutter config --enable-windows-desktop
+
+      - name: Flutter pub get
+        run: flutter pub get
+
+      - name: Flutter analyze
+        run: flutter analyze
+
+      - name: Ensure Windows runner exists
+        run: |
+          if [ ! -d "windows" ]; then
+            flutter create . --platforms=windows
+          fi
+
+      - name: Patch Windows runner defaults
+        shell: pwsh
+        run: |
+          ./tools/patch_windows_runner.ps1 -ProjectDir "${{ github.workspace }}\\project\\game-desktop"
+
+      - name: Build Windows (release)
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          API_BASE_URL: ${{ secrets.API_BASE_URL }}
+        run: |
+          if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_ANON_KEY" ] || [ -z "$API_BASE_URL" ]; then
+            echo "Missing required secrets SUPABASE_URL / SUPABASE_ANON_KEY / API_BASE_URL" >&2
+            exit 1
+          fi
+          flutter build windows --release \
+            --dart-define=SUPABASE_URL="$SUPABASE_URL" \
+            --dart-define=SUPABASE_ANON_KEY="$SUPABASE_ANON_KEY" \
+            --dart-define=API_BASE_URL="$API_BASE_URL"
+
+      - name: Package zip
+        run: |
+          set -euo pipefail
+          OUT_DIR="build/windows/x64/runner/Release"
+          test -d "$OUT_DIR"
+          cd "$OUT_DIR"
+          7z a -tzip "../../../../funtarget-windows.zip" ./*
+
+      - name: Upload to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: project/game-desktop/build/funtarget-windows.zip
