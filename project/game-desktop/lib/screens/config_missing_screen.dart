@@ -12,10 +12,17 @@ class ConfigMissingScreen extends StatelessWidget {
           child: const Padding(
             padding: EdgeInsets.all(24),
             child: Text(
-              "Missing required build configuration.\n\n"
-              "Run with:\n"
-              "  flutter run -d chrome "
-              "--dart-define=SUPABASE_URL=... "
+              "Missing required configuration.\n\n"
+              "Desktop (recommended): create a `config.json` file next to the .exe:\n"
+              "{\n"
+              "  \"SUPABASE_URL\": \"https://<project>.supabase.co\",\n"
+              "  \"SUPABASE_ANON_KEY\": \"<anon>\",\n"
+              "  \"API_BASE_URL\": \"https://<render-service>.onrender.com\"\n"
+              "}\n\n"
+              "Or set Windows environment variables:\n"
+              "  SUPABASE_URL / SUPABASE_ANON_KEY / API_BASE_URL\n\n"
+              "Dev (Flutter):\n"
+              "  flutter run -d windows --dart-define=SUPABASE_URL=... "
               "--dart-define=SUPABASE_ANON_KEY=... "
               "--dart-define=API_BASE_URL=...\n",
               style: TextStyle(fontSize: 16),
@@ -26,4 +33,3 @@ class ConfigMissingScreen extends StatelessWidget {
     );
   }
 }
-

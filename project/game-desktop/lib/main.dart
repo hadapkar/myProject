@@ -8,6 +8,8 @@ import "router/app_router.dart";
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
+  await AppConfig.init();
+
   if (!AppConfig.isValid) {
     runApp(const _ConfigMissingApp());
     return;
