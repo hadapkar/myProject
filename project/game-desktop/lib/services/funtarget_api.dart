@@ -1,3 +1,4 @@
+import "dart:async";
 import "dart:convert";
 
 import "package:http/http.dart" as http;
@@ -7,6 +8,10 @@ import "../config/app_config.dart";
 import "funtarget_models.dart";
 
 class FunTargetApi {
+  static const Duration _timeout = Duration(seconds: 65);
+
+  final http.Client _client = http.Client();
+
   Uri _uri(String path) => Uri.parse("${AppConfig.apiBaseUrl}$path");
 
   Future<String> _accessToken({bool allowRefresh = true}) async {
@@ -37,51 +42,77 @@ class FunTargetApi {
 
   Future<http.Response> _get(String path) async {
     final token = await _accessToken();
-    final res = await http.get(
-      _uri(path),
-      headers: {
-        "Authorization": "Bearer $token",
-        "Accept": "application/json",
-      },
-    );
+    http.Response res;
+    try {
+      res = await _client
+          .get(
+            _uri(path),
+            headers: {
+              "Authorization": "Bearer $token",
+              "Accept": "application/json",
+            },
+          )
+          .timeout(_timeout);
+    } on TimeoutException {
+      throw StateError("Backend timeout. The server may be waking up; please retry.");
+    }
 
     // If token is stale, refresh session and retry once.
     if (res.statusCode == 401) {
       final retryToken = await _accessToken(allowRefresh: true);
-      return http.get(
-        _uri(path),
-        headers: {
-          "Authorization": "Bearer $retryToken",
-          "Accept": "application/json",
-        },
-      );
+      try {
+        return await _client
+            .get(
+              _uri(path),
+              headers: {
+                "Authorization": "Bearer $retryToken",
+                "Accept": "application/json",
+              },
+            )
+            .timeout(_timeout);
+      } on TimeoutException {
+        throw StateError("Backend timeout. The server may be waking up; please retry.");
+      }
     }
     return res;
   }
 
   Future<http.Response> _post(String path, Map<String, dynamic> payload) async {
     final token = await _accessToken();
-    final res = await http.post(
-      _uri(path),
-      headers: {
-        "Authorization": "Bearer $token",
-        "Content-Type": "application/json",
-        "Accept": "application/json",
-      },
-      body: jsonEncode(payload),
-    );
+    http.Response res;
+    try {
+      res = await _client
+          .post(
+            _uri(path),
+            headers: {
+              "Authorization": "Bearer $token",
+              "Content-Type": "application/json",
+              "Accept": "application/json",
+            },
+            body: jsonEncode(payload),
+          )
+          .timeout(_timeout);
+    } on TimeoutException {
+      throw StateError("Backend timeout. The server may be waking up; please retry.");
+    }
 
     if (res.statusCode == 401) {
       final retryToken = await _accessToken(allowRefresh: true);
-      return http.post(
-        _uri(path),
-        headers: {
-          "Authorization": "Bearer $retryToken",
-          "Content-Type": "application/json",
-          "Accept": "application/json",
-        },
-        body: jsonEncode(payload),
-      );
+      try {
+        return await _client
+            .post(
+              _uri(path),
+              headers: {
+                "Authorization": "Bearer $retryToken",
+                "Content-Type": "application/json",
+                "Accept": "application/json",
+              },
+              body: jsonEncode(payload),
+            )
+            .timeout(_timeout);
+      } on TimeoutException {
+        throw StateError("Backend timeout. The server may be waking up; please retry.");
+      }
     }
     return res;
   }

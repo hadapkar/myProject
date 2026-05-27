@@ -606,7 +606,16 @@ class _GameScreenState extends State<GameScreen> {
             children: [
               Positioned.fill(
                 child: state == null
-                    ? const Center(child: Text("Loading state..."))
+                    ? const Center(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            CircularProgressIndicator(),
+                            SizedBox(height: 12),
+                            Text("Loading state..."),
+                          ],
+                        ),
+                      )
                     : SizedBox.expand(
                         child: FunTargetStage(
                           email: email,
