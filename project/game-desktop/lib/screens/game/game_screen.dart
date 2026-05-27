@@ -1,14 +1,12 @@
 import "dart:async";
 import "dart:math";
 
-import "package:flutter/foundation.dart";
 import "package:flutter/material.dart";
 import "package:go_router/go_router.dart";
 import "package:supabase_flutter/supabase_flutter.dart";
 
 import "../../services/funtarget_api.dart";
 import "../../services/funtarget_models.dart";
-import "../../services/update_service.dart";
 import "funtarget_assets.dart";
 import "funtarget_sounds.dart";
 import "funtarget_stage.dart";
@@ -81,7 +79,6 @@ class _GameScreenState extends State<GameScreen> {
   void initState() {
     super.initState();
     _load();
-    unawaited(UpdateService.instance.checkForUpdates());
   }
 
   @override
@@ -491,74 +488,10 @@ class _GameScreenState extends State<GameScreen> {
         _postIntent({"intent": "SYNC_BETS", "bets_json": prev.betsByNumber}));
   }
 
-  Future<void> _signOut() async {
-    await Supabase.instance.client.auth.signOut();
-  }
-
   void _exitToHome() {
     // Exit should not reset state; just navigate back to the tiles page.
     unawaited(_sounds.playOnce("exit", FunTargetAssets.soundExit));
     if (mounted) context.go("/home");
-  }
-
-  Future<void> _openUpdateDialog() async {
-    if (kIsWeb) return;
-    await showDialog<void>(
-      context: context,
-      builder: (context) {
-        return ValueListenableBuilder(
-          valueListenable: UpdateService.instance.state,
-          builder: (context, UpdateState update, _) {
-            final available = update.available;
-            return AlertDialog(
-              title: const Text("Update"),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text("Current: ${UpdateService.currentVersion}"),
-                  const SizedBox(height: 8),
-                  if (update.checking) const Text("Checking for updates..."),
-                  if (update.error != null)
-                    Text(update.error!, style: const TextStyle(color: Colors.redAccent)),
-                  if (available == null && !update.checking && update.error == null)
-                    const Text("No updates available."),
-                  if (available != null)
-                    Text("Available: ${available.latestTag}"),
-                  if (update.installing) ...[
-                    const SizedBox(height: 12),
-                    LinearProgressIndicator(value: update.progress01),
-                    const SizedBox(height: 8),
-                    const Text("Downloading update..."),
-                  ],
-                ],
-              ),
-              actions: [
-                TextButton(
-                  onPressed: update.installing ? null : () => Navigator.of(context).pop(),
-                  child: const Text("Close"),
-                ),
-                TextButton(
-                  onPressed: update.installing
-                      ? null
-                      : () => UpdateService.instance.checkForUpdates(force: true),
-                  child: const Text("Check"),
-                ),
-                if (available != null)
-                  FilledButton(
-                    onPressed: update.installing
-                        ? null
-                        : () async {
-                            await UpdateService.instance.downloadAndInstall();
-                          },
-                    child: const Text("Update now"),
-                  ),
-              ],
-            );
-          },
-        );
-      },
-    );
   }
 
   @override
@@ -643,45 +576,7 @@ class _GameScreenState extends State<GameScreen> {
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
-              // Dev/admin controls: keep available but out of the "game art" area.
-              Positioned(
-                right: 10,
-                bottom: 10,
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    color: const Color.fromRGBO(11, 18, 32, 0.55),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: const Color.fromRGBO(255, 255, 255, 0.08)),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      if (!kIsWeb)
-                        ValueListenableBuilder(
-                          valueListenable: UpdateService.instance.state,
-                          builder: (context, UpdateState update, _) {
-                            final hasUpdate = update.available != null;
-                            final color = hasUpdate ? Colors.amberAccent : Colors.white70;
-                            return IconButton(
-                              tooltip: hasUpdate ? "Update available" : "Updates",
-                              onPressed: _openUpdateDialog,
-                              icon: Icon(Icons.system_update_alt, color: color),
-                            );
-                          },
-                        ),
-                      IconButton(
-                        tooltip: "Refresh",
-                        onPressed: _load,
-                        icon: const Icon(Icons.refresh, color: Colors.white70),
-                      ),
-                      TextButton(
-                        onPressed: _signOut,
-                        child: const Text("Sign out"),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
+              // Intentionally no Refresh / Sign out buttons on the game screen.
             ],
           ),
         ),

@@ -23,6 +23,7 @@ dev_dependencies:
 flutter:
   uses-material-design: true
   assets:
+    - assets/app/
     # Flutter does not include subdirectories automatically; list the leaf folders.
     - assets/funTargrtAsset/Sounds/
     - assets/funTargrtAsset/media/FunTargetImages/

@@ -1,11 +1,85 @@
+import "package:flutter/foundation.dart";
 import "package:flutter/material.dart";
 import "package:go_router/go_router.dart";
 import "package:supabase_flutter/supabase_flutter.dart";
 
-import "../game/funtarget_assets.dart";
+import "../../services/update_service.dart";
 
-class HomeScreen extends StatelessWidget {
+const _funTargetLogo = "assets/app/logo.jpg";
+
+class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
+
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  @override
+  void initState() {
+    super.initState();
+    if (!kIsWeb) {
+      // Background check; UI will show "update available" if needed.
+      UpdateService.instance.checkForUpdates();
+    }
+  }
+
+  Future<void> _openUpdateDialog() async {
+    if (kIsWeb) return;
+    await showDialog<void>(
+      context: context,
+      builder: (context) {
+        return ValueListenableBuilder(
+          valueListenable: UpdateService.instance.state,
+          builder: (context, UpdateState update, _) {
+            final available = update.available;
+            return AlertDialog(
+              title: const Text("Update"),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text("Current: ${UpdateService.currentVersion}"),
+                  const SizedBox(height: 8),
+                  if (update.checking) const Text("Checking for updates..."),
+                  if (update.error != null)
+                    Text(update.error!, style: const TextStyle(color: Colors.redAccent)),
+                  if (available == null && !update.checking && update.error == null)
+                    const Text("No updates available."),
+                  if (available != null) Text("Available: ${available.latestTag}"),
+                  if (update.installing) ...[
+                    const SizedBox(height: 12),
+                    LinearProgressIndicator(value: update.progress01),
+                    const SizedBox(height: 8),
+                    const Text("Downloading update..."),
+                  ],
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: update.installing ? null : () => Navigator.of(context).pop(),
+                  child: const Text("Close"),
+                ),
+                TextButton(
+                  onPressed: update.installing
+                      ? null
+                      : () => UpdateService.instance.checkForUpdates(force: true),
+                  child: const Text("Check"),
+                ),
+                if (available != null)
+                  FilledButton(
+                    onPressed: update.installing
+                        ? null
+                        : () async => UpdateService.instance.downloadAndInstall(),
+                    child: const Text("Update now"),
+                  ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -17,6 +91,19 @@ class HomeScreen extends StatelessWidget {
       appBar: AppBar(
         title: const Text("Games"),
         actions: [
+          if (!kIsWeb)
+            ValueListenableBuilder(
+              valueListenable: UpdateService.instance.state,
+              builder: (context, UpdateState update, _) {
+                final hasUpdate = update.available != null;
+                final color = hasUpdate ? Colors.amberAccent : Colors.white70;
+                return IconButton(
+                  tooltip: hasUpdate ? "Update available" : "Updates",
+                  onPressed: _openUpdateDialog,
+                  icon: Icon(Icons.system_update_alt, color: color),
+                );
+              },
+            ),
           Center(
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -51,7 +138,7 @@ class HomeScreen extends StatelessWidget {
                 _GameTile(
                   title: "FunTarget",
                   subtitle: "Wheel / Bet game",
-                  imageAsset: FunTargetAssets.wheel,
+                  imageAsset: _funTargetLogo,
                   onTap: () => context.go("/game"),
                 ),
               ],
