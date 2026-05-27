@@ -572,7 +572,9 @@ class _StageBody extends StatelessWidget {
         child: GestureDetector(
           onTap: betNumbersDisabled ? null : () => onBetNumberPressed(value),
           child: Stack(
+            fit: StackFit.expand,
             children: [
+              const SizedBox.expand(),
               Positioned.fill(
                 child: isResult
                     ? _BlinkingOpacity(
