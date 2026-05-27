@@ -76,7 +76,13 @@ jobs:
           set -euo pipefail
           OUT_DIR="build/windows/x64/runner/Release"
           test -d "$OUT_DIR"
-          test -f "$OUT_DIR/KingMaker.exe"
+          if [ ! -f "$OUT_DIR/KingMaker.exe" ]; then
+            echo "KingMaker.exe not found. Contents of $OUT_DIR:" >&2
+            ls -la "$OUT_DIR" || true
+            echo "Exe candidates:" >&2
+            ls -la "$OUT_DIR"/*.exe 2>/dev/null || true
+            exit 1
+          fi
           test -d "$OUT_DIR/data/flutter_assets"
           test -f "$OUT_DIR/data/flutter_assets/assets/funTargrtAsset/media/FunTargetImages/Bg.jpg"
           test -f "$OUT_DIR/data/flutter_assets/assets/funTargrtAsset/media/FunTargetImages/Wheel5.png"
