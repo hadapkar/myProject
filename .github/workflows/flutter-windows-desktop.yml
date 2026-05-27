@@ -76,12 +76,7 @@ jobs:
           set -euo pipefail
           OUT_DIR="build/windows/x64/runner/Release"
           test -d "$OUT_DIR"
-          EXE_COUNT=$(ls -1 "$OUT_DIR"/*.exe 2>/dev/null | wc -l | tr -d ' ')
-          if [ "$EXE_COUNT" -lt 1 ]; then
-            echo "No .exe found in $OUT_DIR" >&2
-            ls -la "$OUT_DIR" || true
-            exit 1
-          fi
+          test -f "$OUT_DIR/KingMaker.exe"
           test -d "$OUT_DIR/data/flutter_assets"
           test -f "$OUT_DIR/data/flutter_assets/assets/funTargrtAsset/media/FunTargetImages/Bg.jpg"
           test -f "$OUT_DIR/data/flutter_assets/assets/funTargrtAsset/media/FunTargetImages/Wheel5.png"
@@ -105,7 +100,6 @@ jobs:
           fi
           cd "$OUT_DIR"
           7z a -tzip "../../../../King Maker.zip" ./*
-          cp -f "../../../../King Maker.zip" "../../../../funtarget-windows.zip"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4

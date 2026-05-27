@@ -4,8 +4,16 @@ class FunTargetSounds {
   final Map<String, AudioPlayer> _players = {};
   bool _unlocked = false;
   bool _clockStarted = false;
+  bool _loggedBackend = false;
 
   bool get isUnlocked => _unlocked;
+
+  Future<void> _logOnce(String msg) async {
+    if (_loggedBackend) return;
+    _loggedBackend = true;
+    // ignore: avoid_print
+    print("[FunTargetSounds] $msg");
+  }
 
   Future<void> dispose() async {
     for (final p in _players.values) {
@@ -34,8 +42,8 @@ class FunTargetSounds {
       await player.seek(Duration.zero);
       await player.setLoopMode(LoopMode.off);
       await player.play();
-    } catch (_) {
-      // ignore (autoplay blocks, etc.)
+    } catch (e) {
+      await _logOnce("playOnce failed for $assetPath: $e");
     }
   }
 
@@ -48,8 +56,8 @@ class FunTargetSounds {
       await player.setLoopMode(LoopMode.one);
       await player.seek(Duration.zero);
       await player.play();
-    } catch (_) {
-      // ignore
+    } catch (e) {
+      await _logOnce("startLoop failed for $assetPath: $e");
     }
   }
 
@@ -59,8 +67,8 @@ class FunTargetSounds {
     try {
       await player.stop();
       await player.seek(Duration.zero);
-    } catch (_) {
-      // ignore
+    } catch (e) {
+      await _logOnce("stop failed for $key: $e");
     }
   }
 
@@ -70,4 +78,3 @@ class FunTargetSounds {
     await startLoop("clock", assetPath);
   }
 }
-

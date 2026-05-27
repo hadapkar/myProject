@@ -60,8 +60,7 @@ class UpdateService {
   // Hard-coded to avoid spoofing via runtime config.
   static const String _owner = "hadapkar";
   static const String _repo = "myProject";
-  // Prefer new branded name, but keep legacy name for older clients.
-  static const List<String> _assetNames = ["King Maker.zip", "funtarget-windows.zip"];
+  static const String _assetName = "King Maker.zip";
 
   static const String currentVersion =
       String.fromEnvironment("APP_VERSION", defaultValue: "0.0.0");
@@ -129,7 +128,7 @@ class UpdateService {
     for (final a in assets) {
       if (a is! Map) continue;
       final name = (a["name"] ?? "").toString();
-      if (!_assetNames.contains(name)) continue;
+      if (name != _assetName) continue;
       final url = (a["browser_download_url"] ?? "").toString();
       if (url.isEmpty) continue;
       final parsed = Uri.tryParse(url);
@@ -137,7 +136,7 @@ class UpdateService {
       return UpdateInfo(latestTag: tag, downloadUrl: parsed);
     }
 
-    throw StateError("Release asset not found: ${_assetNames.join(', ')}");
+    throw StateError("Release asset not found: $_assetName");
   }
 }
 

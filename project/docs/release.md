@@ -22,7 +22,6 @@ This repo publishes the Windows desktop build as a zip attached to a GitHub Rele
    - Input: `version` = `vMAJOR.MINOR.PATCH` (example: `v0.1.0`)
 5. Validate Release output
    - GitHub Release should contain: `King Maker.zip` (latest Windows build)
-   - (Temporary compatibility) It will also include: `funtarget-windows.zip` for older auto-updaters
 6. Smoke test (when possible)
    - Unzip
    - Run `FunTarget.exe` (no setup required; CI embeds config into the build)

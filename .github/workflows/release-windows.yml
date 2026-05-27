@@ -77,11 +77,8 @@ jobs:
           test -d "$OUT_DIR"
           cd "$OUT_DIR"
           7z a -tzip "../../../../King Maker.zip" ./*
-          cp -f "../../../../King Maker.zip" "../../../../funtarget-windows.zip"
 
       - name: Upload to GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: |
-            project/game-desktop/build/King Maker.zip
-            project/game-desktop/build/funtarget-windows.zip
+          files: project/game-desktop/build/King Maker.zip
