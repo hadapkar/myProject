@@ -49,7 +49,8 @@ if (Test-Path $windowsCmake) {
   $cmakeContent = Get-Content -Raw $windowsCmake
   $cmakeMarker = "# KINGMAKER_BINARY_NAME"
   if ($cmakeContent -notlike "*$cmakeMarker*") {
-    $pattern = "set\\(BINARY_NAME\\s+\"[^\"]+\"\\)"
+    # Note: use single-quoted regex strings; PowerShell does not support backslash-escaping quotes.
+    $pattern = 'set\\(BINARY_NAME\\s+"[^"]+"\\)'
     $replacement = @"
 $cmakeMarker
 set(BINARY_NAME "$appBinaryName")
@@ -77,8 +78,18 @@ if (Test-Path $runnerRc) {
   $rcMarker = "// KINGMAKER_RC_STRINGS"
   if ($rc -notlike "*$rcMarker*") {
     $patchedRc = $rc
-    $patchedRc = $patchedRc -replace "(VALUE\\s+\"FileDescription\",\\s+\")[^\"]*(\"\\s+\"\\\\0\")", "`${1}$appBinaryName`${2"
-    $patchedRc = $patchedRc -replace "(VALUE\\s+\"ProductName\",\\s+\")[^\"]*(\"\\s+\"\\\\0\")", "`${1}$appBinaryName`${2"
+    $patchedRc = [System.Text.RegularExpressions.Regex]::Replace(
+      $patchedRc,
+      '(VALUE\\s+"FileDescription",\\s+")[^"]*(".*\\\\0")',
+      { param($m) $m.Groups[1].Value + $appBinaryName + $m.Groups[2].Value },
+      1
+    )
+    $patchedRc = [System.Text.RegularExpressions.Regex]::Replace(
+      $patchedRc,
+      '(VALUE\\s+"ProductName",\\s+")[^"]*(".*\\\\0")',
+      { param($m) $m.Groups[1].Value + $appBinaryName + $m.Groups[2].Value },
+      1
+    )
     if ($patchedRc -ne $rc) {
       # Add marker at top for idempotency (keep it a comment in RC syntax).
       $patchedRc = "$rcMarker`r`n" + $patchedRc
