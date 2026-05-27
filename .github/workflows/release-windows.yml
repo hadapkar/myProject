@@ -50,6 +50,14 @@ jobs:
         run: |
           flutter build windows --release
 
+      - name: Copy runtime config templates into release folder
+        run: |
+          set -euo pipefail
+          OUT_DIR="build/windows/x64/runner/Release"
+          test -d "$OUT_DIR"
+          cp -f dist/config.json.example "$OUT_DIR/config.json.example"
+          cp -f dist/RUN_ME_FIRST.txt "$OUT_DIR/RUN_ME_FIRST.txt"
+
       - name: Package zip
         run: |
           set -euo pipefail

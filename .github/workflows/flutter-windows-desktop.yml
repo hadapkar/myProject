@@ -74,6 +74,13 @@ jobs:
           test -f "$OUT_DIR/data/flutter_assets/assets/funTargrtAsset/media/FunTargetImages/Wheel5.png"
           test -f "$OUT_DIR/data/flutter_assets/assets/funTargrtAsset/Sounds/clock_ticking.wav"
 
+      - name: Copy runtime config templates into release folder
+        run: |
+          set -euo pipefail
+          OUT_DIR="build/windows/x64/runner/Release"
+          cp -f dist/config.json.example "$OUT_DIR/config.json.example"
+          cp -f dist/RUN_ME_FIRST.txt "$OUT_DIR/RUN_ME_FIRST.txt"
+
       - name: Package artifact (zip)
         run: |
           set -euo pipefail

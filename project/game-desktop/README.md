@@ -20,13 +20,18 @@ Verify:
 
 ## Configuration
 
-The desktop app will need these values (same as the web client):
+The desktop app will need these values:
 
 - `SUPABASE_URL` (ex: `https://ydljofhkpeusxoegnvfs.supabase.co`)
 - `SUPABASE_ANON_KEY` (Supabase “anon” key)
 - `API_BASE_URL` (Render backend base URL, ex: `https://backend-api-ia1r.onrender.com`)
 
-We’ll wire these in code using `--dart-define` (recommended) so secrets aren’t committed:
+**Desktop runtime config (recommended):**
+
+- Copy `dist/config.json.example` to `config.json` next to the `.exe` and fill values.
+- Or set Windows environment variables `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `API_BASE_URL`.
+
+**Dev config (`flutter run`):**
 
 - `flutter run -d windows --dart-define=SUPABASE_URL=... --dart-define=SUPABASE_ANON_KEY=... --dart-define=API_BASE_URL=...`
 - `flutter run -d chrome --dart-define=SUPABASE_URL=... --dart-define=SUPABASE_ANON_KEY=... --dart-define=API_BASE_URL=...`

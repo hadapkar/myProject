@@ -1,0 +1,17 @@
+FunTarget (Windows)
+
+1) Create a file named `config.json` in this folder (same folder as the .exe).
+   You can copy `config.json.example` and fill in your values.
+
+2) Run the .exe.
+
+If the app says "Missing required configuration", it could not find:
+  - SUPABASE_URL
+  - SUPABASE_ANON_KEY
+  - API_BASE_URL
+
+The app loads these in this order:
+  A) Windows environment variables
+  B) config.json next to the exe
+  C) (dev only) --dart-define at build/run time
+
