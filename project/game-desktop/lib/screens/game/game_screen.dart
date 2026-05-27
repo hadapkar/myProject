@@ -3,6 +3,7 @@ import "dart:math";
 
 import "package:flutter/foundation.dart";
 import "package:flutter/material.dart";
+import "package:go_router/go_router.dart";
 import "package:supabase_flutter/supabase_flutter.dart";
 
 import "../../services/funtarget_api.dart";
@@ -490,36 +491,14 @@ class _GameScreenState extends State<GameScreen> {
         _postIntent({"intent": "SYNC_BETS", "bets_json": prev.betsByNumber}));
   }
 
-  void _resetGame() {
-    _onUserGesture();
-    final suppressKey = _getCurrentRoundKey();
-    setState(() {
-      _selectedNumber = null;
-      _selectedNumbers = [];
-      _betsByNumber = {};
-      _highlightedBetNumber = null;
-      _isBetConfirmed = false;
-      _showPrevBet = false;
-      _footerMessage = _defaultFooterMessage;
-      _selectedChip = 1;
-      _rotationDegrees = 0;
-      _isSpinning = false;
-      _autoSpinActive = false;
-      _autoSpinResult = null;
-      _lastTimerSecond = null;
-      _exitSuppressUntilRoundKey = suppressKey;
-      _spinStartedRoundKey = null;
-      _spinFinalizedRoundKey = null;
-      _coins = 0;
-      _winnerAmount = 0;
-      _last10Results = const [];
-    });
-    unawaited(_sounds.playOnce("exit", FunTargetAssets.soundExit));
-    unawaited(_postIntent({"intent": "RESET_GAME"}));
-  }
-
   Future<void> _signOut() async {
     await Supabase.instance.client.auth.signOut();
+  }
+
+  void _exitToHome() {
+    // Exit should not reset state; just navigate back to the tiles page.
+    unawaited(_sounds.playOnce("exit", FunTargetAssets.soundExit));
+    if (mounted) context.go("/home");
   }
 
   Future<void> _openUpdateDialog() async {
@@ -647,7 +626,7 @@ class _GameScreenState extends State<GameScreen> {
                           onCancelSpecific: _cancelSpecificBet,
                           onBetOk: _placeBetOk,
                           onPrevBet: _prevBetRestore,
-                          onExit: _resetGame,
+                          onExit: _exitToHome,
                           footerMessage: _footerMessage,
                         ),
                       ),
