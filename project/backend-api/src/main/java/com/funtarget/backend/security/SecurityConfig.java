@@ -20,7 +20,14 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 public class SecurityConfig {
 
   @Bean
-  SecurityFilterChain securityFilterChain(HttpSecurity http, SupabaseAuthService authService)
+  RateLimitFilter rateLimitFilter(
+      @Value("${app.ratelimit.per-minute:120}") int limitPerMinute) {
+    return new RateLimitFilter(limitPerMinute);
+  }
+
+  @Bean
+  SecurityFilterChain securityFilterChain(
+      HttpSecurity http, SupabaseAuthService authService, RateLimitFilter rateLimitFilter)
       throws Exception {
     return http
         .csrf(csrf -> csrf.disable())
@@ -29,6 +36,7 @@ public class SecurityConfig {
         .httpBasic(basic -> basic.disable())
         .formLogin(form -> form.disable())
         .addFilterBefore(new SupabaseTokenAuthFilter(authService), UsernamePasswordAuthenticationFilter.class)
+        .addFilterAfter(rateLimitFilter, SupabaseTokenAuthFilter.class)
         .authorizeHttpRequests(
             auth ->
                 auth.requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
@@ -44,8 +52,8 @@ public class SecurityConfig {
       @Value("${app.cors.allowed-origins:}") String allowedOrigins) {
     CorsConfiguration cors = new CorsConfiguration();
     cors.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
-    cors.setAllowedHeaders(List.of("*"));
-    cors.setAllowCredentials(true);
+    cors.setAllowedHeaders(List.of("Authorization", "Content-Type", "Accept", "apikey"));
+    cors.setAllowCredentials(false);
 
     if (allowedOrigins != null && !allowedOrigins.isBlank()) {
       // Explicit origins (comma-separated).
@@ -54,14 +62,8 @@ public class SecurityConfig {
           .filter(s -> !s.isBlank())
           .toList());
     } else {
-      // Default dev + preview origins when not configured.
-      // Use origin *patterns* so local ports / preview subdomains work without manual env setup.
-      cors.setAllowedOriginPatterns(
-          List.of(
-              "http://localhost:*",
-              "http://127.0.0.1:*",
-              "https://*.vercel.app",
-              "https://*.github.io"));
+      // Strict default: only localhost. Production must set CORS_ALLOWED_ORIGINS explicitly.
+      cors.setAllowedOrigins(List.of("http://localhost:3000", "http://127.0.0.1:3000"));
     }
 
     UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();

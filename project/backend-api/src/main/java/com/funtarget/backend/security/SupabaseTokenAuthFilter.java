@@ -7,6 +7,7 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
+import java.time.Instant;
 import java.util.List;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -37,29 +38,51 @@ public class SupabaseTokenAuthFilter extends OncePerRequestFilter {
         SecurityContextHolder.getContext().setAuthentication(auth);
       } catch (IllegalStateException e) {
         // Configuration error: tell the client explicitly so setup is fast.
-        response.setStatus(500);
-        response.setContentType(MediaType.APPLICATION_JSON_VALUE);
-        response
-            .getWriter()
-            .write("{\"error\":\"server_misconfigured\",\"message\":\"" + e.getMessage() + "\"}");
+        writeJson(response, 500, "server_misconfigured", e.getMessage(), request.getRequestURI());
         return;
       } catch (IllegalArgumentException e) {
         // Invalid token/session.
-        response.setStatus(401);
-        response.setContentType(MediaType.APPLICATION_JSON_VALUE);
-        response
-            .getWriter()
-            .write("{\"error\":\"unauthorized\",\"message\":\"" + e.getMessage() + "\"}");
+        writeJson(response, 401, "unauthorized", e.getMessage(), request.getRequestURI());
         return;
       } catch (Exception ignored) {
         // Unexpected error: fail closed.
-        response.setStatus(401);
-        response.setContentType(MediaType.APPLICATION_JSON_VALUE);
-        response.getWriter().write("{\"error\":\"unauthorized\"}");
+        writeJson(response, 401, "unauthorized", "Unauthorized", request.getRequestURI());
         return;
       }
     }
 
     filterChain.doFilter(request, response);
+  }
+
+  private static void writeJson(
+      HttpServletResponse response, int status, String error, String message, String path)
+      throws IOException {
+    response.setStatus(status);
+    response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+    response
+        .getWriter()
+        .write(
+            "{"
+                + "\"error\":\""
+                + escape(error)
+                + "\","
+                + "\"message\":\""
+                + escape(message)
+                + "\","
+                + "\"status\":"
+                + status
+                + ","
+                + "\"path\":\""
+                + escape(path == null ? "" : path)
+                + "\","
+                + "\"time\":\""
+                + Instant.now()
+                + "\""
+                + "}");
+  }
+
+  private static String escape(String s) {
+    if (s == null) return "";
+    return s.replace("\\", "\\\\").replace("\"", "\\\"");
   }
 }

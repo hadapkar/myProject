@@ -34,3 +34,10 @@ This repo uses a simple `public.admin_users` table for admin authorization in RL
 
 - To grant admin to a user: insert their `auth.users.id` into `public.admin_users`.
   You can do this from Supabase SQL Editor.
+
+## Hardening (constraints + audit)
+
+Additional migrations add:
+
+- Constraints on `public.fun_target_state` (valid last10 length/digits, bets_json shape, non-negative amounts)
+- `public.audit_logs` with a trigger that logs inserts/updates to `fun_target_state`

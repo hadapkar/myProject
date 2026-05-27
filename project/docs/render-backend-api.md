@@ -22,8 +22,13 @@ Docker uses `project/backend-api/Dockerfile`.
 - `CORS_ALLOWED_ORIGINS` = comma-separated list of browser origins allowed to call the API, e.g.
   - `https://hadapkar.github.io` (Flutter Web on GitHub Pages)
   - `http://localhost:3000` (local dev)
+- `RATE_LIMIT_PER_MINUTE` = per-user/IP limit for `/api/*` (default `120`)
 
 Render sets `PORT` automatically; `application.properties` reads it and the Dockerfile exposes `8080`.
+
+## Notes
+
+- If `CORS_ALLOWED_ORIGINS` is empty, the backend defaults to allowing only localhost. Set it explicitly on Render.
 
 ## Verify
 
@@ -36,4 +41,3 @@ Render sets `PORT` automatically; `application.properties` reads it and the Dock
 - `GET /api/me` (requires `Authorization: Bearer <supabase_access_token>`)
 - `GET /api/funtarget/state` (requires auth)
 - `POST /api/funtarget/intent` (requires auth)
-
