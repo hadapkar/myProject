@@ -28,8 +28,10 @@ The desktop app will need these values:
 
 **Desktop runtime config (recommended):**
 
-- Copy `dist/config.json.example` to `config.json` next to the `.exe` and fill values.
-- Or set Windows environment variables `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `API_BASE_URL`.
+- **Release zips** have these values embedded (no setup required).
+- Optional overrides:
+  - set Windows environment variables `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `API_BASE_URL`, or
+  - copy `dist/config.json.example` to `config.json` next to the `.exe` and fill values.
 
 **Dev config (`flutter run`):**
 

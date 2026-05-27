@@ -53,10 +53,19 @@ jobs:
           grep -R "FUNTARGET_WINDOW_DEFAULTS" -n windows/runner/main.cpp
 
       - name: Build Windows (release)
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          API_BASE_URL: ${{ secrets.API_BASE_URL }}
         run: |
-          # Desktop builds can be configured at runtime via `config.json` next to the exe,
-          # so CI does not need to bake secrets into the binary.
-          flutter build windows --release
+          if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_ANON_KEY" ] || [ -z "$API_BASE_URL" ]; then
+            echo "Missing required secrets SUPABASE_URL / SUPABASE_ANON_KEY / API_BASE_URL" >&2
+            exit 1
+          fi
+          flutter build windows --release \
+            --dart-define=SUPABASE_URL="$SUPABASE_URL" \
+            --dart-define=SUPABASE_ANON_KEY="$SUPABASE_ANON_KEY" \
+            --dart-define=API_BASE_URL="$API_BASE_URL"
 
       - name: Verify release output contains assets
         run: |
@@ -74,7 +83,7 @@ jobs:
           test -f "$OUT_DIR/data/flutter_assets/assets/funTargrtAsset/media/FunTargetImages/Wheel5.png"
           test -f "$OUT_DIR/data/flutter_assets/assets/funTargrtAsset/Sounds/clock_ticking.wav"
 
-      - name: Copy runtime config templates into release folder
+      - name: Copy optional config templates into release folder
         run: |
           set -euo pipefail
           OUT_DIR="build/windows/x64/runner/Release"

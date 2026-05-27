@@ -47,8 +47,19 @@ jobs:
           ./tools/patch_windows_runner.ps1 -ProjectDir "${{ github.workspace }}\\project\\game-desktop"
 
       - name: Build Windows (release)
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          API_BASE_URL: ${{ secrets.API_BASE_URL }}
         run: |
-          flutter build windows --release
+          if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_ANON_KEY" ] || [ -z "$API_BASE_URL" ]; then
+            echo "Missing required secrets SUPABASE_URL / SUPABASE_ANON_KEY / API_BASE_URL" >&2
+            exit 1
+          fi
+          flutter build windows --release \
+            --dart-define=SUPABASE_URL="$SUPABASE_URL" \
+            --dart-define=SUPABASE_ANON_KEY="$SUPABASE_ANON_KEY" \
+            --dart-define=API_BASE_URL="$API_BASE_URL"
 
       - name: Copy runtime config templates into release folder
         run: |
