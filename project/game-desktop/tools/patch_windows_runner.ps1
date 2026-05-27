@@ -19,18 +19,25 @@ if ($content -like "*$marker*") {
 }
 
 # We patch the template-created `Win32Window::Size size(...)` line when present.
-# Current Flutter templates typically contain:
-#   Win32Window::Size size(1280, 720);
-$patched = $content -replace "Win32Window::Size size\\(\\s*1280\\s*,\\s*720\\s*\\);",
-@"
+# Flutter templates may change across versions, so we try multiple patterns.
+
+$replacement = @"
 $marker
   // Set a desktop-friendly default size that matches the FunTarget stage aspect.
   // Design: 1024x768 with a vertical squash factor (0.7) in-game.
   Win32Window::Size size(1400, 820);
 "@
 
+# 1) Exact match (historical template): Win32Window::Size size(1280, 720);
+$patched = $content -replace "Win32Window::Size size\\(\\s*1280\\s*,\\s*720\\s*\\);", $replacement
+
 if ($patched -eq $content) {
-  # Fallback: if the exact template line didn't match, still append a note to help debugging.
+  # 2) Generic match: Win32Window::Size size(<any>, <any>);
+  $patternAny = "Win32Window::Size size\\(\\s*\\d+\\s*,\\s*\\d+\\s*\\);"
+  $patched = [System.Text.RegularExpressions.Regex]::Replace($content, $patternAny, $replacement, 1)
+}
+
+if ($patched -eq $content) {
   Write-Warning "Could not patch default size line (template mismatch). Leaving main.cpp unchanged."
   exit 0
 }
