@@ -93,8 +93,12 @@ class _GameScreenState extends State<GameScreen> {
       _error = null;
     });
     try {
-      final state = await _api.getState();
+      // Render free instances can "cold start" after inactivity; allow enough time.
+      final state =
+          await _api.getState().timeout(const Duration(seconds: 75));
       _applyLoadedState(state);
+    } on TimeoutException {
+      setState(() => _error = "Backend is starting (cold start). Please wait and retry.");
     } on StateError catch (e) {
       final text = e.message;
       // If session/token is invalid, route back to login (Supabase guard will redirect).
@@ -105,7 +109,12 @@ class _GameScreenState extends State<GameScreen> {
         await Supabase.instance.client.auth.signOut();
         return;
       }
-      setState(() => _error = text);
+      // Friendly message for common Render cold-start timeouts.
+      if (text.toLowerCase().contains("timeout")) {
+        setState(() => _error = "Backend is starting (cold start). Please wait and retry.");
+      } else {
+        setState(() => _error = text);
+      }
     } catch (e) {
       setState(() => _error = e.toString());
     }
@@ -518,14 +527,40 @@ class _GameScreenState extends State<GameScreen> {
             children: [
               Positioned.fill(
                 child: state == null
-                    ? const Center(
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            CircularProgressIndicator(),
-                            SizedBox(height: 12),
-                            Text("Loading state..."),
-                          ],
+                    ? Center(
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 520),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              if (_error == null) ...[
+                                const CircularProgressIndicator(),
+                                const SizedBox(height: 12),
+                                const Text("Loading state..."),
+                              ] else ...[
+                                Text(
+                                  _error!,
+                                  style: const TextStyle(color: Colors.redAccent),
+                                  textAlign: TextAlign.center,
+                                ),
+                              ],
+                              const SizedBox(height: 16),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  OutlinedButton(
+                                    onPressed: _exitToHome,
+                                    child: const Text("Back"),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  FilledButton(
+                                    onPressed: _load,
+                                    child: const Text("Retry"),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
                         ),
                       )
                     : SizedBox.expand(
@@ -564,7 +599,7 @@ class _GameScreenState extends State<GameScreen> {
                         ),
                       ),
               ),
-              if (_error != null)
+              if (_error != null && state != null)
                 Positioned(
                   left: 8,
                   right: 8,
