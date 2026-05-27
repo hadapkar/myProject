@@ -1,6 +1,11 @@
 name: Flutter Web Preview (GitHub Pages)
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - "project/game-desktop/**"
+      - ".github/workflows/flutter-web-preview.yml"
   workflow_dispatch: {}
 
 permissions:
