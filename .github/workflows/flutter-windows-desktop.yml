@@ -34,6 +34,9 @@ jobs:
       - name: Flutter pub get
         run: flutter pub get
 
+      - name: Flutter analyze
+        run: flutter analyze
+
       - name: Ensure Windows runner exists
         run: |
           if [ ! -d "windows" ]; then
@@ -54,6 +57,22 @@ jobs:
             --dart-define=SUPABASE_URL="$SUPABASE_URL" \
             --dart-define=SUPABASE_ANON_KEY="$SUPABASE_ANON_KEY" \
             --dart-define=API_BASE_URL="$API_BASE_URL"
+
+      - name: Verify release output contains assets
+        run: |
+          set -euo pipefail
+          OUT_DIR="build/windows/x64/runner/Release"
+          test -d "$OUT_DIR"
+          EXE_COUNT=$(ls -1 "$OUT_DIR"/*.exe 2>/dev/null | wc -l | tr -d ' ')
+          if [ "$EXE_COUNT" -lt 1 ]; then
+            echo "No .exe found in $OUT_DIR" >&2
+            ls -la "$OUT_DIR" || true
+            exit 1
+          fi
+          test -d "$OUT_DIR/data/flutter_assets"
+          test -f "$OUT_DIR/data/flutter_assets/assets/funTargrtAsset/media/FunTargetImages/Bg.jpg"
+          test -f "$OUT_DIR/data/flutter_assets/assets/funTargrtAsset/media/FunTargetImages/Wheel5.png"
+          test -f "$OUT_DIR/data/flutter_assets/assets/funTargrtAsset/Sounds/clock_ticking.wav"
 
       - name: Package artifact (zip)
         run: |
