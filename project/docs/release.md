@@ -17,12 +17,11 @@ This repo publishes the Windows desktop build as a zip attached to a GitHub Rele
    - Append to `CHANGELOG.md`
 3. Push to `main` and ensure CI is green
    - `Flutter Windows Desktop (Artifact)` should pass
-4. Create and push a tag
-   - `git tag v0.1.0`
-   - `git push origin v0.1.0`
+4. Create the Release (recommended)
+   - GitHub Actions â†’ run workflow: `Manual Release - Windows Desktop`
+   - Input: `version` = `vMAJOR.MINOR.PATCH` (example: `v0.1.0`)
 5. Validate Release output
-   - GitHub Actions run: `Release - Windows Desktop`
-   - GitHub Release should contain: `funtarget-windows.zip`
+   - GitHub Release should contain: `funtarget-windows.zip` (latest Windows build)
 6. Smoke test (when possible)
    - Unzip
    - Run `FunTarget.exe` (no setup required; CI embeds config into the build)

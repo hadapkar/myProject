@@ -25,6 +25,12 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 public class SecurityConfig {
 
   @Bean
+  RequestSizeLimitFilter requestSizeLimitFilter(
+      @Value("${app.request.max-bytes:32768}") long maxBytes) {
+    return new RequestSizeLimitFilter(maxBytes);
+  }
+
+  @Bean
   RateLimitFilter rateLimitFilter(
       @Value("${app.ratelimit.per-minute:120}") int limitPerMinute) {
     return new RateLimitFilter(limitPerMinute);
@@ -32,7 +38,10 @@ public class SecurityConfig {
 
   @Bean
   SecurityFilterChain securityFilterChain(
-      HttpSecurity http, SupabaseAuthService authService, RateLimitFilter rateLimitFilter)
+      HttpSecurity http,
+      SupabaseAuthService authService,
+      RequestSizeLimitFilter requestSizeLimitFilter,
+      RateLimitFilter rateLimitFilter)
       throws Exception {
     return http
         .csrf(csrf -> csrf.disable())
@@ -49,6 +58,7 @@ public class SecurityConfig {
                         (req, res, ex) ->
                             writeJson(res, req, 403, "forbidden", "Forbidden")))
         .addFilterBefore(new RequestIdFilter(), UsernamePasswordAuthenticationFilter.class)
+        .addFilterAfter(requestSizeLimitFilter, RequestIdFilter.class)
         .addFilterAfter(new SupabaseTokenAuthFilter(authService), RequestIdFilter.class)
         .addFilterAfter(rateLimitFilter, SupabaseTokenAuthFilter.class)
         .authorizeHttpRequests(

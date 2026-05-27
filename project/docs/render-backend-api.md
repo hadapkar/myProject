@@ -20,6 +20,7 @@ Docker uses `project/backend-api/Dockerfile`.
 - `SUPABASE_ANON_KEY` = (your Supabase anon key)
 - `CORS_ALLOWED_ORIGINS` = comma-separated list of browser origins allowed to call the API, e.g.
   - `https://hadapkar.github.io` (Flutter Web on GitHub Pages)
+  - `https://hadapkar.github.io/myProject` (Flutter Web on GitHub Pages - repo site)
   - `http://localhost:3000` (local dev)
 - `RATE_LIMIT_PER_MINUTE` = per-user/IP limit for `/api/*` (default `120`)
 
@@ -29,6 +30,10 @@ Render sets `PORT` automatically; `application.properties` reads it and the Dock
 
 - If `CORS_ALLOWED_ORIGINS` is empty, the backend defaults to allowing only localhost. Set it explicitly on Render.
 - The backend calls Supabase using the **user access token** (RLS enforced). A `service_role` key is intentionally not used.
+
+Example `CORS_ALLOWED_ORIGINS` for this repo:
+
+`http://localhost:3000,http://127.0.0.1:3000,https://my-project-lg04pp43p-s-h-s-projects.vercel.app,https://hadapkar.github.io,https://hadapkar.github.io/myProject`
 
 ## Verify
 

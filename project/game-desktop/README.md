@@ -28,10 +28,8 @@ The desktop app will need these values:
 
 **Desktop runtime config (recommended):**
 
-- **Release zips** have these values embedded (no setup required).
-- Optional overrides:
-  - set Windows environment variables `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `API_BASE_URL`, or
-  - copy `dist/config.json.example` to `config.json` next to the `.exe` and fill values.
+- **Release zips** have these values embedded (no setup required for end users).
+- Optional (dev/advanced): override via Windows environment variables `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `API_BASE_URL` or a local `config.json` next to the `.exe`.
 
 **Dev config (`flutter run`):**
 
@@ -72,6 +70,7 @@ Two options:
 
 - **CI Artifact (every push):** GitHub Actions → `Flutter Windows Desktop (Artifact)` → download `funtarget-windows.zip`.
 - **GitHub Release (versioned):** push a git tag like `v0.1.0` and GitHub will attach `funtarget-windows.zip` to the release.
+  - Recommended: use GitHub Actions workflow `Manual Release - Windows Desktop`.
 
 ## Auto-update (Option 1)
 

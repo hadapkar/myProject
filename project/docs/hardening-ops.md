@@ -21,6 +21,8 @@ Comma-separated origins, no trailing slashes. Examples:
   - `https://hadapkar.github.io`
 - Vercel:
   - `https://my-project-lg04pp43p-s-h-s-projects.vercel.app`
+- GitHub Pages (repo site):
+  - `https://hadapkar.github.io/myProject`
 
 After updating env vars, trigger a redeploy on Render.
 
