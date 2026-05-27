@@ -16,7 +16,7 @@ Future<void> downloadAndInstallPlatform({
       : File(appExePath).uri.pathSegments.last;
 
   final tempDir = await Directory.systemTemp.createTemp("funtarget_update_");
-  final zipPath = "${tempDir.path}\\funtarget-windows.zip";
+  final zipPath = "${tempDir.path}\\King Maker.zip";
   final extractDir = Directory("${tempDir.path}\\extracted");
 
   try {
@@ -144,4 +144,3 @@ endlocal
 exit /b 0
 """;
 }
-

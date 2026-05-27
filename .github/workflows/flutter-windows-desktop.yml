@@ -101,10 +101,11 @@ jobs:
             exit 1
           fi
           cd "$OUT_DIR"
-          7z a -tzip "../../../../funtarget-windows.zip" ./*
+          7z a -tzip "../../../../King Maker.zip" ./*
+          cp -f "../../../../King Maker.zip" "../../../../funtarget-windows.zip"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: funtarget-windows
-          path: project/game-desktop/build/funtarget-windows.zip
+          name: king-maker-windows
+          path: project/game-desktop/build/King Maker.zip

@@ -68,15 +68,15 @@ The Flutter implementation must match the **Salesforce LWC game logic** (round t
 
 Two options:
 
-- **CI Artifact (every push):** GitHub Actions → `Flutter Windows Desktop (Artifact)` → download `funtarget-windows.zip`.
-- **GitHub Release (versioned):** push a git tag like `v0.1.0` and GitHub will attach `funtarget-windows.zip` to the release.
+- **CI Artifact (every push):** GitHub Actions → `Flutter Windows Desktop (Artifact)` → download `King Maker.zip`.
+- **GitHub Release (versioned):** push a git tag like `v0.1.0` and GitHub will attach `King Maker.zip` to the release.
   - Recommended: use GitHub Actions workflow `Manual Release - Windows Desktop`.
 
 ## Auto-update (Option 1)
 
 The Windows desktop app includes an in-app updater:
 
-- It checks the latest GitHub Release for `funtarget-windows.zip`.
+- It checks the latest GitHub Release for `King Maker.zip` (and falls back to `funtarget-windows.zip` for older releases).
 - If a newer version is available, you can install it from inside the app (no manual download needed).
 
 Notes:
