@@ -8,7 +8,6 @@ import "funtarget_assets.dart";
 class FunTargetStage extends StatelessWidget {
   static const double designWidth = 1024;
   static const double designHeight = 768;
-  static const double heightScale = 0.7;
 
   final String email;
   final int timeLeftSeconds;
@@ -76,64 +75,72 @@ class FunTargetStage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Scale the fixed 1024x768 "design canvas" uniformly to fit the available space.
+    // This keeps visuals and hit-testing aligned (important for clickable bet numbers).
     return LayoutBuilder(
       builder: (context, constraints) {
-        final maxWidth =
-            constraints.maxWidth.isFinite ? constraints.maxWidth : designWidth;
-        final maxHeight = constraints.maxHeight.isFinite
-            ? constraints.maxHeight
-            : (designHeight * heightScale);
+        final maxW = constraints.maxWidth.isFinite ? constraints.maxWidth : designWidth;
+        final maxH = constraints.maxHeight.isFinite ? constraints.maxHeight : designHeight;
 
-        final scaleW = maxWidth / designWidth;
-        final scaleH = maxHeight / (designHeight * heightScale);
-        final scale = min(scaleW, scaleH);
+        final scale = min(maxW / designWidth, maxH / designHeight);
+        final fittedW = designWidth * scale;
+        final fittedH = designHeight * scale;
 
-        final outerWidth = designWidth * scale;
-        final outerHeight = designHeight * scale * heightScale;
-
-        return SizedBox(
-          width: outerWidth,
-          height: outerHeight,
-          child: Align(
-            alignment: Alignment.center,
-            child: Transform(
-              alignment: Alignment.topCenter,
-              transform: Matrix4.diagonal3Values(scale, scale * heightScale, 1),
-              child: SizedBox(
-                width: designWidth,
-                height: designHeight,
-                child: _StageBody(
-                  email: email,
-                  timeLeftSeconds: timeLeftSeconds,
-                  score: score,
-                  totalBetAmount: totalBetAmount,
-                  winnerAmount: winnerAmount,
-                  last10: last10,
-                  selectedChip: selectedChip,
-                  onChipSelected: onChipSelected,
-                  betsByNumber: betsByNumber,
-                  highlightedBetNumber: highlightedBetNumber,
-                  betNumbersDisabled: betNumbersDisabled,
-                  onBetNumberPressed: onBetNumberPressed,
-                  isSpinning: isSpinning,
-                  wheelRotationDegrees: wheelRotationDegrees,
-                  wheelSpinDuration: wheelSpinDuration,
-                  wheelSpinCurve: wheelSpinCurve,
-                  betOkBlink: betOkBlink,
-                  betOkDisabled: betOkDisabled,
-                  takeBlink: takeBlink,
-                  showPrevBet: showPrevBet,
-                  onTake: onTake,
-                  onCancelBet: onCancelBet,
-                  onCancelSpecific: onCancelSpecific,
-                  onBetOk: onBetOk,
-                  onPrevBet: onPrevBet,
-                  onExit: onExit,
-                  footerMessage: footerMessage,
+        return Stack(
+          children: [
+            Positioned.fill(
+              child: Opacity(
+                opacity: 0.25,
+                child: Image.asset(
+                  FunTargetAssets.background,
+                  fit: BoxFit.cover,
                 ),
               ),
             ),
-          ),
+            Center(
+              child: SizedBox(
+                width: fittedW,
+                height: fittedH,
+                child: FittedBox(
+                  fit: BoxFit.fill,
+                  alignment: Alignment.center,
+                  child: SizedBox(
+                    width: designWidth,
+                    height: designHeight,
+                    child: _StageBody(
+                      email: email,
+                      timeLeftSeconds: timeLeftSeconds,
+                      score: score,
+                      totalBetAmount: totalBetAmount,
+                      winnerAmount: winnerAmount,
+                      last10: last10,
+                      selectedChip: selectedChip,
+                      onChipSelected: onChipSelected,
+                      betsByNumber: betsByNumber,
+                      highlightedBetNumber: highlightedBetNumber,
+                      betNumbersDisabled: betNumbersDisabled,
+                      onBetNumberPressed: onBetNumberPressed,
+                      isSpinning: isSpinning,
+                      wheelRotationDegrees: wheelRotationDegrees,
+                      wheelSpinDuration: wheelSpinDuration,
+                      wheelSpinCurve: wheelSpinCurve,
+                      betOkBlink: betOkBlink,
+                      betOkDisabled: betOkDisabled,
+                      takeBlink: takeBlink,
+                      showPrevBet: showPrevBet,
+                      onTake: onTake,
+                      onCancelBet: onCancelBet,
+                      onCancelSpecific: onCancelSpecific,
+                      onBetOk: onBetOk,
+                      onPrevBet: onPrevBet,
+                      onExit: onExit,
+                      footerMessage: footerMessage,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
         );
       },
     );
