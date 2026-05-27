@@ -47,7 +47,7 @@ class _GameScreenState extends State<GameScreen> {
 
   int _selectedChip = 1;
   Map<int, int> _betsByNumber = {};
-  double _coins = 0;
+  double _coins = 1000;
   double _winnerAmount = 0;
   List<int> _last10Results = const [];
   int? _selectedNumber;
