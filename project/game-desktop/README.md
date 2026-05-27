@@ -72,3 +72,15 @@ Two options:
 
 - **CI Artifact (every push):** GitHub Actions → `Flutter Windows Desktop (Artifact)` → download `funtarget-windows.zip`.
 - **GitHub Release (versioned):** push a git tag like `v0.1.0` and GitHub will attach `funtarget-windows.zip` to the release.
+
+## Auto-update (Option 1)
+
+The Windows desktop app includes an in-app updater:
+
+- It checks the latest GitHub Release for `funtarget-windows.zip`.
+- If a newer version is available, you can install it from inside the app (no manual download needed).
+
+Notes:
+
+- This requires the GitHub Release asset to be reachable by end users (public repo or otherwise publicly accessible release artifacts).
+- Web builds don’t self-update; GitHub Pages/Vercel deployments update automatically.

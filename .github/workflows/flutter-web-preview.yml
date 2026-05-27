@@ -36,6 +36,9 @@ jobs:
       - name: Flutter pub get
         run: flutter pub get
 
+      - name: Flutter analyze
+        run: flutter analyze --no-fatal-infos --no-fatal-warnings
+
       - name: Debug config presence (no values)
         shell: bash
         env:
@@ -67,7 +70,8 @@ jobs:
             --pwa-strategy=none \
             --dart-define=SUPABASE_URL="$SUPABASE_URL" \
             --dart-define=SUPABASE_ANON_KEY="$SUPABASE_ANON_KEY" \
-            --dart-define=API_BASE_URL="$API_BASE_URL"
+            --dart-define=API_BASE_URL="$API_BASE_URL" \
+            --dart-define=APP_VERSION="0.0.0-web+${GITHUB_SHA:0:7}"
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3

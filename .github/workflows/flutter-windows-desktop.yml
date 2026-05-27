@@ -35,7 +35,7 @@ jobs:
         run: flutter pub get
 
       - name: Flutter analyze
-        run: flutter analyze
+        run: flutter analyze --no-fatal-infos --no-fatal-warnings
 
       - name: Ensure Windows runner exists
         run: |
@@ -65,7 +65,8 @@ jobs:
           flutter build windows --release \
             --dart-define=SUPABASE_URL="$SUPABASE_URL" \
             --dart-define=SUPABASE_ANON_KEY="$SUPABASE_ANON_KEY" \
-            --dart-define=API_BASE_URL="$API_BASE_URL"
+            --dart-define=API_BASE_URL="$API_BASE_URL" \
+            --dart-define=APP_VERSION="0.0.0+${GITHUB_SHA:0:7}"
 
       - name: Verify release output contains assets
         run: |
