@@ -4,6 +4,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import java.time.Instant;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.client.RestClientResponseException;
@@ -11,6 +12,11 @@ import com.funtarget.backend.security.RequestIdFilter;
 
 @RestControllerAdvice
 public class ApiExceptionHandler {
+
+  @ExceptionHandler(AccessDeniedException.class)
+  public ResponseEntity<ApiError> forbidden(AccessDeniedException e, HttpServletRequest req) {
+    return error(HttpStatus.FORBIDDEN, "forbidden", e.getMessage(), req);
+  }
 
   @ExceptionHandler(IllegalArgumentException.class)
   public ResponseEntity<ApiError> badRequest(IllegalArgumentException e, HttpServletRequest req) {

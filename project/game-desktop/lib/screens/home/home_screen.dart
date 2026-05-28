@@ -4,6 +4,7 @@ import "package:go_router/go_router.dart";
 import "package:supabase_flutter/supabase_flutter.dart";
 
 import "../../services/update_service.dart";
+import "../../services/funtarget_api.dart";
 
 const _funTargetLogo = "assets/app/logo.jpg";
 
@@ -15,13 +16,47 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
+  final _api = FunTargetApi();
+  bool _isAdmin = false;
+  bool _roleLoaded = false;
+
   @override
   void initState() {
     super.initState();
+    unawaited(_loadRole());
     if (!kIsWeb) {
       // Background check; UI will show "update available" if needed.
       UpdateService.instance.checkForUpdates();
     }
+  }
+
+  Future<void> _loadRole() async {
+    try {
+      final user = Supabase.instance.client.auth.currentUser;
+      final uid = user?.id;
+      if (uid == null) return;
+      final row = await Supabase.instance.client
+          .from("admin_users")
+          .select("user_id")
+          .eq("user_id", uid)
+          .maybeSingle();
+      if (!mounted) return;
+      setState(() {
+        _isAdmin = row != null;
+        _roleLoaded = true;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _roleLoaded = true);
+    }
+  }
+
+  Future<void> _openCreateUserDialog() async {
+    if (!_isAdmin) return;
+    await showDialog<void>(
+      context: context,
+      builder: (context) => _CreateUserDialog(api: _api),
+    );
   }
 
   Future<void> _openUpdateDialog() async {
@@ -91,6 +126,11 @@ class _HomeScreenState extends State<HomeScreen> {
       appBar: AppBar(
         title: const Text("Games"),
         actions: [
+          if (_roleLoaded && _isAdmin)
+            TextButton(
+              onPressed: _openCreateUserDialog,
+              child: const Text("Create User"),
+            ),
           if (!kIsWeb)
             ValueListenableBuilder(
               valueListenable: UpdateService.instance.state,
@@ -146,6 +186,105 @@ class _HomeScreenState extends State<HomeScreen> {
           },
         ),
       ),
+    );
+  }
+}
+
+class _CreateUserDialog extends StatefulWidget {
+  final FunTargetApi api;
+
+  const _CreateUserDialog({required this.api});
+
+  @override
+  State<_CreateUserDialog> createState() => _CreateUserDialogState();
+}
+
+class _CreateUserDialogState extends State<_CreateUserDialog> {
+  final _email = TextEditingController();
+  final _password = TextEditingController();
+  String _role = "MANAGER";
+  bool _busy = false;
+  String? _message;
+
+  @override
+  void dispose() {
+    _email.dispose();
+    _password.dispose();
+    super.dispose();
+  }
+
+  Future<void> _create() async {
+    setState(() {
+      _busy = true;
+      _message = null;
+    });
+    try {
+      final res = await widget.api.createUser(
+        email: _email.text.trim(),
+        password: _password.text,
+        role: _role,
+      );
+      final createdEmail = (res["email"] ?? "").toString();
+      setState(() => _message = "Created user: $createdEmail");
+    } catch (e) {
+      setState(() => _message = e.toString());
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text("Create User"),
+      content: SizedBox(
+        width: 420,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: _email,
+              decoration: const InputDecoration(labelText: "Email"),
+              keyboardType: TextInputType.emailAddress,
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: _password,
+              decoration: const InputDecoration(labelText: "Temporary password"),
+              obscureText: true,
+            ),
+            const SizedBox(height: 10),
+            DropdownButtonFormField<String>(
+              value: _role,
+              decoration: const InputDecoration(labelText: "Role"),
+              items: const [
+                DropdownMenuItem(value: "MANAGER", child: Text("Manager")),
+                DropdownMenuItem(value: "ADMIN", child: Text("Admin")),
+              ],
+              onChanged: _busy ? null : (v) => setState(() => _role = v ?? "MANAGER"),
+            ),
+            if (_message != null) ...[
+              const SizedBox(height: 10),
+              Text(
+                _message!,
+                style: TextStyle(
+                  color: _message!.startsWith("Created") ? Colors.greenAccent : Colors.redAccent,
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: _busy ? null : () => Navigator.of(context).pop(),
+          child: const Text("Close"),
+        ),
+        FilledButton(
+          onPressed: _busy ? null : _create,
+          child: Text(_busy ? "Creating..." : "Create"),
+        ),
+      ],
     );
   }
 }

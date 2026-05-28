@@ -40,26 +40,6 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-  Future<void> _signUp() async {
-    setState(() {
-      _busy = true;
-      _message = null;
-    });
-    try {
-      await Supabase.instance.client.auth.signUp(
-        email: _emailController.text.trim(),
-        password: _passwordController.text,
-      );
-      setState(() => _message = "Signup complete. Now Sign in.");
-    } on AuthException catch (e) {
-      setState(() => _message = e.message);
-    } catch (e) {
-      setState(() => _message = e.toString());
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -96,10 +76,11 @@ class _LoginScreenState extends State<LoginScreen> {
                   onPressed: _busy ? null : _signIn,
                   child: Text(_busy ? "Working..." : "Sign in"),
                 ),
-                const SizedBox(height: 8),
-                OutlinedButton(
-                  onPressed: _busy ? null : _signUp,
-                  child: const Text("Sign up"),
+                const SizedBox(height: 10),
+                const Text(
+                  "New accounts are created by Admin only.",
+                  style: TextStyle(color: Colors.white70),
+                  textAlign: TextAlign.center,
                 ),
                 if (_message != null) ...[
                   const SizedBox(height: 12),
@@ -117,4 +98,3 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 }
-

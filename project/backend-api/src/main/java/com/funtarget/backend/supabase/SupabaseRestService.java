@@ -88,6 +88,46 @@ public class SupabaseRestService {
     return updated.get(0);
   }
 
+  public boolean isAdmin(String accessToken, String userId) {
+    requireConfigured();
+    try {
+      Map<String, Object> row =
+          restClient
+              .get()
+              .uri(
+                  uriBuilder ->
+                      uriBuilder
+                          .path("/admin_users")
+                          .queryParam("select", "user_id")
+                          .queryParam("user_id", "eq." + userId)
+                          .build())
+              .header("apikey", props.anonKey())
+              .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
+              .header(HttpHeaders.ACCEPT, "application/vnd.pgrst.object+json")
+              .retrieve()
+              .body(Map.class);
+      return row != null && row.get("user_id") != null;
+    } catch (RestClientResponseException e) {
+      if (e.getStatusCode().value() == 406) {
+        return false;
+      }
+      throw e;
+    }
+  }
+
+  public void upsertAdminUserServiceRole(String userId) {
+    requireServiceRoleConfigured();
+    restClient
+        .post()
+        .uri(uriBuilder -> uriBuilder.path("/admin_users").build())
+        .header("apikey", props.serviceRoleKey())
+        .header(HttpHeaders.AUTHORIZATION, "Bearer " + props.serviceRoleKey())
+        .header("Prefer", "resolution=merge-duplicates,return=representation")
+        .body(List.of(Map.of("user_id", userId)))
+        .retrieve()
+        .toBodilessEntity();
+  }
+
   private void upsertFunTargetState(String accessToken, List<Map<String, Object>> rows) {
     requireConfigured();
     restClient
@@ -104,6 +144,13 @@ public class SupabaseRestService {
   private void requireConfigured() {
     if (props == null || props.url() == null || props.url().isBlank() || props.anonKey() == null || props.anonKey().isBlank()) {
       throw new IllegalStateException("SUPABASE_URL and SUPABASE_ANON_KEY must be set");
+    }
+  }
+
+  private void requireServiceRoleConfigured() {
+    requireConfigured();
+    if (props.serviceRoleKey() == null || props.serviceRoleKey().isBlank()) {
+      throw new IllegalStateException("SUPABASE_SERVICE_ROLE_KEY must be set");
     }
   }
 

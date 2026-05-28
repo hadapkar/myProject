@@ -134,4 +134,21 @@ class FunTargetApi {
     final jsonMap = jsonDecode(res.body) as Map<String, dynamic>;
     return FunTargetState.fromJson(jsonMap);
   }
+
+  Future<Map<String, dynamic>> createUser({
+    required String email,
+    required String password,
+    required String role,
+  }) async {
+    final res = await _post("/api/admin/users", {
+      "email": email,
+      "password": password,
+      "role": role,
+    });
+    if (res.statusCode < 200 || res.statusCode >= 300) {
+      throw StateError("Backend error ${res.statusCode}: ${res.body}");
+    }
+    final jsonMap = jsonDecode(res.body) as Map<String, dynamic>;
+    return jsonMap;
+  }
 }

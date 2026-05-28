@@ -35,7 +35,7 @@ public class SupabaseTokenAuthFilter extends OncePerRequestFilter {
         SupabaseUser user = authService.getUserFromAccessToken(token);
         var auth =
             new UsernamePasswordAuthenticationToken(
-                user, null, List.of(new SimpleGrantedAuthority("ROLE_PLAYER")));
+                user, token, List.of(new SimpleGrantedAuthority("ROLE_PLAYER")));
         SecurityContextHolder.getContext().setAuthentication(auth);
       } catch (IllegalStateException e) {
         // Configuration error: tell the client explicitly so setup is fast.
