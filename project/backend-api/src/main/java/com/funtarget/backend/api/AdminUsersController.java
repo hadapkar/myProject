@@ -4,6 +4,7 @@ import com.funtarget.backend.supabase.SupabaseAdminService;
 import com.funtarget.backend.supabase.SupabaseRestService;
 import com.funtarget.backend.supabase.SupabaseUser;
 import java.util.Map;
+import java.util.UUID;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -35,6 +36,11 @@ public class AdminUsersController {
     String role = payload == null ? "MANAGER" : String.valueOf(payload.getOrDefault("role", "MANAGER")).trim().toUpperCase();
     if (!role.equals("ADMIN") && !role.equals("MANAGER")) {
       throw new IllegalArgumentException("Invalid role");
+    }
+
+    if (email == null || email.isBlank()) {
+      String gen = "user_" + UUID.randomUUID().toString().replace("-", "") + "@kingmaker.local";
+      email = gen;
     }
 
     SupabaseUser created = supabaseAdmin.createUser(email, password);

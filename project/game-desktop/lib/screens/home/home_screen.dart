@@ -220,7 +220,7 @@ class _CreateUserDialogState extends State<_CreateUserDialog> {
     });
     try {
       final res = await widget.api.createUser(
-        email: _email.text.trim(),
+        email: _email.text.trim().isEmpty ? null : _email.text.trim(),
         password: _password.text,
         role: _role,
       );
@@ -244,7 +244,10 @@ class _CreateUserDialogState extends State<_CreateUserDialog> {
           children: [
             TextField(
               controller: _email,
-              decoration: const InputDecoration(labelText: "Email"),
+              decoration: const InputDecoration(
+                labelText: "Email (optional)",
+                hintText: "Leave blank to auto-generate",
+              ),
               keyboardType: TextInputType.emailAddress,
             ),
             const SizedBox(height: 10),

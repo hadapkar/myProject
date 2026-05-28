@@ -136,12 +136,12 @@ class FunTargetApi {
   }
 
   Future<Map<String, dynamic>> createUser({
-    required String email,
+    String? email,
     required String password,
     required String role,
   }) async {
     final res = await _post("/api/admin/users", {
-      "email": email,
+      "email": (email ?? "").trim(),
       "password": password,
       "role": role,
     });
