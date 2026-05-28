@@ -29,6 +29,7 @@ class FunTargetStage extends StatelessWidget {
   final Curve wheelSpinCurve;
 
   final bool betOkBlink;
+  final bool betOkHighlight;
   final bool betOkDisabled;
   final bool takeBlink;
   final bool showPrevBet;
@@ -61,6 +62,7 @@ class FunTargetStage extends StatelessWidget {
     required this.wheelSpinDuration,
     required this.wheelSpinCurve,
     required this.betOkBlink,
+    required this.betOkHighlight,
     required this.betOkDisabled,
     required this.takeBlink,
     required this.showPrevBet,
@@ -112,6 +114,7 @@ class FunTargetStage extends StatelessWidget {
                 wheelSpinDuration: wheelSpinDuration,
                 wheelSpinCurve: wheelSpinCurve,
                 betOkBlink: betOkBlink,
+                betOkHighlight: betOkHighlight,
                 betOkDisabled: betOkDisabled,
                 takeBlink: takeBlink,
                 showPrevBet: showPrevBet,
@@ -153,6 +156,7 @@ class _StageBody extends StatelessWidget {
   final Curve wheelSpinCurve;
 
   final bool betOkBlink;
+  final bool betOkHighlight;
   final bool betOkDisabled;
   final bool takeBlink;
   final bool showPrevBet;
@@ -184,6 +188,7 @@ class _StageBody extends StatelessWidget {
     required this.wheelSpinDuration,
     required this.wheelSpinCurve,
     required this.betOkBlink,
+    required this.betOkHighlight,
     required this.betOkDisabled,
     required this.takeBlink,
     required this.showPrevBet,
@@ -415,6 +420,7 @@ class _StageBody extends StatelessWidget {
                 glowOff: FunTargetAssets.betOkGlowOff,
                 label: "Bet Ok",
                 blink: betOkBlink,
+                highlight: betOkHighlight,
                 enabled: !betOkDisabled,
                 onPressed: onBetOk,
               ),
@@ -952,6 +958,7 @@ class _ActionButton extends StatelessWidget {
   final String label;
   final double labelFontSize;
   final bool blink;
+  final bool highlight;
   final VoidCallback onPressed;
 
   const _ActionButton({
@@ -965,6 +972,7 @@ class _ActionButton extends StatelessWidget {
     required this.label,
     this.labelFontSize = 17,
     required this.blink,
+    this.highlight = false,
     required this.onPressed,
   });
 
@@ -982,6 +990,7 @@ class _ActionButton extends StatelessWidget {
         label: label,
         labelFontSize: labelFontSize,
         blink: blink,
+        highlight: highlight,
         onPressed: onPressed,
       ),
     );
@@ -994,6 +1003,7 @@ class _ActionButtonBody extends StatelessWidget {
   final String label;
   final double labelFontSize;
   final bool blink;
+  final bool highlight;
   final bool enabled;
   final VoidCallback onPressed;
 
@@ -1003,6 +1013,7 @@ class _ActionButtonBody extends StatelessWidget {
     required this.label,
     this.labelFontSize = 17,
     required this.blink,
+    this.highlight = false,
     this.enabled = true,
     required this.onPressed,
   });
@@ -1021,7 +1032,9 @@ class _ActionButtonBody extends StatelessWidget {
                     startOn: false,
                     child: Image.asset(glowOff, fit: BoxFit.fill),
                   )
-                : Image.asset(glowOff, fit: BoxFit.fill),
+                : (highlight
+                    ? Opacity(opacity: 0.45, child: Image.asset(glowOff, fit: BoxFit.fill))
+                    : Image.asset(glowOff, fit: BoxFit.fill)),
           ),
           Positioned.fill(
             child: blink
@@ -1030,10 +1043,12 @@ class _ActionButtonBody extends StatelessWidget {
                     startOn: true,
                     child: Image.asset(glowOn, fit: BoxFit.fill),
                   )
-                : Opacity(
-                    opacity: 0,
-                    child: Image.asset(glowOn, fit: BoxFit.fill),
-                  ),
+                : (highlight
+                    ? Image.asset(glowOn, fit: BoxFit.fill)
+                    : Opacity(
+                        opacity: 0,
+                        child: Image.asset(glowOn, fit: BoxFit.fill),
+                      )),
           ),
           Positioned.fill(
             child: Center(

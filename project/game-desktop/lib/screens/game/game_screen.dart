@@ -11,6 +11,7 @@ import "funtarget_assets.dart";
 import "funtarget_sounds.dart";
 import "funtarget_stage.dart";
 import "timer_anchor.dart";
+import "../../storage/bet_ok_highlight_store.dart";
 
 class GameScreen extends StatefulWidget {
   const GameScreen({super.key});
@@ -74,11 +75,41 @@ class _GameScreenState extends State<GameScreen> {
   bool _isFinalTenSeconds = false;
   int? _lastTimerSecond;
   bool _loadingSoundPlayed = false;
+  bool _isBetOkHighlighted = false;
+  bool _betOkHighlightLoaded = false;
 
   @override
   void initState() {
     super.initState();
+    unawaited(_loadBetOkHighlight());
     _load();
+  }
+
+  Future<void> _loadBetOkHighlight() async {
+    try {
+      final value = await BetOkHighlightStore.load();
+      if (!mounted) return;
+      setState(() {
+        _isBetOkHighlighted = value;
+        _betOkHighlightLoaded = true;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _betOkHighlightLoaded = true);
+    }
+  }
+
+  Future<void> _setBetOkHighlighted(bool value) async {
+    if (_isBetOkHighlighted == value && _betOkHighlightLoaded) return;
+    if (mounted) {
+      setState(() {
+        _isBetOkHighlighted = value;
+        _betOkHighlightLoaded = true;
+      });
+    }
+    try {
+      await BetOkHighlightStore.save(value);
+    } catch (_) {}
   }
 
   @override
@@ -207,6 +238,11 @@ class _GameScreenState extends State<GameScreen> {
       setState(() => _highlightedBetNumber = null);
     }
 
+    // Parity with LWC: clear the Bet OK highlight when entering final ten seconds.
+    if (_crossedSecond(prev, curr, _finalTenSecond)) {
+      unawaited(_setBetOkHighlighted(false));
+    }
+
     // Forfeit payout after 30s.
     if (_crossedSecond(prev, curr, _payoutForfeitSecond)) {
       final winner = _winnerAmount;
@@ -299,6 +335,7 @@ class _GameScreenState extends State<GameScreen> {
         _isBetConfirmed = true;
         _footerMessage = _spinFooterMessage;
       });
+      unawaited(_setBetOkHighlighted(false));
 
       final predefined = _state?.predefinedWheelNumber;
       final result = predefined ?? Random().nextInt(_segments);
@@ -409,6 +446,7 @@ class _GameScreenState extends State<GameScreen> {
         selectedNumber: _selectedNumber,
       );
     });
+    unawaited(_setBetOkHighlighted(false));
     unawaited(_sounds.playOnce("bet", FunTargetAssets.soundBet));
   }
 
@@ -461,6 +499,7 @@ class _GameScreenState extends State<GameScreen> {
       _showPrevBet = _canApplyPrevBetWithScore(projectedScore);
       _footerMessage = _defaultFooterMessage;
     });
+    unawaited(_setBetOkHighlighted(true));
     unawaited(_postIntent({"intent": "TAKE_PAYOUT"}));
   }
 
@@ -521,6 +560,10 @@ class _GameScreenState extends State<GameScreen> {
         !_isSpinning && !_isFinalTenSeconds && winnerAmount <= 0;
     final shouldBlinkBetOk =
         isBettingPhase && !_showPrevBet && !_isBetConfirmed && totalBet > 0;
+    final shouldHighlightBetOk = _isBetOkHighlighted &&
+        !_isBetConfirmed &&
+        !_isSpinning &&
+        !_isFinalTenSeconds;
     final betOkDisabled =
         !isBettingPhase || _isBetConfirmed || totalBet <= 0;
     return Scaffold(
@@ -592,6 +635,7 @@ class _GameScreenState extends State<GameScreen> {
                           wheelSpinDuration: _spinDuration,
                           wheelSpinCurve: _spinCurve,
                           betOkBlink: shouldBlinkBetOk,
+                          betOkHighlight: shouldHighlightBetOk,
                           betOkDisabled: betOkDisabled,
                           takeBlink: winnerAmount > 0,
                           showPrevBet: _showPrevBet,
