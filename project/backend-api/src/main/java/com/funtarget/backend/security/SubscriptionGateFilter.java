@@ -10,6 +10,7 @@ import java.io.IOException;
 import java.time.Instant;
 import java.util.Map;
 import org.springframework.http.MediaType;
+import org.springframework.web.client.RestClientResponseException;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.filter.OncePerRequestFilter;
@@ -38,16 +39,28 @@ public class SubscriptionGateFilter extends OncePerRequestFilter {
     String token = creds instanceof String s ? s : null;
 
     if (principal instanceof SupabaseUser user && token != null && !token.isBlank()) {
-      Map<String, Object> sub = supabaseRest.getAppSubscription(token);
-      boolean active = SupabaseRestService.isSubscriptionActive(sub, Instant.now());
-      if (!active) {
-        boolean isAdmin = false;
-        try {
-          isAdmin = supabaseRest.isAdmin(token, user.id());
-        } catch (Exception ignored) {
+      try {
+        Map<String, Object> sub = supabaseRest.getAppSubscription(token);
+        boolean active = SupabaseRestService.isSubscriptionActive(sub, Instant.now());
+        if (!active) {
+          boolean isAdmin = false;
+          try {
+            isAdmin = supabaseRest.isAdmin(token, user.id());
+          } catch (Exception ignored) {
+          }
+          if (!isAdmin) {
+            writeBlocked(response, request, sub);
+            return;
+          }
         }
-        if (!isAdmin) {
-          writeBlocked(response, request, sub);
+      } catch (IllegalStateException e) {
+        writeJson(response, request, 500, "server_misconfigured", e.getMessage());
+        return;
+      } catch (RestClientResponseException e) {
+        int status = e.getStatusCode().value();
+        // If the table isn't deployed yet, don't crash the API.
+        if (status != 404 && status != 400) {
+          writeJson(response, request, 502, "upstream_error", "Upstream error (" + status + ")");
           return;
         }
       }
@@ -87,5 +100,31 @@ public class SubscriptionGateFilter extends OncePerRequestFilter {
   private static String escape(String s) {
     if (s == null) return "";
     return s.replace("\\", "\\\\").replace("\"", "\\\"");
+  }
+
+  private static void writeJson(
+      HttpServletResponse response, HttpServletRequest request, int status, String error, String message)
+      throws IOException {
+    response.setStatus(status);
+    response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+    String requestId =
+        request == null ? "" : String.valueOf(request.getAttribute(RequestIdFilter.ATTR));
+    response
+        .getWriter()
+        .write(
+            "{"
+                + "\"error\":\""
+                + escape(error)
+                + "\","
+                + "\"message\":\""
+                + escape(message)
+                + "\","
+                + "\"status\":"
+                + status
+                + ","
+                + "\"requestId\":\""
+                + escape(requestId)
+                + "\""
+                + "}");
   }
 }

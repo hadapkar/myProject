@@ -11,6 +11,7 @@ import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.util.Map;
 import org.springframework.http.MediaType;
+import org.springframework.web.client.RestClientResponseException;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.filter.OncePerRequestFilter;
@@ -44,10 +45,23 @@ public class UserAccessGateFilter extends OncePerRequestFilter {
       } catch (Exception ignored) {
       }
       if (!isAdmin) {
-        Map<String, Object> access = supabaseRest.getUserAccessSelf(token, user.id());
-        if (!isUserAllowed(access, Instant.now())) {
-          writeBlocked(response, request, access);
+        try {
+          Map<String, Object> access = supabaseRest.getUserAccessSelf(token, user.id());
+          if (!isUserAllowed(access, Instant.now())) {
+            writeBlocked(response, request, access);
+            return;
+          }
+        } catch (IllegalStateException e) {
+          writeJson(response, request, 500, "server_misconfigured", e.getMessage());
           return;
+        } catch (RestClientResponseException e) {
+          // If the table/policies aren't deployed yet, don't crash the whole API.
+          // Fail-open here; subscription/user gating will apply once DB is ready.
+          int status = e.getStatusCode().value();
+          if (status != 404 && status != 400) {
+            writeJson(response, request, 502, "upstream_error", "Upstream error (" + status + ")");
+            return;
+          }
         }
       }
     }
@@ -97,5 +111,30 @@ public class UserAccessGateFilter extends OncePerRequestFilter {
     if (s == null) return "";
     return s.replace("\\", "\\\\").replace("\"", "\\\"");
   }
-}
 
+  private static void writeJson(
+      HttpServletResponse response, HttpServletRequest request, int status, String error, String message)
+      throws IOException {
+    response.setStatus(status);
+    response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+    String requestId =
+        request == null ? "" : String.valueOf(request.getAttribute(RequestIdFilter.ATTR));
+    response
+        .getWriter()
+        .write(
+            "{"
+                + "\"error\":\""
+                + escape(error)
+                + "\","
+                + "\"message\":\""
+                + escape(message)
+                + "\","
+                + "\"status\":"
+                + status
+                + ","
+                + "\"requestId\":\""
+                + escape(requestId)
+                + "\""
+                + "}");
+  }
+}
