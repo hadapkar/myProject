@@ -156,6 +156,26 @@ class _GameScreenState extends State<GameScreen> {
         await Supabase.instance.client.auth.signOut();
         return;
       }
+      if (text.contains("session_conflict")) {
+        if (mounted) {
+          await showDialog<void>(
+            context: context,
+            barrierDismissible: false,
+            builder: (context) => AlertDialog(
+              title: const Text("Logged in elsewhere"),
+              content: const Text("Your account was signed in on another device."),
+              actions: [
+                FilledButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: const Text("OK"),
+                ),
+              ],
+            ),
+          );
+        }
+        await Supabase.instance.client.auth.signOut();
+        return;
+      }
       // If session/token is invalid, route back to login (Supabase guard will redirect).
       if (text.contains("Not authenticated") || text.contains("Backend error 401")) {
         if (mounted) {

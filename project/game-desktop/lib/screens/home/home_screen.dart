@@ -7,6 +7,7 @@ import "package:supabase_flutter/supabase_flutter.dart";
 
 import "../../services/update_service.dart";
 import "../../services/funtarget_api.dart";
+import "../../storage/session_store.dart";
 
 const _funTargetLogo = "assets/app/logo.jpg";
 
@@ -199,7 +200,10 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ),
           TextButton(
-            onPressed: () => Supabase.instance.client.auth.signOut(),
+            onPressed: () async {
+              await SessionStore.clearSessionId();
+              await Supabase.instance.client.auth.signOut();
+            },
             child: const Text("Sign out"),
           ),
           const SizedBox(width: 8),

@@ -64,7 +64,8 @@ public class SecurityConfig {
         .addFilterAfter(new SupabaseTokenAuthFilter(authService), RequestIdFilter.class)
         .addFilterAfter(new UserAccessGateFilter(supabaseRest), SupabaseTokenAuthFilter.class)
         .addFilterAfter(new SubscriptionGateFilter(supabaseRest), UserAccessGateFilter.class)
-        .addFilterAfter(rateLimitFilter, SubscriptionGateFilter.class)
+        .addFilterAfter(new SessionEnforcementFilter(supabaseRest), SubscriptionGateFilter.class)
+        .addFilterAfter(rateLimitFilter, SessionEnforcementFilter.class)
         .authorizeHttpRequests(
             auth ->
                 auth.requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()

@@ -209,6 +209,90 @@ public class SupabaseRestService {
     }
   }
 
+  public Map<String, Object> getUserSessionSelf(String accessToken, String userId, String platformGroup) {
+    requireConfigured();
+    try {
+      return restClient
+          .get()
+          .uri(
+              uriBuilder ->
+                  uriBuilder
+                      .path("/user_sessions")
+                      .queryParam("select", "user_id,platform_group,session_id,device_id,updated_at,last_seen_at")
+                      .queryParam("user_id", "eq." + userId)
+                      .queryParam("platform_group", "eq." + platformGroup)
+                      .build())
+          .header("apikey", props.anonKey())
+          .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
+          .header(HttpHeaders.ACCEPT, "application/vnd.pgrst.object+json")
+          .retrieve()
+          .body(Map.class);
+    } catch (RestClientResponseException e) {
+      if (e.getStatusCode().value() == 406) return null;
+      throw e;
+    }
+  }
+
+  public void upsertUserSessionServiceRole(
+      String userId, String platformGroup, String sessionId, String deviceId) {
+    requireServiceRoleConfigured();
+    restClient
+        .post()
+        .uri(
+            uriBuilder ->
+                uriBuilder.path("/user_sessions").queryParam("on_conflict", "user_id,platform_group").build())
+        .header("apikey", props.serviceRoleKey())
+        .header(HttpHeaders.AUTHORIZATION, "Bearer " + props.serviceRoleKey())
+        .header("Prefer", "resolution=merge-duplicates,return=representation")
+        .body(
+            List.of(
+                Map.of(
+                    "user_id", userId,
+                    "platform_group", platformGroup,
+                    "session_id", sessionId,
+                    "device_id", deviceId,
+                    "last_seen_at", OffsetDateTime.now().toString(),
+                    "updated_at", OffsetDateTime.now().toString())))
+        .retrieve()
+        .toBodilessEntity();
+  }
+
+  public void touchUserSessionServiceRole(String userId, String platformGroup) {
+    requireServiceRoleConfigured();
+    restClient
+        .patch()
+        .uri(
+            uriBuilder ->
+                uriBuilder
+                    .path("/user_sessions")
+                    .queryParam("user_id", "eq." + userId)
+                    .queryParam("platform_group", "eq." + platformGroup)
+                    .build())
+        .header("apikey", props.serviceRoleKey())
+        .header(HttpHeaders.AUTHORIZATION, "Bearer " + props.serviceRoleKey())
+        .header("Prefer", "return=representation")
+        .body(Map.of("last_seen_at", OffsetDateTime.now().toString(), "updated_at", OffsetDateTime.now().toString()))
+        .retrieve()
+        .toBodilessEntity();
+  }
+
+  public void deleteUserSessionServiceRole(String userId, String platformGroup) {
+    requireServiceRoleConfigured();
+    restClient
+        .delete()
+        .uri(
+            uriBuilder ->
+                uriBuilder
+                    .path("/user_sessions")
+                    .queryParam("user_id", "eq." + userId)
+                    .queryParam("platform_group", "eq." + platformGroup)
+                    .build())
+        .header("apikey", props.serviceRoleKey())
+        .header(HttpHeaders.AUTHORIZATION, "Bearer " + props.serviceRoleKey())
+        .retrieve()
+        .toBodilessEntity();
+  }
+
   public List<Map<String, Object>> listUserAccessServiceRole() {
     requireServiceRoleConfigured();
     return restClient

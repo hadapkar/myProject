@@ -1,16 +1,22 @@
 import "dart:async";
 import "dart:convert";
+import "dart:math";
 
 import "package:http/http.dart" as http;
+import "package:flutter/foundation.dart";
 import "package:supabase_flutter/supabase_flutter.dart";
 
 import "../config/app_config.dart";
 import "funtarget_models.dart";
+import "../storage/session_store.dart";
 
 class FunTargetApi {
   static const Duration _timeout = Duration(seconds: 65);
 
   final http.Client _client = http.Client();
+
+  String? _cachedSessionId;
+  String? _cachedDeviceId;
 
   Uri _uri(String path) => Uri.parse("${AppConfig.apiBaseUrl}$path");
 
@@ -29,6 +35,12 @@ class FunTargetApi {
           final endsAt = (decoded["endsAt"] ?? "").toString();
           final suffix = endsAt.isNotEmpty ? " (endsAt: $endsAt)" : "";
           return StateError("user_blocked: User blocked$suffix");
+        }
+        if (err == "session_conflict") {
+          return StateError("session_conflict: Logged in elsewhere");
+        }
+        if (err == "missing_session") {
+          return StateError("missing_session: Session missing");
         }
         if (err.isNotEmpty) {
           return StateError("Backend error ${res.statusCode}: $err${msg.isNotEmpty ? " - $msg" : ""}");
@@ -68,6 +80,7 @@ class FunTargetApi {
 
   Future<http.Response> _get(String path) async {
     final token = await _accessToken();
+    final sessionId = await _ensureSession(token: token);
     http.Response res;
     try {
       res = await _client
@@ -76,6 +89,8 @@ class FunTargetApi {
             headers: {
               "Authorization": "Bearer $token",
               "Accept": "application/json",
+              "X-Session-Id": sessionId,
+              "X-Platform": _platform(),
             },
           )
           .timeout(_timeout);
@@ -86,6 +101,7 @@ class FunTargetApi {
     // If token is stale, refresh session and retry once.
     if (res.statusCode == 401) {
       final retryToken = await _accessToken(allowRefresh: true);
+      final sessionId = await _ensureSession(token: retryToken);
       try {
         return await _client
             .get(
@@ -93,6 +109,8 @@ class FunTargetApi {
               headers: {
                 "Authorization": "Bearer $retryToken",
                 "Accept": "application/json",
+                "X-Session-Id": sessionId,
+                "X-Platform": _platform(),
               },
             )
             .timeout(_timeout);
@@ -105,6 +123,7 @@ class FunTargetApi {
 
   Future<http.Response> _post(String path, Map<String, dynamic> payload) async {
     final token = await _accessToken();
+    final sessionId = await _ensureSession(token: token);
     http.Response res;
     try {
       res = await _client
@@ -114,6 +133,8 @@ class FunTargetApi {
               "Authorization": "Bearer $token",
               "Content-Type": "application/json",
               "Accept": "application/json",
+              "X-Session-Id": sessionId,
+              "X-Platform": _platform(),
             },
             body: jsonEncode(payload),
           )
@@ -124,6 +145,7 @@ class FunTargetApi {
 
     if (res.statusCode == 401) {
       final retryToken = await _accessToken(allowRefresh: true);
+      final sessionId = await _ensureSession(token: retryToken);
       try {
         return await _client
             .post(
@@ -132,6 +154,8 @@ class FunTargetApi {
                 "Authorization": "Bearer $retryToken",
                 "Content-Type": "application/json",
                 "Accept": "application/json",
+                "X-Session-Id": sessionId,
+                "X-Platform": _platform(),
               },
               body: jsonEncode(payload),
             )
@@ -141,6 +165,61 @@ class FunTargetApi {
       }
     }
     return res;
+  }
+
+  String _platform() {
+    if (kIsWeb) return "web";
+    return "desktop";
+  }
+
+  Future<String> _ensureSession({required String token}) async {
+    if (_cachedSessionId != null && _cachedSessionId!.isNotEmpty) {
+      return _cachedSessionId!;
+    }
+
+    // Load persisted ids.
+    _cachedSessionId ??= await SessionStore.loadSessionId();
+    _cachedDeviceId ??= await SessionStore.loadDeviceId();
+
+    if (_cachedDeviceId == null || _cachedDeviceId!.isEmpty) {
+      _cachedDeviceId = _generateDeviceId();
+      await SessionStore.saveDeviceId(_cachedDeviceId!);
+    }
+
+    // Always (re)start the session on first API use to avoid stale session ids.
+    final res = await _client
+        .post(
+          _uri("/api/session/start"),
+          headers: {
+            "Authorization": "Bearer $token",
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+          },
+          body: jsonEncode({
+            "platform": _platform(),
+            "deviceId": _cachedDeviceId,
+          }),
+        )
+        .timeout(_timeout);
+
+    if (res.statusCode < 200 || res.statusCode >= 300) {
+      throw _apiError(res);
+    }
+    final decoded = jsonDecode(res.body);
+    if (decoded is! Map<String, dynamic>) {
+      throw StateError("Session start failed");
+    }
+    final sessionId = (decoded["sessionId"] ?? "").toString();
+    if (sessionId.isEmpty) throw StateError("Session start failed");
+    _cachedSessionId = sessionId;
+    await SessionStore.saveSessionId(sessionId);
+    return sessionId;
+  }
+
+  String _generateDeviceId() {
+    final rnd = Random.secure();
+    final bytes = List<int>.generate(16, (_) => rnd.nextInt(256));
+    return base64UrlEncode(bytes).replaceAll("=", "");
   }
 
   Future<FunTargetState> getState() async {
