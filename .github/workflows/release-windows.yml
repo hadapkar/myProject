@@ -89,4 +89,5 @@ jobs:
       - name: Upload to GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: project/game-desktop/build/King Maker.zip
+          files: |
+            project/game-desktop/build/King Maker.zip

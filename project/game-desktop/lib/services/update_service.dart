@@ -60,7 +60,12 @@ class UpdateService {
   // Hard-coded to avoid spoofing via runtime config.
   static const String _owner = "hadapkar";
   static const String _repo = "myProject";
-  static const String _assetName = "King Maker.zip";
+  // Accept a small set of historical/CI-safe names.
+  static const Set<String> _assetNames = {
+    "King Maker.zip",
+    "King.Maker.zip",
+    "KingMaker.zip",
+  };
 
   static const String currentVersion =
       String.fromEnvironment("APP_VERSION", defaultValue: "0.0.0");
@@ -125,10 +130,12 @@ class UpdateService {
     final assets = json["assets"];
     if (assets is! List) throw StateError("Missing assets");
 
+    final foundNames = <String>[];
     for (final a in assets) {
       if (a is! Map) continue;
       final name = (a["name"] ?? "").toString();
-      if (name != _assetName) continue;
+      if (name.isNotEmpty) foundNames.add(name);
+      if (!_assetNames.contains(name)) continue;
       final url = (a["browser_download_url"] ?? "").toString();
       if (url.isEmpty) continue;
       final parsed = Uri.tryParse(url);
@@ -136,7 +143,9 @@ class UpdateService {
       return UpdateInfo(latestTag: tag, downloadUrl: parsed);
     }
 
-    throw StateError("Release asset not found: $_assetName");
+    throw StateError(
+      "Release asset not found. Expected one of: ${_assetNames.join(', ')}. Found: ${foundNames.join(', ')}",
+    );
   }
 }
 
