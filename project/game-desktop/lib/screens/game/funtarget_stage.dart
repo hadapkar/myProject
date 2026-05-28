@@ -254,7 +254,7 @@ class _StageBody extends StatelessWidget {
             ),
           ),
           Positioned(
-            right: 24,
+            right: -40,
             top: 264,
             width: 260,
             height: 34,
