@@ -25,13 +25,28 @@ public class PublicLoginCheckController {
   @GetMapping("/login-check")
   public Map<String, Object> loginCheck(@RequestParam(name = "username") String username) {
     String raw = username == null ? "" : username.trim().toLowerCase();
-    if (raw.isBlank() || !USERNAME_PATTERN.matcher(raw).matches()) {
+    if (raw.isBlank()) {
+      return Map.of("allowed", false, "reason", "invalid_username");
+    }
+
+    // Allow legacy/admin email logins without blocking at the pre-check step.
+    // For synthetic KingMaker users (username@kingmaker.local), we enforce the username gate.
+    if (raw.contains("@") && !raw.endsWith("@kingmaker.local")) {
+      return Map.of("allowed", true, "reason", "email_bypass");
+    }
+
+    String normalized = raw;
+    if (raw.endsWith("@kingmaker.local")) {
+      normalized = raw.substring(0, raw.indexOf('@')).trim();
+    }
+
+    if (normalized.isBlank() || !USERNAME_PATTERN.matcher(normalized).matches()) {
       return Map.of("allowed", false, "reason", "invalid_username");
     }
 
     Map<String, Object> access = null;
     try {
-      access = supabaseRest.getUserAccessByUsernameServiceRole(raw);
+      access = supabaseRest.getUserAccessByUsernameServiceRole(normalized);
     } catch (Exception e) {
       // If the backend isn't configured for service-role checks, don't hard-block login;
       // the authenticated API gate will still protect /api/**.
@@ -70,9 +85,9 @@ public class PublicLoginCheckController {
         "reason",
         reason,
         "email",
-        raw + "@kingmaker.local",
+        normalized + "@kingmaker.local",
         "username",
-        raw,
+        normalized,
         "role",
         role,
         "endsAt",
