@@ -56,6 +56,9 @@ public class SupabaseAdminService {
       var response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
       if (response.statusCode() < 200 || response.statusCode() >= 300) {
         String resp = response.body() == null ? "" : response.body().trim();
+        if (response.statusCode() == 422 && resp.contains("\"error_code\":\"email_exists\"")) {
+          throw new IllegalArgumentException("Username already exists");
+        }
         String preview = resp.length() > 220 ? resp.substring(0, 220) + "…" : resp;
         throw new IllegalStateException(
             "Supabase create user failed (status " + response.statusCode() + (preview.isBlank() ? "" : (", body=" + preview)) + ")");
@@ -94,4 +97,3 @@ public class SupabaseAdminService {
     return s.replace("\\", "\\\\").replace("\"", "\\\"");
   }
 }
-

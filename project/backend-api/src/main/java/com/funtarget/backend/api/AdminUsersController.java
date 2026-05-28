@@ -3,6 +3,7 @@ package com.funtarget.backend.api;
 import com.funtarget.backend.supabase.SupabaseAdminService;
 import com.funtarget.backend.supabase.SupabaseRestService;
 import com.funtarget.backend.supabase.SupabaseUser;
+import java.time.OffsetDateTime;
 import java.util.Map;
 import java.util.regex.Pattern;
 import org.springframework.security.access.AccessDeniedException;
@@ -35,6 +36,9 @@ public class AdminUsersController {
     String username = payload == null ? null : String.valueOf(payload.getOrDefault("username", "")).trim();
     String password = payload == null ? null : String.valueOf(payload.getOrDefault("password", "")).trim();
     String role = payload == null ? "MANAGER" : String.valueOf(payload.getOrDefault("role", "MANAGER")).trim().toUpperCase();
+    Object endsAtObj = payload == null ? null : payload.get("ends_at");
+    String endsAt = endsAtObj == null ? "" : String.valueOf(endsAtObj).trim();
+    if ("null".equalsIgnoreCase(endsAt)) endsAt = "";
     if (!role.equals("ADMIN") && !role.equals("MANAGER")) {
       throw new IllegalArgumentException("Invalid role");
     }
@@ -53,6 +57,11 @@ public class AdminUsersController {
     if (created != null && created.id() != null && !created.id().isBlank()) {
       try {
         supabaseRest.upsertUserAccessServiceRole(created.id(), normalized, role);
+        if (endsAt != null && !endsAt.isBlank()) {
+          // Validate ISO timestamp; UserAccessGate blocks when now >= ends_at.
+          OffsetDateTime.parse(endsAt);
+          supabaseRest.patchUserAccessServiceRole(created.id(), Map.of("ends_at", endsAt));
+        }
       } catch (Exception ignored) {
       }
     }

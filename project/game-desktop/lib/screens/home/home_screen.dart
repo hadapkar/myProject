@@ -251,6 +251,7 @@ class _CreateUserDialogState extends State<_CreateUserDialog> {
   final _username = TextEditingController();
   final _password = TextEditingController();
   String _role = "MANAGER";
+  DateTime? _endDateLocal;
   bool _busy = false;
   String? _message;
 
@@ -267,10 +268,17 @@ class _CreateUserDialogState extends State<_CreateUserDialog> {
       _message = null;
     });
     try {
+      final endsAtIsoUtc = _endDateLocal == null
+          ? ""
+          : DateTime(
+                  _endDateLocal!.year, _endDateLocal!.month, _endDateLocal!.day, 0, 0, 0)
+              .toUtc()
+              .toIso8601String();
       final res = await widget.api.createUser(
         username: _username.text.trim(),
         password: _password.text,
         role: _role,
+        endsAt: endsAtIsoUtc,
       );
       final createdUsername = (res["username"] ?? "").toString();
       final createdEmail = (res["email"] ?? "").toString();
@@ -315,6 +323,45 @@ class _CreateUserDialogState extends State<_CreateUserDialog> {
                 DropdownMenuItem(value: "ADMIN", child: Text("Admin")),
               ],
               onChanged: _busy ? null : (v) => setState(() => _role = v ?? "MANAGER"),
+            ),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Expanded(
+                  child: InputDecorator(
+                    decoration: const InputDecoration(labelText: "End date (optional)"),
+                    child: Text(
+                      _endDateLocal == null
+                          ? "-"
+                          : "${_endDateLocal!.year.toString().padLeft(4, "0")}-"
+                              "${_endDateLocal!.month.toString().padLeft(2, "0")}-"
+                              "${_endDateLocal!.day.toString().padLeft(2, "0")}",
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                OutlinedButton(
+                  onPressed: _busy
+                      ? null
+                      : () async {
+                          final picked = await showDatePicker(
+                            context: context,
+                            firstDate: DateTime(2020),
+                            lastDate: DateTime(2100),
+                            initialDate: _endDateLocal ?? DateTime.now(),
+                          );
+                          if (picked == null) return;
+                          if (!mounted) return;
+                          setState(() => _endDateLocal = picked);
+                        },
+                  child: const Text("Pick"),
+                ),
+                const SizedBox(width: 8),
+                TextButton(
+                  onPressed: _busy ? null : () => setState(() => _endDateLocal = null),
+                  child: const Text("Clear"),
+                ),
+              ],
             ),
             if (_message != null) ...[
               const SizedBox(height: 10),

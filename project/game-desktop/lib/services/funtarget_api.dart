@@ -174,12 +174,17 @@ class FunTargetApi {
     required String username,
     required String password,
     required String role,
+    String endsAt = "",
   }) async {
-    final res = await _post("/api/admin/users", {
+    final payload = <String, dynamic>{
       "username": username.trim(),
       "password": password,
       "role": role,
-    });
+    };
+    if (endsAt.trim().isNotEmpty) {
+      payload["ends_at"] = endsAt.trim();
+    }
+    final res = await _post("/api/admin/users", payload);
     if (res.statusCode < 200 || res.statusCode >= 300) {
       throw _apiError(res);
     }
