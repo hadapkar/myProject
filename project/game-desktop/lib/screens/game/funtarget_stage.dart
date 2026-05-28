@@ -958,7 +958,6 @@ class _ActionButton extends StatelessWidget {
   final String label;
   final double labelFontSize;
   final bool blink;
-  final bool highlight;
   final VoidCallback onPressed;
 
   const _ActionButton({
@@ -972,7 +971,6 @@ class _ActionButton extends StatelessWidget {
     required this.label,
     this.labelFontSize = 17,
     required this.blink,
-    this.highlight = false,
     required this.onPressed,
   });
 
@@ -990,7 +988,6 @@ class _ActionButton extends StatelessWidget {
         label: label,
         labelFontSize: labelFontSize,
         blink: blink,
-        highlight: highlight,
         onPressed: onPressed,
       ),
     );

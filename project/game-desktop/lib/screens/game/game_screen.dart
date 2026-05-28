@@ -152,7 +152,6 @@ class _GameScreenState extends State<GameScreen> {
   }
 
   void _applyLoadedState(FunTargetState state) {
-    final lastRoundAt = state.lastRoundAt;
     final serverNow = state.serverNow;
     if (serverNow != null) {
       _serverClockOffsetMs =

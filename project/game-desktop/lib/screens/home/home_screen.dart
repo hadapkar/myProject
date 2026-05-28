@@ -1,3 +1,5 @@
+import "dart:async";
+
 import "package:flutter/foundation.dart";
 import "package:flutter/material.dart";
 import "package:go_router/go_router.dart";
@@ -258,7 +260,8 @@ class _CreateUserDialogState extends State<_CreateUserDialog> {
             ),
             const SizedBox(height: 10),
             DropdownButtonFormField<String>(
-              value: _role,
+              key: ValueKey(_role),
+              initialValue: _role,
               decoration: const InputDecoration(labelText: "Role"),
               items: const [
                 DropdownMenuItem(value: "MANAGER", child: Text("Manager")),
