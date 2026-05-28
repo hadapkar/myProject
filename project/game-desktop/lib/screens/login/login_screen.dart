@@ -53,7 +53,7 @@ class _LoginScreenState extends State<LoginScreen> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 const Text(
-                  "FunTarget",
+                  "King Maker",
                   style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold),
                   textAlign: TextAlign.center,
                 ),
@@ -75,12 +75,6 @@ class _LoginScreenState extends State<LoginScreen> {
                 FilledButton(
                   onPressed: _busy ? null : _signIn,
                   child: Text(_busy ? "Working..." : "Sign in"),
-                ),
-                const SizedBox(height: 10),
-                const Text(
-                  "New accounts are created by Admin only.",
-                  style: TextStyle(color: Colors.white70),
-                  textAlign: TextAlign.center,
                 ),
                 if (_message != null) ...[
                   const SizedBox(height: 12),
