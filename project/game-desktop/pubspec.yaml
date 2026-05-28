@@ -1,4 +1,4 @@
-name: funtarget_game
+name: kingmaker
 description: FunTarget game client (Flutter web + desktop).
 publish_to: "none"
 version: 0.1.0+1

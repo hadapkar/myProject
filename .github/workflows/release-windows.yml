@@ -66,8 +66,9 @@ jobs:
         run: |
           set -euo pipefail
           OUT_DIR="build/windows/x64/runner/Release"
-          if [ -f "$OUT_DIR/funtarget_game.exe" ] && [ ! -f "$OUT_DIR/KingMaker.exe" ]; then
-            mv "$OUT_DIR/funtarget_game.exe" "$OUT_DIR/KingMaker.exe"
+          if [ ! -f "$OUT_DIR/KingMaker.exe" ]; then
+            if [ -f "$OUT_DIR/funtarget_game.exe" ]; then mv "$OUT_DIR/funtarget_game.exe" "$OUT_DIR/KingMaker.exe"; fi
+            if [ -f "$OUT_DIR/kingmaker.exe" ]; then mv "$OUT_DIR/kingmaker.exe" "$OUT_DIR/KingMaker.exe"; fi
           fi
 
       - name: Copy runtime config templates into release folder
