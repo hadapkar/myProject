@@ -12,12 +12,13 @@ if (-not (Test-Path $mainCpp)) {
 }
 
 $mainContent = Get-Content -Raw $mainCpp
+$updatedMain = $mainContent
 
 #
 # 1) Patch default window size in main.cpp (idempotent)
 #
 $sizeMarker = "// FUNTARGET_WINDOW_DEFAULTS"
-if ($mainContent -notlike "*$sizeMarker*") {
+if ($updatedMain -notlike "*$sizeMarker*") {
   $sizeReplacement = @"
 $sizeMarker
   // Set a desktop-friendly default size that matches the FunTarget stage aspect.
@@ -25,14 +26,14 @@ $sizeMarker
   Win32Window::Size size(1400, 820);
 "@
 
-  $patchedMain = $mainContent -replace "Win32Window::Size size\\(\\s*1280\\s*,\\s*720\\s*\\);", $sizeReplacement
-  if ($patchedMain -eq $mainContent) {
+  $patchedMain = $updatedMain -replace "Win32Window::Size size\\(\\s*1280\\s*,\\s*720\\s*\\);", $sizeReplacement
+  if ($patchedMain -eq $updatedMain) {
     $patternAny = "Win32Window::Size size\\(\\s*\\d+\\s*,\\s*\\d+\\s*\\);"
-    $patchedMain = [System.Text.RegularExpressions.Regex]::Replace($mainContent, $patternAny, $sizeReplacement, 1)
+    $patchedMain = [System.Text.RegularExpressions.Regex]::Replace($updatedMain, $patternAny, $sizeReplacement, 1)
   }
 
-  if ($patchedMain -ne $mainContent) {
-    Set-Content -Path $mainCpp -Value $patchedMain -NoNewline
+  if ($patchedMain -ne $updatedMain) {
+    $updatedMain = $patchedMain
     Write-Host "Patched window defaults: $mainCpp"
   } else {
     Write-Warning "Could not patch default size line (template mismatch). Leaving main.cpp unchanged."
@@ -43,22 +44,26 @@ $sizeMarker
 
 # 1b) Patch window title in main.cpp (idempotent)
 $titleMarker = "// KINGMAKER_WINDOW_TITLE"
-if ($mainContent -notlike "*$titleMarker*") {
+if ($updatedMain -notlike "*$titleMarker*") {
   $titlePattern = 'window\\.SetTitle\\(L"[^"]*"\\);'
   $titleReplacement = @"
 $titleMarker
   window.SetTitle(L"King Maker");
 "@
 
-  $patchedTitle = [System.Text.RegularExpressions.Regex]::Replace($mainContent, $titlePattern, $titleReplacement, 1)
-  if ($patchedTitle -ne $mainContent) {
-    Set-Content -Path $mainCpp -Value $patchedTitle -NoNewline
+  $patchedTitle = [System.Text.RegularExpressions.Regex]::Replace($updatedMain, $titlePattern, $titleReplacement, 1)
+  if ($patchedTitle -ne $updatedMain) {
+    $updatedMain = $patchedTitle
     Write-Host "Patched window title: $mainCpp"
   } else {
     Write-Warning "Could not patch window title line (template mismatch). Leaving main.cpp unchanged."
   }
 } else {
   Write-Host "Window title already patched: $mainCpp"
+}
+
+if ($updatedMain -ne $mainContent) {
+  Set-Content -Path $mainCpp -Value $updatedMain -NoNewline
 }
 
 #

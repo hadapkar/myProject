@@ -30,7 +30,7 @@ class FunTargetApp extends StatelessWidget {
   Widget build(BuildContext context) {
     final router = createAppRouter();
     return MaterialApp.router(
-      title: "FunTarget",
+      title: "King Maker",
       theme: ThemeData(
         brightness: Brightness.dark,
         useMaterial3: true,
@@ -46,6 +46,7 @@ class _ConfigMissingApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return const MaterialApp(
+      title: "King Maker",
       debugShowCheckedModeBanner: false,
       home: ConfigMissingScreen(),
     );

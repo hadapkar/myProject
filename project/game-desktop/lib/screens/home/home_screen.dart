@@ -136,7 +136,7 @@ class _HomeScreenState extends State<HomeScreen> {
               childAspectRatio: 1.4,
               children: [
                 _GameTile(
-                  title: "FunTarget",
+                  title: "King Maker",
                   subtitle: "Wheel / Bet game",
                   imageAsset: _funTargetLogo,
                   onTap: () => context.go("/game"),
