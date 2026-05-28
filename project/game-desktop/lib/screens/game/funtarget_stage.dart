@@ -243,8 +243,8 @@ class _StageBody extends StatelessWidget {
             child: _ValueBox(text: "0:${timeLeftSeconds.toString().padLeft(2, "0")}", fontSize: 22, alignLeft: true),
           ),
           Positioned(
-            right: -60,
-            top: 142,
+            right: 130,
+            top: 148,
             width: 180,
             height: 34,
             child: _ValueBox(
@@ -254,7 +254,7 @@ class _StageBody extends StatelessWidget {
             ),
           ),
           Positioned(
-            right: -40,
+            right: 24,
             top: 264,
             width: 260,
             height: 34,

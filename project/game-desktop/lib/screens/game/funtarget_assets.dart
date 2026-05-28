@@ -27,7 +27,8 @@ class FunTargetAssets {
   static const takeGlowOff = "$_base/Take_Glow2.png";
 
   static const cancelGlowOn = "$_base/Cancel-Bet-Glow.png";
-  static const cancelGlowOff = "$_base/Cancel-Bet-Glow2.png";
+  // The "*Glow2" assets are mostly-transparent overlays; use the solid button art as the "off" state.
+  static const cancelGlowOff = "$_base/Cancel-Bet.png";
 
   static const prevGlowOn = "$_base/PrevBetGlow.jpg";
   static const prevGlowOff = "$_base/PrevBetGlow2.png";
