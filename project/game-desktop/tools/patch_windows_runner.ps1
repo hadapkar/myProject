@@ -41,6 +41,26 @@ $sizeMarker
   Write-Host "Window defaults already patched: $mainCpp"
 }
 
+# 1b) Patch window title in main.cpp (idempotent)
+$titleMarker = "// KINGMAKER_WINDOW_TITLE"
+if ($mainContent -notlike "*$titleMarker*") {
+  $titlePattern = 'window\\.SetTitle\\(L"[^"]*"\\);'
+  $titleReplacement = @"
+$titleMarker
+  window.SetTitle(L"King Maker");
+"@
+
+  $patchedTitle = [System.Text.RegularExpressions.Regex]::Replace($mainContent, $titlePattern, $titleReplacement, 1)
+  if ($patchedTitle -ne $mainContent) {
+    Set-Content -Path $mainCpp -Value $patchedTitle -NoNewline
+    Write-Host "Patched window title: $mainCpp"
+  } else {
+    Write-Warning "Could not patch window title line (template mismatch). Leaving main.cpp unchanged."
+  }
+} else {
+  Write-Host "Window title already patched: $mainCpp"
+}
+
 #
 # 2) Patch Windows binary name (controls .exe file name)
 #
