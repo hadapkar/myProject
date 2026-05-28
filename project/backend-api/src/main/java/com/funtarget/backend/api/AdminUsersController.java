@@ -52,6 +52,12 @@ public class AdminUsersController {
     SupabaseUser created = supabaseAdmin.createUser(email, password);
     if (created != null && created.id() != null && !created.id().isBlank()) {
       try {
+        supabaseRest.upsertUserAccessServiceRole(created.id(), normalized, role);
+      } catch (Exception ignored) {
+      }
+    }
+    if (created != null && created.id() != null && !created.id().isBlank()) {
+      try {
         supabaseRest.upsertUserProfileServiceRole(created.id(), normalized);
       } catch (Exception ignored) {
       }

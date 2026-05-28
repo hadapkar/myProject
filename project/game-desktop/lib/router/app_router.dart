@@ -4,6 +4,7 @@ import "package:supabase_flutter/supabase_flutter.dart";
 import "../screens/game/game_screen.dart";
 import "../screens/home/home_screen.dart";
 import "../screens/login/login_screen.dart";
+import "../screens/admin/user_access_screen.dart";
 import "go_router_refresh_stream.dart";
 
 String _initialLocation() {
@@ -41,6 +42,10 @@ GoRouter createAppRouter() {
       GoRoute(
         path: "/game",
         builder: (context, state) => const GameScreen(),
+      ),
+      GoRoute(
+        path: "/admin/access",
+        builder: (context, state) => const UserAccessScreen(),
       ),
     ],
   );

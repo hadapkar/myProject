@@ -25,6 +25,11 @@ class FunTargetApi {
           final suffix = endsAt.isNotEmpty ? " (endsAt: $endsAt)" : "";
           return StateError("subscription_inactive: Subscription inactive$suffix");
         }
+        if (err == "user_blocked") {
+          final endsAt = (decoded["endsAt"] ?? "").toString();
+          final suffix = endsAt.isNotEmpty ? " (endsAt: $endsAt)" : "";
+          return StateError("user_blocked: User blocked$suffix");
+        }
         if (err.isNotEmpty) {
           return StateError("Backend error ${res.statusCode}: $err${msg.isNotEmpty ? " - $msg" : ""}");
         }

@@ -62,12 +62,14 @@ public class SecurityConfig {
         .addFilterBefore(new RequestIdFilter(), UsernamePasswordAuthenticationFilter.class)
         .addFilterAfter(requestSizeLimitFilter, RequestIdFilter.class)
         .addFilterAfter(new SupabaseTokenAuthFilter(authService), RequestIdFilter.class)
-        .addFilterAfter(new SubscriptionGateFilter(supabaseRest), SupabaseTokenAuthFilter.class)
+        .addFilterAfter(new UserAccessGateFilter(supabaseRest), SupabaseTokenAuthFilter.class)
+        .addFilterAfter(new SubscriptionGateFilter(supabaseRest), UserAccessGateFilter.class)
         .addFilterAfter(rateLimitFilter, SubscriptionGateFilter.class)
         .authorizeHttpRequests(
             auth ->
                 auth.requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                     .requestMatchers(HttpMethod.GET, "/healthz").permitAll()
+                    .requestMatchers(HttpMethod.GET, "/public/**").permitAll()
                     .requestMatchers("/api/**").authenticated()
                     .anyRequest()
                     .permitAll())

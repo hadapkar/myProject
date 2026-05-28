@@ -132,16 +132,18 @@ class _GameScreenState extends State<GameScreen> {
       setState(() => _error = "Backend is starting (cold start). Please wait and retry.");
     } on StateError catch (e) {
       final text = e.message;
-      if (text.contains("subscription_inactive")) {
+      if (text.contains("subscription_inactive") || text.contains("user_blocked")) {
         if (mounted) {
+          final title = text.contains("user_blocked") ? "Access blocked" : "Subscription inactive";
+          final body = text.contains("user_blocked")
+              ? "Your access is blocked or expired. Please contact the admin."
+              : "Your subscription is inactive or expired. Please contact the admin.";
           await showDialog<void>(
             context: context,
             barrierDismissible: false,
             builder: (context) => AlertDialog(
-              title: const Text("Subscription inactive"),
-              content: const Text(
-                "Your subscription is inactive or expired. Please contact the admin.",
-              ),
+              title: Text(title),
+              content: Text(body),
               actions: [
                 FilledButton(
                   onPressed: () => Navigator.of(context).pop(),

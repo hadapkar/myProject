@@ -115,6 +115,31 @@ public class SupabaseRestService {
     }
   }
 
+  public Map<String, Object> getAppSubscriptionServiceRole() {
+    requireServiceRoleConfigured();
+    try {
+      return restClient
+          .get()
+          .uri(
+              uriBuilder ->
+                  uriBuilder
+                      .path("/app_subscription")
+                      .queryParam("select", "*")
+                      .queryParam("id", "eq.1")
+                      .build())
+          .header("apikey", props.serviceRoleKey())
+          .header(HttpHeaders.AUTHORIZATION, "Bearer " + props.serviceRoleKey())
+          .header(HttpHeaders.ACCEPT, "application/vnd.pgrst.object+json")
+          .retrieve()
+          .body(Map.class);
+    } catch (RestClientResponseException e) {
+      if (e.getStatusCode().value() == 406) {
+        return null;
+      }
+      throw e;
+    }
+  }
+
   public static boolean isSubscriptionActive(Map<String, Object> row, Instant now) {
     if (row == null) return true; // default allow if not configured
     String status = String.valueOf(row.getOrDefault("status", "active")).trim().toLowerCase();
@@ -132,6 +157,108 @@ public class SupabaseRestService {
     } catch (Exception ignored) {
       return true;
     }
+  }
+
+  public Map<String, Object> getUserAccessSelf(String accessToken, String userId) {
+    requireConfigured();
+    try {
+      return restClient
+          .get()
+          .uri(
+              uriBuilder ->
+                  uriBuilder
+                      .path("/user_access")
+                      .queryParam("select", "user_id,username,role,status,ends_at")
+                      .queryParam("user_id", "eq." + userId)
+                      .build())
+          .header("apikey", props.anonKey())
+          .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
+          .header(HttpHeaders.ACCEPT, "application/vnd.pgrst.object+json")
+          .retrieve()
+          .body(Map.class);
+    } catch (RestClientResponseException e) {
+      if (e.getStatusCode().value() == 406) {
+        return null;
+      }
+      throw e;
+    }
+  }
+
+  public Map<String, Object> getUserAccessByUsernameServiceRole(String username) {
+    requireServiceRoleConfigured();
+    try {
+      return restClient
+          .get()
+          .uri(
+              uriBuilder ->
+                  uriBuilder
+                      .path("/user_access")
+                      .queryParam("select", "user_id,username,role,status,ends_at")
+                      .queryParam("username", "eq." + username)
+                      .build())
+          .header("apikey", props.serviceRoleKey())
+          .header(HttpHeaders.AUTHORIZATION, "Bearer " + props.serviceRoleKey())
+          .header(HttpHeaders.ACCEPT, "application/vnd.pgrst.object+json")
+          .retrieve()
+          .body(Map.class);
+    } catch (RestClientResponseException e) {
+      if (e.getStatusCode().value() == 406) {
+        return null;
+      }
+      throw e;
+    }
+  }
+
+  public List<Map<String, Object>> listUserAccessServiceRole() {
+    requireServiceRoleConfigured();
+    return restClient
+        .get()
+        .uri(
+            uriBuilder ->
+                uriBuilder
+                    .path("/user_access")
+                    .queryParam("select", "user_id,username,role,status,ends_at,updated_at,created_at")
+                    .queryParam("order", "username.asc")
+                    .build())
+        .header("apikey", props.serviceRoleKey())
+        .header(HttpHeaders.AUTHORIZATION, "Bearer " + props.serviceRoleKey())
+        .retrieve()
+        .body(List.class);
+  }
+
+  public Map<String, Object> patchUserAccessServiceRole(String userId, Map<String, Object> patch) {
+    requireServiceRoleConfigured();
+    List<Map<String, Object>> updated =
+        restClient
+            .patch()
+            .uri(
+                uriBuilder ->
+                    uriBuilder.path("/user_access").queryParam("user_id", "eq." + userId).build())
+            .header("apikey", props.serviceRoleKey())
+            .header(HttpHeaders.AUTHORIZATION, "Bearer " + props.serviceRoleKey())
+            .header("Prefer", "return=representation")
+            .body(patch)
+            .retrieve()
+            .body(List.class);
+    if (updated == null || updated.isEmpty()) return null;
+    return updated.get(0);
+  }
+
+  public void upsertUserAccessServiceRole(String userId, String username, String role) {
+    requireServiceRoleConfigured();
+    if (userId == null || userId.isBlank()) throw new IllegalArgumentException("userId is required");
+    if (username == null || username.isBlank()) throw new IllegalArgumentException("username is required");
+    String r = role == null ? "MANAGER" : role.trim().toUpperCase();
+    if (!r.equals("ADMIN") && !r.equals("MANAGER")) r = "MANAGER";
+    restClient
+        .post()
+        .uri(uriBuilder -> uriBuilder.path("/user_access").queryParam("on_conflict", "user_id").build())
+        .header("apikey", props.serviceRoleKey())
+        .header(HttpHeaders.AUTHORIZATION, "Bearer " + props.serviceRoleKey())
+        .header("Prefer", "resolution=merge-duplicates,return=representation")
+        .body(List.of(Map.of("user_id", userId, "username", username, "role", r)))
+        .retrieve()
+        .toBodilessEntity();
   }
 
   public boolean isAdmin(String accessToken, String userId) {

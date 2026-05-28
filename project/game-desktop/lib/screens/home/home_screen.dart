@@ -63,15 +63,17 @@ class _HomeScreenState extends State<HomeScreen> {
     } on StateError catch (e) {
       final msg = e.message;
       if (!mounted) return;
-      if (msg.contains("subscription_inactive")) {
+      if (msg.contains("subscription_inactive") || msg.contains("user_blocked")) {
+        final title = msg.contains("user_blocked") ? "Access blocked" : "Subscription inactive";
+        final body = msg.contains("user_blocked")
+            ? "Your access is blocked or expired. Please contact the admin."
+            : "Your subscription is inactive or expired. Please contact the admin.";
         await showDialog<void>(
           context: context,
           barrierDismissible: false,
           builder: (context) => AlertDialog(
-            title: const Text("Subscription inactive"),
-            content: const Text(
-              "Your subscription is inactive or expired. Please contact the admin.",
-            ),
+            title: Text(title),
+            content: Text(body),
             actions: [
               FilledButton(
                 onPressed: () => Navigator.of(context).pop(),
@@ -93,6 +95,11 @@ class _HomeScreenState extends State<HomeScreen> {
       context: context,
       builder: (context) => _CreateUserDialog(api: _api),
     );
+  }
+
+  void _openUserAccessDashboard() {
+    if (!_isAdmin) return;
+    context.go("/admin/access");
   }
 
   Future<void> _openUpdateDialog() async {
@@ -166,6 +173,11 @@ class _HomeScreenState extends State<HomeScreen> {
             TextButton(
               onPressed: _openCreateUserDialog,
               child: const Text("Create User"),
+            ),
+          if (_roleLoaded && _isAdmin)
+            TextButton(
+              onPressed: _openUserAccessDashboard,
+              child: const Text("Subscriptions"),
             ),
           if (!kIsWeb)
             ValueListenableBuilder(
