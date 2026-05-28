@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.client.RestClientResponseException;
 
 @RestController
 @RequestMapping("/api/admin/user-access")
@@ -41,8 +42,19 @@ public class AdminUserAccessController {
   @GetMapping
   public Map<String, Object> list(Authentication authentication) {
     if (!isAdmin(authentication)) throw new AccessDeniedException("Forbidden");
-    List<Map<String, Object>> rows = supabaseRest.listUserAccessServiceRole();
-    return Map.of("count", rows == null ? 0 : rows.size(), "rows", rows == null ? List.of() : rows);
+    try {
+      List<Map<String, Object>> rows = supabaseRest.listUserAccessServiceRole();
+      return Map.of(
+          "count", rows == null ? 0 : rows.size(),
+          "rows", rows == null ? List.of() : rows);
+    } catch (RestClientResponseException e) {
+      int status = e.getStatusCode().value();
+      if (status == 404) {
+        // Table not created yet (migration not applied / schema cache not refreshed).
+        throw new IllegalStateException("Supabase table public.user_access not found. Apply migration 20260528121500_user_access.sql.");
+      }
+      throw e;
+    }
   }
 
   @PatchMapping("/{userId}")
@@ -85,11 +97,18 @@ public class AdminUserAccessController {
       throw new IllegalArgumentException("No fields to update");
     }
 
-    Map<String, Object> updated = supabaseRest.patchUserAccessServiceRole(userId, patch);
-    if (updated == null) {
-      return Map.of("updated", false);
+    try {
+      Map<String, Object> updated = supabaseRest.patchUserAccessServiceRole(userId, patch);
+      if (updated == null) {
+        return Map.of("updated", false);
+      }
+      return Map.of("updated", true, "row", updated);
+    } catch (RestClientResponseException e) {
+      int status = e.getStatusCode().value();
+      if (status == 404) {
+        throw new IllegalStateException("Supabase table public.user_access not found. Apply migration 20260528121500_user_access.sql.");
+      }
+      throw e;
     }
-    return Map.of("updated", true, "row", updated);
   }
 }
-

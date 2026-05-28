@@ -48,6 +48,13 @@ class _UserAccessScreenState extends State<UserAccessScreen> {
         },
       );
       if (res.statusCode < 200 || res.statusCode >= 300) {
+        if (res.statusCode == 500 &&
+            res.body.contains("user_access") &&
+            res.body.contains("not found")) {
+          throw StateError(
+            "Supabase DB not initialized for subscriptions. Apply migration `20260528121500_user_access.sql` then retry.",
+          );
+        }
         throw StateError("Backend error ${res.statusCode}: ${res.body}");
       }
       final decoded = jsonDecode(res.body);
@@ -85,6 +92,13 @@ class _UserAccessScreenState extends State<UserAccessScreen> {
       body: jsonEncode(payload),
     );
     if (res.statusCode < 200 || res.statusCode >= 300) {
+      if (res.statusCode == 500 &&
+          res.body.contains("user_access") &&
+          res.body.contains("not found")) {
+        throw StateError(
+          "Supabase DB not initialized for subscriptions. Apply migration `20260528121500_user_access.sql` then retry.",
+        );
+      }
       throw StateError("Backend error ${res.statusCode}: ${res.body}");
     }
     await _load();
