@@ -14,6 +14,27 @@ class FunTargetApi {
 
   Uri _uri(String path) => Uri.parse("${AppConfig.apiBaseUrl}$path");
 
+  StateError _apiError(http.Response res) {
+    try {
+      final decoded = jsonDecode(res.body);
+      if (decoded is Map<String, dynamic>) {
+        final err = (decoded["error"] ?? "").toString();
+        final msg = (decoded["message"] ?? "").toString();
+        if (err == "subscription_inactive") {
+          final endsAt = (decoded["subscriptionEndsAt"] ?? "").toString();
+          final suffix = endsAt.isNotEmpty ? " (endsAt: $endsAt)" : "";
+          return StateError("subscription_inactive: Subscription inactive$suffix");
+        }
+        if (err.isNotEmpty) {
+          return StateError("Backend error ${res.statusCode}: $err${msg.isNotEmpty ? " - $msg" : ""}");
+        }
+      }
+    } catch (_) {
+      // Ignore parse errors; fall back to raw body.
+    }
+    return StateError("Backend error ${res.statusCode}: ${res.body}");
+  }
+
   Future<String> _accessToken({bool allowRefresh = true}) async {
     final auth = Supabase.instance.client.auth;
     var session = auth.currentSession;
@@ -120,7 +141,7 @@ class FunTargetApi {
   Future<FunTargetState> getState() async {
     final res = await _get("/api/funtarget/state");
     if (res.statusCode < 200 || res.statusCode >= 300) {
-      throw StateError("Backend error ${res.statusCode}: ${res.body}");
+      throw _apiError(res);
     }
     final jsonMap = jsonDecode(res.body) as Map<String, dynamic>;
     return FunTargetState.fromJson(jsonMap);
@@ -129,24 +150,33 @@ class FunTargetApi {
   Future<FunTargetState> postIntent(Map<String, dynamic> payload) async {
     final res = await _post("/api/funtarget/intent", payload);
     if (res.statusCode < 200 || res.statusCode >= 300) {
-      throw StateError("Backend error ${res.statusCode}: ${res.body}");
+      throw _apiError(res);
     }
     final jsonMap = jsonDecode(res.body) as Map<String, dynamic>;
     return FunTargetState.fromJson(jsonMap);
   }
 
+  Future<Map<String, dynamic>> getMe() async {
+    final res = await _get("/api/me");
+    if (res.statusCode < 200 || res.statusCode >= 300) {
+      throw _apiError(res);
+    }
+    final jsonMap = jsonDecode(res.body) as Map<String, dynamic>;
+    return jsonMap;
+  }
+
   Future<Map<String, dynamic>> createUser({
-    String? email,
+    required String username,
     required String password,
     required String role,
   }) async {
     final res = await _post("/api/admin/users", {
-      "email": (email ?? "").trim(),
+      "username": username.trim(),
       "password": password,
       "role": role,
     });
     if (res.statusCode < 200 || res.statusCode >= 300) {
-      throw StateError("Backend error ${res.statusCode}: ${res.body}");
+      throw _apiError(res);
     }
     final jsonMap = jsonDecode(res.body) as Map<String, dynamic>;
     return jsonMap;

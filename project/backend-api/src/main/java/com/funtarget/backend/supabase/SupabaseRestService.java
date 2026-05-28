@@ -2,6 +2,8 @@ package com.funtarget.backend.supabase;
 
 import java.util.List;
 import java.util.Map;
+import java.time.Instant;
+import java.time.OffsetDateTime;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
@@ -88,6 +90,50 @@ public class SupabaseRestService {
     return updated.get(0);
   }
 
+  public Map<String, Object> getAppSubscription(String accessToken) {
+    requireConfigured();
+    try {
+      return restClient
+          .get()
+          .uri(
+              uriBuilder ->
+                  uriBuilder
+                      .path("/app_subscription")
+                      .queryParam("select", "*")
+                      .queryParam("id", "eq.1")
+                      .build())
+          .header("apikey", props.anonKey())
+          .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
+          .header(HttpHeaders.ACCEPT, "application/vnd.pgrst.object+json")
+          .retrieve()
+          .body(Map.class);
+    } catch (RestClientResponseException e) {
+      if (e.getStatusCode().value() == 406) {
+        return null;
+      }
+      throw e;
+    }
+  }
+
+  public static boolean isSubscriptionActive(Map<String, Object> row, Instant now) {
+    if (row == null) return true; // default allow if not configured
+    String status = String.valueOf(row.getOrDefault("status", "active")).trim().toLowerCase();
+    if (!status.equals("active")) return false;
+    Object ends = row.get("ends_at");
+    if (ends == null) return true;
+    try {
+      Instant endsAt = null;
+      if (ends instanceof String s) {
+        endsAt = OffsetDateTime.parse(s).toInstant();
+      } else {
+        endsAt = OffsetDateTime.parse(String.valueOf(ends)).toInstant();
+      }
+      return endsAt == null || endsAt.isAfter(now);
+    } catch (Exception ignored) {
+      return true;
+    }
+  }
+
   public boolean isAdmin(String accessToken, String userId) {
     requireConfigured();
     try {
@@ -124,6 +170,21 @@ public class SupabaseRestService {
         .header(HttpHeaders.AUTHORIZATION, "Bearer " + props.serviceRoleKey())
         .header("Prefer", "resolution=merge-duplicates,return=representation")
         .body(List.of(Map.of("user_id", userId)))
+        .retrieve()
+        .toBodilessEntity();
+  }
+
+  public void upsertUserProfileServiceRole(String userId, String username) {
+    requireServiceRoleConfigured();
+    if (userId == null || userId.isBlank()) throw new IllegalArgumentException("userId is required");
+    if (username == null || username.isBlank()) throw new IllegalArgumentException("username is required");
+    restClient
+        .post()
+        .uri(uriBuilder -> uriBuilder.path("/user_profiles").build())
+        .header("apikey", props.serviceRoleKey())
+        .header(HttpHeaders.AUTHORIZATION, "Bearer " + props.serviceRoleKey())
+        .header("Prefer", "resolution=merge-duplicates,return=representation")
+        .body(List.of(Map.of("user_id", userId, "username", username)))
         .retrieve()
         .toBodilessEntity();
   }

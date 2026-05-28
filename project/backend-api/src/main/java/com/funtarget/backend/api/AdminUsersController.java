@@ -4,7 +4,7 @@ import com.funtarget.backend.supabase.SupabaseAdminService;
 import com.funtarget.backend.supabase.SupabaseRestService;
 import com.funtarget.backend.supabase.SupabaseUser;
 import java.util.Map;
-import java.util.UUID;
+import java.util.regex.Pattern;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -17,6 +17,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class AdminUsersController {
   private final SupabaseRestService supabaseRest;
   private final SupabaseAdminService supabaseAdmin;
+  private static final Pattern USERNAME_PATTERN = Pattern.compile("^[a-z0-9][a-z0-9._-]{2,31}$");
 
   public AdminUsersController(SupabaseRestService supabaseRest, SupabaseAdminService supabaseAdmin) {
     this.supabaseRest = supabaseRest;
@@ -31,19 +32,30 @@ public class AdminUsersController {
       throw new AccessDeniedException("Forbidden");
     }
 
-    String email = payload == null ? null : String.valueOf(payload.getOrDefault("email", "")).trim();
+    String username = payload == null ? null : String.valueOf(payload.getOrDefault("username", "")).trim();
     String password = payload == null ? null : String.valueOf(payload.getOrDefault("password", "")).trim();
     String role = payload == null ? "MANAGER" : String.valueOf(payload.getOrDefault("role", "MANAGER")).trim().toUpperCase();
     if (!role.equals("ADMIN") && !role.equals("MANAGER")) {
       throw new IllegalArgumentException("Invalid role");
     }
 
-    if (email == null || email.isBlank()) {
-      String gen = "user_" + UUID.randomUUID().toString().replace("-", "") + "@kingmaker.local";
-      email = gen;
+    if (username == null || username.isBlank()) {
+      throw new IllegalArgumentException("Username is required");
+    }
+    String normalized = username.toLowerCase();
+    if (!USERNAME_PATTERN.matcher(normalized).matches()) {
+      throw new IllegalArgumentException("Invalid username (use 3-32 chars: a-z, 0-9, . _ -)");
     }
 
+    String email = normalized + "@kingmaker.local";
+
     SupabaseUser created = supabaseAdmin.createUser(email, password);
+    if (created != null && created.id() != null && !created.id().isBlank()) {
+      try {
+        supabaseRest.upsertUserProfileServiceRole(created.id(), normalized);
+      } catch (Exception ignored) {
+      }
+    }
     if ("ADMIN".equals(role) && created != null && created.id() != null && !created.id().isBlank()) {
       supabaseRest.upsertAdminUserServiceRole(created.id());
     }
@@ -51,6 +63,7 @@ public class AdminUsersController {
     return Map.of(
         "id", created == null ? null : created.id(),
         "email", created == null ? null : created.email(),
+        "username", normalized,
         "role", role);
   }
 

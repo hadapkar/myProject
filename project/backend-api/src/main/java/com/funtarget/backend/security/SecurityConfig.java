@@ -1,6 +1,7 @@
 package com.funtarget.backend.security;
 
 import com.funtarget.backend.supabase.SupabaseAuthService;
+import com.funtarget.backend.supabase.SupabaseRestService;
 import com.funtarget.backend.api.ApiError;
 import jakarta.servlet.http.HttpServletRequest;
 import java.io.IOException;
@@ -40,6 +41,7 @@ public class SecurityConfig {
   SecurityFilterChain securityFilterChain(
       HttpSecurity http,
       SupabaseAuthService authService,
+      SupabaseRestService supabaseRest,
       RequestSizeLimitFilter requestSizeLimitFilter,
       RateLimitFilter rateLimitFilter)
       throws Exception {
@@ -60,7 +62,8 @@ public class SecurityConfig {
         .addFilterBefore(new RequestIdFilter(), UsernamePasswordAuthenticationFilter.class)
         .addFilterAfter(requestSizeLimitFilter, RequestIdFilter.class)
         .addFilterAfter(new SupabaseTokenAuthFilter(authService), RequestIdFilter.class)
-        .addFilterAfter(rateLimitFilter, SupabaseTokenAuthFilter.class)
+        .addFilterAfter(new SubscriptionGateFilter(supabaseRest), SupabaseTokenAuthFilter.class)
+        .addFilterAfter(rateLimitFilter, SubscriptionGateFilter.class)
         .authorizeHttpRequests(
             auth ->
                 auth.requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()

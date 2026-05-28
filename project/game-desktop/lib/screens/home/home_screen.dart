@@ -21,11 +21,13 @@ class _HomeScreenState extends State<HomeScreen> {
   final _api = FunTargetApi();
   bool _isAdmin = false;
   bool _roleLoaded = false;
+  bool _subscriptionChecked = false;
 
   @override
   void initState() {
     super.initState();
     unawaited(_loadRole());
+    unawaited(_checkSubscriptionGate());
     if (!kIsWeb) {
       // Background check; UI will show "update available" if needed.
       UpdateService.instance.checkForUpdates();
@@ -50,6 +52,38 @@ class _HomeScreenState extends State<HomeScreen> {
     } catch (_) {
       if (!mounted) return;
       setState(() => _roleLoaded = true);
+    }
+  }
+
+  Future<void> _checkSubscriptionGate() async {
+    if (_subscriptionChecked) return;
+    _subscriptionChecked = true;
+    try {
+      await _api.getMe();
+    } on StateError catch (e) {
+      final msg = e.message;
+      if (!mounted) return;
+      if (msg.contains("subscription_inactive")) {
+        await showDialog<void>(
+          context: context,
+          barrierDismissible: false,
+          builder: (context) => AlertDialog(
+            title: const Text("Subscription inactive"),
+            content: const Text(
+              "Your subscription is inactive or expired. Please contact the admin.",
+            ),
+            actions: [
+              FilledButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text("OK"),
+              ),
+            ],
+          ),
+        );
+        await Supabase.instance.client.auth.signOut();
+      }
+    } catch (_) {
+      // Ignore other errors here; the Game screen will show a retryable message.
     }
   }
 
@@ -202,7 +236,7 @@ class _CreateUserDialog extends StatefulWidget {
 }
 
 class _CreateUserDialogState extends State<_CreateUserDialog> {
-  final _email = TextEditingController();
+  final _username = TextEditingController();
   final _password = TextEditingController();
   String _role = "MANAGER";
   bool _busy = false;
@@ -210,7 +244,7 @@ class _CreateUserDialogState extends State<_CreateUserDialog> {
 
   @override
   void dispose() {
-    _email.dispose();
+    _username.dispose();
     _password.dispose();
     super.dispose();
   }
@@ -222,12 +256,13 @@ class _CreateUserDialogState extends State<_CreateUserDialog> {
     });
     try {
       final res = await widget.api.createUser(
-        email: _email.text.trim().isEmpty ? null : _email.text.trim(),
+        username: _username.text.trim(),
         password: _password.text,
         role: _role,
       );
+      final createdUsername = (res["username"] ?? "").toString();
       final createdEmail = (res["email"] ?? "").toString();
-      setState(() => _message = "Created user: $createdEmail");
+      setState(() => _message = "Created user: $createdUsername ($createdEmail)");
     } catch (e) {
       setState(() => _message = e.toString());
     } finally {
@@ -245,12 +280,12 @@ class _CreateUserDialogState extends State<_CreateUserDialog> {
           mainAxisSize: MainAxisSize.min,
           children: [
             TextField(
-              controller: _email,
+              controller: _username,
               decoration: const InputDecoration(
-                labelText: "Email (optional)",
-                hintText: "Leave blank to auto-generate",
+                labelText: "Username",
+                hintText: "Example: manager01",
               ),
-              keyboardType: TextInputType.emailAddress,
+              keyboardType: TextInputType.text,
             ),
             const SizedBox(height: 10),
             TextField(

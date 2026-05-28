@@ -9,14 +9,14 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  final _emailController = TextEditingController();
+  final _usernameController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _busy = false;
   String? _message;
 
   @override
   void dispose() {
-    _emailController.dispose();
+    _usernameController.dispose();
     _passwordController.dispose();
     super.dispose();
   }
@@ -27,8 +27,10 @@ class _LoginScreenState extends State<LoginScreen> {
       _message = null;
     });
     try {
+      final raw = _usernameController.text.trim();
+      final email = raw.contains("@") ? raw : "${raw.toLowerCase()}@kingmaker.local";
       await Supabase.instance.client.auth.signInWithPassword(
-        email: _emailController.text.trim(),
+        email: email,
         password: _passwordController.text,
       );
     } on AuthException catch (e) {
@@ -59,10 +61,10 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
                 const SizedBox(height: 24),
                 TextField(
-                  controller: _emailController,
-                  decoration: const InputDecoration(labelText: "Email"),
-                  keyboardType: TextInputType.emailAddress,
-                  autofillHints: const [AutofillHints.email],
+                  controller: _usernameController,
+                  decoration: const InputDecoration(labelText: "Username"),
+                  keyboardType: TextInputType.text,
+                  autofillHints: const [AutofillHints.username],
                 ),
                 const SizedBox(height: 12),
                 TextField(
