@@ -55,7 +55,7 @@ jobs:
           if command -v grep >/dev/null 2>&1; then
             grep -RIl "$OLD_ID" android | while read -r file; do
               sed -i "s/${OLD_ID//./\\.}/${APP_ID//./\\.}/g" "$file" || true
-            done
+            done || true
           fi
 
       - name: Set Android app name (King Maker)
