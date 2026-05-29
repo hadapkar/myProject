@@ -35,6 +35,18 @@ jobs:
             flutter create --platforms=android .
           fi
 
+      - name: Set Android app name (King Maker)
+        shell: bash
+        run: |
+          STRINGS="android/app/src/main/res/values/strings.xml"
+          MANIFEST="android/app/src/main/AndroidManifest.xml"
+          if [ -f "$STRINGS" ]; then
+            sed -i 's#<string name="app_name">[^<]*</string>#<string name="app_name">King Maker</string>#' "$STRINGS" || true
+          fi
+          if [ -f "$MANIFEST" ]; then
+            sed -i 's/android:label="[^"]*"/android:label="@string\\/app_name"/' "$MANIFEST" || true
+          fi
+
       - name: Build APK (release)
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
@@ -84,4 +96,3 @@ jobs:
             --app "$FIREBASE_APP_ID" \
             --groups "$FIREBASE_GROUPS" \
             --release-notes "Commit ${GITHUB_SHA}"
-
