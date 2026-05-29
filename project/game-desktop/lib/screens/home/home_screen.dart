@@ -231,7 +231,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   title: "FunTarget",
                   subtitle: "Wheel / Bet game",
                   imageAsset: _funTargetLogo,
-                  onTap: () => context.go("/game"),
+                  onTap: () => context.go(_isMobile() ? "/admin/funtarget" : "/game"),
                 ),
               ],
             );
@@ -239,6 +239,12 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       ),
     );
+  }
+
+  bool _isMobile() {
+    if (kIsWeb) return false;
+    return defaultTargetPlatform == TargetPlatform.android ||
+        defaultTargetPlatform == TargetPlatform.iOS;
   }
 }
 

@@ -1,10 +1,5 @@
-import "dart:convert";
-
 import "package:flutter/material.dart";
-import "package:http/http.dart" as http;
-import "package:supabase_flutter/supabase_flutter.dart";
-
-import "../../config/app_config.dart";
+import "../../services/funtarget_api.dart";
 
 class UserAccessScreen extends StatefulWidget {
   const UserAccessScreen({super.key});
@@ -14,6 +9,7 @@ class UserAccessScreen extends StatefulWidget {
 }
 
 class _UserAccessScreenState extends State<UserAccessScreen> {
+  final _api = FunTargetApi();
   bool _loading = true;
   String? _error;
   List<Map<String, dynamic>> _rows = const [];
@@ -24,41 +20,14 @@ class _UserAccessScreenState extends State<UserAccessScreen> {
     _load();
   }
 
-  Future<String> _token() async {
-    final session = Supabase.instance.client.auth.currentSession;
-    final token = session?.accessToken;
-    if (token == null || token.isEmpty) throw StateError("Not authenticated");
-    return token;
-  }
-
-  Uri _uri(String path) => Uri.parse("${AppConfig.apiBaseUrl}$path");
-
   Future<void> _load() async {
     setState(() {
       _loading = true;
       _error = null;
     });
     try {
-      final token = await _token();
-      final res = await http.get(
-        _uri("/api/admin/user-access"),
-        headers: {
-          "Authorization": "Bearer $token",
-          "Accept": "application/json",
-        },
-      );
-      if (res.statusCode < 200 || res.statusCode >= 300) {
-        if (res.statusCode == 500 &&
-            res.body.contains("user_access") &&
-            res.body.contains("not found")) {
-          throw StateError(
-            "Supabase DB not initialized for subscriptions. Apply migration `20260528121500_user_access.sql` then retry.",
-          );
-        }
-        throw StateError("Backend error ${res.statusCode}: ${res.body}");
-      }
-      final decoded = jsonDecode(res.body);
-      final list = (decoded is Map<String, dynamic>) ? decoded["rows"] : null;
+      final decoded = await _api.listUserAccess();
+      final list = decoded["rows"];
       final rows = <Map<String, dynamic>>[];
       if (list is List) {
         for (final item in list) {
@@ -76,31 +45,12 @@ class _UserAccessScreenState extends State<UserAccessScreen> {
   }
 
   Future<void> _updateRow(String userId, {String? status, String? endsAtIso}) async {
-    final token = await _token();
     final payload = <String, dynamic>{};
     if (status != null) payload["status"] = status;
     if (endsAtIso != null) {
       payload["ends_at"] = endsAtIso.isEmpty ? null : endsAtIso;
     }
-    final res = await http.patch(
-      _uri("/api/admin/user-access/$userId"),
-      headers: {
-        "Authorization": "Bearer $token",
-        "Content-Type": "application/json",
-        "Accept": "application/json",
-      },
-      body: jsonEncode(payload),
-    );
-    if (res.statusCode < 200 || res.statusCode >= 300) {
-      if (res.statusCode == 500 &&
-          res.body.contains("user_access") &&
-          res.body.contains("not found")) {
-        throw StateError(
-          "Supabase DB not initialized for subscriptions. Apply migration `20260528121500_user_access.sql` then retry.",
-        );
-      }
-      throw StateError("Backend error ${res.statusCode}: ${res.body}");
-    }
+    await _api.patchUserAccess(userId, payload);
     await _load();
   }
 

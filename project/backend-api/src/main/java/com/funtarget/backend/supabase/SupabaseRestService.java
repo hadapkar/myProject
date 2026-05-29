@@ -90,6 +90,70 @@ public class SupabaseRestService {
     return updated.get(0);
   }
 
+  public List<Map<String, Object>> listFunTargetStatesServiceRole(int limit) {
+    requireServiceRoleConfigured();
+    int safeLimit = Math.max(1, Math.min(500, limit));
+    return restClient
+        .get()
+        .uri(
+            uriBuilder ->
+                uriBuilder
+                    .path("/fun_target_state")
+                    .queryParam("select", "*")
+                    .queryParam("order", "updated_at.desc")
+                    .queryParam("limit", String.valueOf(safeLimit))
+                    .build())
+        .header("apikey", props.serviceRoleKey())
+        .header(HttpHeaders.AUTHORIZATION, "Bearer " + props.serviceRoleKey())
+        .retrieve()
+        .body(List.class);
+  }
+
+  public Map<String, Object> getFunTargetStateForUserServiceRole(String targetUserId) {
+    requireServiceRoleConfigured();
+    try {
+      return restClient
+          .get()
+          .uri(
+              uriBuilder ->
+                  uriBuilder
+                      .path("/fun_target_state")
+                      .queryParam("select", "*")
+                      .queryParam("user_id", "eq." + targetUserId)
+                      .build())
+          .header("apikey", props.serviceRoleKey())
+          .header(HttpHeaders.AUTHORIZATION, "Bearer " + props.serviceRoleKey())
+          .header(HttpHeaders.ACCEPT, "application/vnd.pgrst.object+json")
+          .retrieve()
+          .body(Map.class);
+    } catch (RestClientResponseException e) {
+      if (e.getStatusCode().value() == 406) return null;
+      throw e;
+    }
+  }
+
+  public Map<String, Object> patchFunTargetStateForUserServiceRole(
+      String targetUserId, Map<String, Object> patch) {
+    requireServiceRoleConfigured();
+    List<Map<String, Object>> updated =
+        restClient
+            .patch()
+            .uri(
+                uriBuilder ->
+                    uriBuilder
+                        .path("/fun_target_state")
+                        .queryParam("user_id", "eq." + targetUserId)
+                        .build())
+            .header("apikey", props.serviceRoleKey())
+            .header(HttpHeaders.AUTHORIZATION, "Bearer " + props.serviceRoleKey())
+            .header("Prefer", "return=representation")
+            .body(patch)
+            .retrieve()
+            .body(List.class);
+    if (updated == null || updated.isEmpty()) return null;
+    return updated.get(0);
+  }
+
   public Map<String, Object> getAppSubscription(String accessToken) {
     requireConfigured();
     try {

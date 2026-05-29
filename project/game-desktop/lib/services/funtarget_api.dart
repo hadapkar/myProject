@@ -167,9 +167,62 @@ class FunTargetApi {
     return res;
   }
 
+  Future<http.Response> _patch(String path, Map<String, dynamic> payload) async {
+    final token = await _accessToken();
+    final sessionId = await _ensureSession(token: token);
+    http.Response res;
+    try {
+      res = await _client
+          .patch(
+            _uri(path),
+            headers: {
+              "Authorization": "Bearer $token",
+              "Content-Type": "application/json",
+              "Accept": "application/json",
+              "X-Session-Id": sessionId,
+              "X-Platform": _platform(),
+            },
+            body: jsonEncode(payload),
+          )
+          .timeout(_timeout);
+    } on TimeoutException {
+      throw StateError("Backend timeout. The server may be waking up; please retry.");
+    }
+
+    if (res.statusCode == 401) {
+      final retryToken = await _accessToken(allowRefresh: true);
+      final sessionId = await _ensureSession(token: retryToken);
+      try {
+        return await _client
+            .patch(
+              _uri(path),
+              headers: {
+                "Authorization": "Bearer $retryToken",
+                "Content-Type": "application/json",
+                "Accept": "application/json",
+                "X-Session-Id": sessionId,
+                "X-Platform": _platform(),
+              },
+              body: jsonEncode(payload),
+            )
+            .timeout(_timeout);
+      } on TimeoutException {
+        throw StateError("Backend timeout. The server may be waking up; please retry.");
+      }
+    }
+
+    return res;
+  }
+
   String _platform() {
     if (kIsWeb) return "web";
-    return "desktop";
+    switch (defaultTargetPlatform) {
+      case TargetPlatform.android:
+      case TargetPlatform.iOS:
+        return "mobile";
+      default:
+        return "desktop";
+    }
   }
 
   Future<String> _ensureSession({required String token}) async {
@@ -269,5 +322,30 @@ class FunTargetApi {
     }
     final jsonMap = jsonDecode(res.body) as Map<String, dynamic>;
     return jsonMap;
+  }
+
+  Future<Map<String, dynamic>> listUserAccess() async {
+    final res = await _get("/api/admin/user-access");
+    if (res.statusCode < 200 || res.statusCode >= 300) throw _apiError(res);
+    return jsonDecode(res.body) as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> patchUserAccess(String userId, Map<String, dynamic> patch) async {
+    final res = await _patch("/api/admin/user-access/$userId", patch);
+    if (res.statusCode < 200 || res.statusCode >= 300) throw _apiError(res);
+    return jsonDecode(res.body) as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> listAdminFunTargetStates({int limit = 200}) async {
+    final res = await _get("/api/admin/funtarget/states?limit=$limit");
+    if (res.statusCode < 200 || res.statusCode >= 300) throw _apiError(res);
+    return jsonDecode(res.body) as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> patchAdminFunTargetState(
+      String userId, Map<String, dynamic> patch) async {
+    final res = await _patch("/api/admin/funtarget/state/$userId", patch);
+    if (res.statusCode < 200 || res.statusCode >= 300) throw _apiError(res);
+    return jsonDecode(res.body) as Map<String, dynamic>;
   }
 }
