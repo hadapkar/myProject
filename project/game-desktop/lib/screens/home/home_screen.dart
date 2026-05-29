@@ -231,7 +231,32 @@ class _HomeScreenState extends State<HomeScreen> {
                   title: "FunTarget",
                   subtitle: "Wheel / Bet game",
                   imageAsset: _funTargetLogo,
-                  onTap: () => context.go(_isMobile() ? "/admin/funtarget" : "/game"),
+                  onTap: () async {
+                    if (_isMobile()) {
+                      if (!_roleLoaded) return;
+                      if (!_isAdmin) {
+                        await showDialog<void>(
+                          context: context,
+                          builder: (context) => AlertDialog(
+                            title: const Text("Admins only"),
+                            content: const Text("FunTarget Admin is available to Admin users only."),
+                            actions: [
+                              FilledButton(
+                                onPressed: () => Navigator.of(context).pop(),
+                                child: const Text("OK"),
+                              ),
+                            ],
+                          ),
+                        );
+                        return;
+                      }
+                      if (!context.mounted) return;
+                      context.go("/admin/funtarget");
+                      return;
+                    }
+
+                    context.go("/game");
+                  },
                 ),
               ],
             );

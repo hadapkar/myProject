@@ -102,6 +102,12 @@ public class AdminUserAccessController {
       if (updated == null) {
         return Map.of("updated", false);
       }
+      try {
+        Object principal = authentication == null ? null : authentication.getPrincipal();
+        String actorId = principal instanceof SupabaseUser u ? u.id() : null;
+        supabaseRest.insertAuditLogServiceRole(actorId, "ADMIN", "admin_update_user_access", userId, patch);
+      } catch (Exception ignored) {
+      }
       return Map.of("updated", true, "row", updated);
     } catch (RestClientResponseException e) {
       int status = e.getStatusCode().value();

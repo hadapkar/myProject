@@ -84,6 +84,12 @@ public class AdminFunTargetController {
     patch.put("last_updated_from", "Admin");
 
     Map<String, Object> updated = supabaseRest.patchFunTargetStateForUserServiceRole(userId, patch);
+
+    try {
+      supabaseRest.insertAuditLogServiceRole(
+          caller.id(), "ADMIN", "admin_patch_funtarget_state", userId, patch);
+    } catch (Exception ignored) {
+    }
     return Map.of("updated", updated != null, "row", updated);
   }
 

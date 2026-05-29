@@ -75,6 +75,18 @@ public class AdminUsersController {
       supabaseRest.upsertAdminUserServiceRole(created.id());
     }
 
+    try {
+      if (created != null && created.id() != null && !created.id().isBlank()) {
+        supabaseRest.insertAuditLogServiceRole(
+            caller.id(),
+            "ADMIN",
+            "admin_create_user",
+            created.id(),
+            Map.of("username", normalized, "role", role, "ends_at", endsAt == null ? "" : endsAt));
+      }
+    } catch (Exception ignored) {
+    }
+
     return Map.of(
         "id", created == null ? null : created.id(),
         "email", created == null ? null : created.email(),

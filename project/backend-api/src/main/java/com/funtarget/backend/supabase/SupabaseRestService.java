@@ -357,6 +357,28 @@ public class SupabaseRestService {
         .toBodilessEntity();
   }
 
+  public void insertAuditLogServiceRole(
+      String actorUserId, String actorRole, String action, String targetUserId, Map<String, Object> payload) {
+    requireServiceRoleConfigured();
+    if (action == null || action.isBlank()) throw new IllegalArgumentException("action is required");
+    restClient
+        .post()
+        .uri(uriBuilder -> uriBuilder.path("/audit_logs").build())
+        .header("apikey", props.serviceRoleKey())
+        .header(HttpHeaders.AUTHORIZATION, "Bearer " + props.serviceRoleKey())
+        .header("Prefer", "return=representation")
+        .body(
+            List.of(
+                Map.of(
+                    "actor_user_id", actorUserId,
+                    "actor_role", actorRole,
+                    "action", action,
+                    "target_user_id", targetUserId,
+                    "payload", payload == null ? Map.of() : payload)))
+        .retrieve()
+        .toBodilessEntity();
+  }
+
   public List<Map<String, Object>> listUserAccessServiceRole() {
     requireServiceRoleConfigured();
     return restClient

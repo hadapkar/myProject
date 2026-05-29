@@ -13,10 +13,42 @@ class _UserAccessScreenState extends State<UserAccessScreen> {
   bool _loading = true;
   String? _error;
   List<Map<String, dynamic>> _rows = const [];
+  bool _allowed = false;
 
   @override
   void initState() {
     super.initState();
+    unawaited(_guardAdmin());
+  }
+
+  Future<void> _guardAdmin() async {
+    try {
+      final me = await _api.getMe();
+      final isAdmin = me["isAdmin"] == true;
+      if (!isAdmin) {
+        if (!mounted) return;
+        await showDialog<void>(
+          context: context,
+          barrierDismissible: false,
+          builder: (context) => AlertDialog(
+            title: const Text("Admins only"),
+            content: const Text("You do not have access to Subscription Management."),
+            actions: [
+              FilledButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text("OK"),
+              ),
+            ],
+          ),
+        );
+        if (!mounted) return;
+        Navigator.of(context).pop();
+        return;
+      }
+      _allowed = true;
+    } catch (_) {
+      _allowed = true; // backend still enforces
+    }
     _load();
   }
 
@@ -26,6 +58,7 @@ class _UserAccessScreenState extends State<UserAccessScreen> {
       _error = null;
     });
     try {
+      if (!_allowed) return;
       final decoded = await _api.listUserAccess();
       final list = decoded["rows"];
       final rows = <Map<String, dynamic>>[];
