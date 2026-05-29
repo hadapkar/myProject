@@ -67,10 +67,11 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<Map<String, dynamic>> _loginCheck(String username) async {
-    if (AppConfig.apiBaseUrl.isEmpty) {
+    final baseUrl = AppConfig.apiBaseUrl.replaceAll(RegExp(r"\\s+"), "");
+    if (baseUrl.isEmpty) {
       throw StateError("Missing API_BASE_URL");
     }
-    final uri = Uri.parse("${AppConfig.apiBaseUrl}/public/login-check")
+    final uri = Uri.parse("${baseUrl}/public/login-check")
         .replace(queryParameters: {"username": username.trim().toLowerCase()});
     final res = await http.get(uri, headers: {"Accept": "application/json"});
     if (res.statusCode < 200 || res.statusCode >= 300) {
@@ -83,6 +84,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final backend = AppConfig.apiBaseUrl.replaceAll(RegExp(r"\\s+"), "");
     return Scaffold(
       body: Center(
         child: ConstrainedBox(
@@ -116,6 +118,12 @@ class _LoginScreenState extends State<LoginScreen> {
                 FilledButton(
                   onPressed: _busy ? null : _signIn,
                   child: Text(_busy ? "Working..." : "Sign in"),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  "Backend: $backend",
+                  style: const TextStyle(color: Colors.white38, fontSize: 12),
+                  textAlign: TextAlign.center,
                 ),
                 if (_message != null) ...[
                   const SizedBox(height: 12),
