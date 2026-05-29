@@ -40,6 +40,19 @@ jobs:
             flutter create --platforms=android .
           fi
 
+      - name: Write google-services.json (optional)
+        shell: bash
+        env:
+          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
+        run: |
+          if [ -n "$GOOGLE_SERVICES_JSON" ]; then
+            mkdir -p android/app
+            echo "$GOOGLE_SERVICES_JSON" > android/app/google-services.json
+            echo "google-services.json written"
+          else
+            echo "GOOGLE_SERVICES_JSON secret not set (ok unless you use Firebase SDK in-app)."
+          fi
+
       - name: Set Android app name (King Maker)
         shell: bash
         run: |
