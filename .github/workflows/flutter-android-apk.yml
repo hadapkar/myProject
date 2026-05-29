@@ -40,6 +40,32 @@ jobs:
             flutter create --platforms=android .
           fi
 
+      - name: Set Android package name (com.kingmaker.admin)
+        shell: bash
+        run: |
+          APP_ID="com.kingmaker.admin"
+          OLD_ID="com.example.kingmaker"
+          # Update build files / manifests
+          for f in android/app/build.gradle android/app/build.gradle.kts android/app/src/main/AndroidManifest.xml; do
+            if [ -f "$f" ]; then
+              sed -i "s/${OLD_ID//./\\.}/${APP_ID//./\\.}/g" "$f" || true
+            fi
+          done
+          # Update MainActivity package + path (Kotlin)
+          OLD_PATH="android/app/src/main/kotlin/com/example/kingmaker/MainActivity.kt"
+          if [ -f "$OLD_PATH" ]; then
+            NEW_DIR="android/app/src/main/kotlin/com/kingmaker/admin"
+            mkdir -p "$NEW_DIR"
+            sed -i "s/^package .*/package $APP_ID/" "$OLD_PATH" || true
+            mv "$OLD_PATH" "$NEW_DIR/MainActivity.kt"
+          fi
+          # Replace any remaining occurrences in android folder
+          if command -v grep >/dev/null 2>&1; then
+            grep -RIl "$OLD_ID" android | while read -r file; do
+              sed -i "s/${OLD_ID//./\\.}/${APP_ID//./\\.}/g" "$file" || true
+            done
+          fi
+
       - name: Write google-services.json (optional)
         shell: bash
         env:
