@@ -54,8 +54,8 @@ Expected behavior:
 Add these GitHub secrets:
 - `FIREBASE_SERVICE_ACCOUNT_JSON` (service account key JSON)
 - `FIREBASE_APP_ID` (Android app id in Firebase)
-- `FIREBASE_GROUPS` (comma-separated groups, e.g. `testers`)
+- `FIREBASE_GROUPS` (comma-separated groups, e.g. `testers`) **or**
+- `FIREBASE_TESTERS` (comma-separated emails, e.g. `you@example.com,qa@example.com`)
 
 Run workflow:
 - **Actions → Firebase App Distribution (Android) → Run workflow**
-

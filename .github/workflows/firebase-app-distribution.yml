@@ -106,16 +106,27 @@ jobs:
           GOOGLE_APPLICATION_CREDENTIALS: /tmp/firebase-sa.json
           FIREBASE_APP_ID: ${{ secrets.FIREBASE_APP_ID }}
           FIREBASE_GROUPS: ${{ secrets.FIREBASE_GROUPS }}
+          FIREBASE_TESTERS: ${{ secrets.FIREBASE_TESTERS }}
         run: |
           if [ -z "$FIREBASE_APP_ID" ]; then
             echo "Missing FIREBASE_APP_ID secret" >&2
             exit 1
           fi
-          if [ -z "$FIREBASE_GROUPS" ]; then
-            echo "Missing FIREBASE_GROUPS secret (example: testers)" >&2
-            exit 1
+          if [ -n "$FIREBASE_TESTERS" ]; then
+            echo "Distributing to testers: $FIREBASE_TESTERS"
+            firebase appdistribution:distribute build/app/outputs/flutter-apk/app-release.apk \
+              --app "$FIREBASE_APP_ID" \
+              --testers "$FIREBASE_TESTERS" \
+              --release-notes "Commit ${GITHUB_SHA}"
+            exit 0
           fi
-          firebase appdistribution:distribute build/app/outputs/flutter-apk/app-release.apk \
-            --app "$FIREBASE_APP_ID" \
-            --groups "$FIREBASE_GROUPS" \
-            --release-notes "Commit ${GITHUB_SHA}"
+          if [ -n "$FIREBASE_GROUPS" ]; then
+            echo "Distributing to groups: $FIREBASE_GROUPS"
+            firebase appdistribution:distribute build/app/outputs/flutter-apk/app-release.apk \
+              --app "$FIREBASE_APP_ID" \
+              --groups "$FIREBASE_GROUPS" \
+              --release-notes "Commit ${GITHUB_SHA}"
+            exit 0
+          fi
+          echo "Missing distribution target. Set either FIREBASE_TESTERS (comma-separated emails) or FIREBASE_GROUPS (example: testers)." >&2
+          exit 1
