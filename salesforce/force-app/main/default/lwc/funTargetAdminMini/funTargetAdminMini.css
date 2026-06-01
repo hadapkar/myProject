@@ -59,9 +59,9 @@
 }
 
 .wheel-number-btn.selected {
-  background: #0b5cab;
-  border-color: #0b5cab;
-  color: #ffffff;
+  background: #ffffff;
+  border-color: #d1d5db;
+  color: #0f172a;
 }
 
 .wheel-number-btn:disabled {
