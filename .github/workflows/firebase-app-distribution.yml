@@ -35,6 +35,39 @@ jobs:
             flutter create --platforms=android .
           fi
 
+      - name: Ensure Android internet permissions
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          p = Path("android/app/src/main/AndroidManifest.xml")
+          if not p.exists():
+              raise SystemExit("AndroidManifest.xml not found")
+
+          text = p.read_text(encoding="utf-8")
+          if "android.permission.INTERNET" in text:
+              print("INTERNET permission already present")
+              raise SystemExit(0)
+
+          insert = (
+              '    <uses-permission android:name="android.permission.INTERNET"/>\n'
+              '    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>\n'
+          )
+          lines = text.splitlines(True)
+          out = []
+          inserted = False
+          for line in lines:
+              out.append(line)
+              if (not inserted) and ("<manifest" in line):
+                  out.append(insert)
+                  inserted = True
+          if not inserted:
+              raise SystemExit("Failed to insert permissions: <manifest> not found")
+          p.write_text("".join(out), encoding="utf-8")
+          print("Inserted INTERNET + ACCESS_NETWORK_STATE permissions")
+          PY
+
       - name: Set Android package name (com.kingmaker.admin)
         shell: bash
         run: |
