@@ -67,13 +67,26 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<Map<String, dynamic>> _loginCheck(String username) async {
-    final baseUrl = AppConfig.apiBaseUrl.replaceAll(RegExp(r"\\s+"), "");
-    if (baseUrl.isEmpty) {
+    if (AppConfig.apiBaseUrl.isEmpty) {
       throw StateError("Missing API_BASE_URL");
     }
-    final uri = Uri.parse("${baseUrl}/public/login-check")
-        .replace(queryParameters: {"username": username.trim().toLowerCase()});
-    final res = await http.get(uri, headers: {"Accept": "application/json"});
+
+    final query = {"username": username.trim().toLowerCase()};
+    final uri = AppConfig.apiUri("/public/login-check", queryParameters: query);
+    http.Response res;
+    try {
+      res = await http.get(uri, headers: {"Accept": "application/json"});
+    } on http.ClientException catch (e) {
+      // Some Android networks intermittently fail CNAME resolution for the
+      // Render vanity URL. Retry once using the origin host.
+      if (e.message.contains("Failed host lookup")) {
+        final fallbackUri =
+            AppConfig.apiUriWithFallback("/public/login-check", queryParameters: query);
+        res = await http.get(fallbackUri, headers: {"Accept": "application/json"});
+      } else {
+        rethrow;
+      }
+    }
     if (res.statusCode < 200 || res.statusCode >= 300) {
       throw StateError("Login check failed (${res.statusCode}). Please retry.");
     }
@@ -84,7 +97,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final backend = AppConfig.apiBaseUrl.replaceAll(RegExp(r"\\s+"), "");
+    final backend = AppConfig.apiBaseUrl;
     return Scaffold(
       body: Center(
         child: ConstrainedBox(

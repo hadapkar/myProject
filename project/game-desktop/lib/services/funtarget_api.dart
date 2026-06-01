@@ -18,7 +18,17 @@ class FunTargetApi {
   String? _cachedSessionId;
   String? _cachedDeviceId;
 
-  Uri _uri(String path) => Uri.parse("${AppConfig.apiBaseUrl}$path");
+  bool _isHostLookupError(Object e) =>
+      e is http.ClientException && e.message.contains("Failed host lookup");
+
+  Future<http.Response> _getUri(Uri uri, Map<String, String> headers) =>
+      _client.get(uri, headers: headers).timeout(_timeout);
+
+  Future<http.Response> _postUri(Uri uri, Map<String, String> headers, Object body) =>
+      _client.post(uri, headers: headers, body: body).timeout(_timeout);
+
+  Future<http.Response> _patchUri(Uri uri, Map<String, String> headers, Object body) =>
+      _client.patch(uri, headers: headers, body: body).timeout(_timeout);
 
   StateError _apiError(http.Response res) {
     try {
@@ -83,17 +93,25 @@ class FunTargetApi {
     final sessionId = await _ensureSession(token: token);
     http.Response res;
     try {
-      res = await _client
-          .get(
-            _uri(path),
-            headers: {
-              "Authorization": "Bearer $token",
-              "Accept": "application/json",
-              "X-Session-Id": sessionId,
-              "X-Platform": _platform(),
-            },
-          )
-          .timeout(_timeout);
+      final headers = {
+        "Authorization": "Bearer $token",
+        "Accept": "application/json",
+        "X-Session-Id": sessionId,
+        "X-Platform": _platform(),
+      };
+      res = await _getUri(AppConfig.apiUri(path), headers);
+    } on http.ClientException catch (e) {
+      if (_isHostLookupError(e)) {
+        final headers = {
+          "Authorization": "Bearer $token",
+          "Accept": "application/json",
+          "X-Session-Id": sessionId,
+          "X-Platform": _platform(),
+        };
+        res = await _getUri(AppConfig.apiUriWithFallback(path), headers);
+      } else {
+        rethrow;
+      }
     } on TimeoutException {
       throw StateError("Backend timeout. The server may be waking up; please retry.");
     }
@@ -103,17 +121,13 @@ class FunTargetApi {
       final retryToken = await _accessToken(allowRefresh: true);
       final sessionId = await _ensureSession(token: retryToken);
       try {
-        return await _client
-            .get(
-              _uri(path),
-              headers: {
-                "Authorization": "Bearer $retryToken",
-                "Accept": "application/json",
-                "X-Session-Id": sessionId,
-                "X-Platform": _platform(),
-              },
-            )
-            .timeout(_timeout);
+        final headers = {
+          "Authorization": "Bearer $retryToken",
+          "Accept": "application/json",
+          "X-Session-Id": sessionId,
+          "X-Platform": _platform(),
+        };
+        return await _getUri(AppConfig.apiUri(path), headers);
       } on TimeoutException {
         throw StateError("Backend timeout. The server may be waking up; please retry.");
       }
@@ -126,19 +140,29 @@ class FunTargetApi {
     final sessionId = await _ensureSession(token: token);
     http.Response res;
     try {
-      res = await _client
-          .post(
-            _uri(path),
-            headers: {
-              "Authorization": "Bearer $token",
-              "Content-Type": "application/json",
-              "Accept": "application/json",
-              "X-Session-Id": sessionId,
-              "X-Platform": _platform(),
-            },
-            body: jsonEncode(payload),
-          )
-          .timeout(_timeout);
+      final headers = {
+        "Authorization": "Bearer $token",
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+        "X-Session-Id": sessionId,
+        "X-Platform": _platform(),
+      };
+      final body = jsonEncode(payload);
+      res = await _postUri(AppConfig.apiUri(path), headers, body);
+    } on http.ClientException catch (e) {
+      if (_isHostLookupError(e)) {
+        final headers = {
+          "Authorization": "Bearer $token",
+          "Content-Type": "application/json",
+          "Accept": "application/json",
+          "X-Session-Id": sessionId,
+          "X-Platform": _platform(),
+        };
+        final body = jsonEncode(payload);
+        res = await _postUri(AppConfig.apiUriWithFallback(path), headers, body);
+      } else {
+        rethrow;
+      }
     } on TimeoutException {
       throw StateError("Backend timeout. The server may be waking up; please retry.");
     }
@@ -147,19 +171,15 @@ class FunTargetApi {
       final retryToken = await _accessToken(allowRefresh: true);
       final sessionId = await _ensureSession(token: retryToken);
       try {
-        return await _client
-            .post(
-              _uri(path),
-              headers: {
-                "Authorization": "Bearer $retryToken",
-                "Content-Type": "application/json",
-                "Accept": "application/json",
-                "X-Session-Id": sessionId,
-                "X-Platform": _platform(),
-              },
-              body: jsonEncode(payload),
-            )
-            .timeout(_timeout);
+        final headers = {
+          "Authorization": "Bearer $retryToken",
+          "Content-Type": "application/json",
+          "Accept": "application/json",
+          "X-Session-Id": sessionId,
+          "X-Platform": _platform(),
+        };
+        final body = jsonEncode(payload);
+        return await _postUri(AppConfig.apiUri(path), headers, body);
       } on TimeoutException {
         throw StateError("Backend timeout. The server may be waking up; please retry.");
       }
@@ -172,19 +192,29 @@ class FunTargetApi {
     final sessionId = await _ensureSession(token: token);
     http.Response res;
     try {
-      res = await _client
-          .patch(
-            _uri(path),
-            headers: {
-              "Authorization": "Bearer $token",
-              "Content-Type": "application/json",
-              "Accept": "application/json",
-              "X-Session-Id": sessionId,
-              "X-Platform": _platform(),
-            },
-            body: jsonEncode(payload),
-          )
-          .timeout(_timeout);
+      final headers = {
+        "Authorization": "Bearer $token",
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+        "X-Session-Id": sessionId,
+        "X-Platform": _platform(),
+      };
+      final body = jsonEncode(payload);
+      res = await _patchUri(AppConfig.apiUri(path), headers, body);
+    } on http.ClientException catch (e) {
+      if (_isHostLookupError(e)) {
+        final headers = {
+          "Authorization": "Bearer $token",
+          "Content-Type": "application/json",
+          "Accept": "application/json",
+          "X-Session-Id": sessionId,
+          "X-Platform": _platform(),
+        };
+        final body = jsonEncode(payload);
+        res = await _patchUri(AppConfig.apiUriWithFallback(path), headers, body);
+      } else {
+        rethrow;
+      }
     } on TimeoutException {
       throw StateError("Backend timeout. The server may be waking up; please retry.");
     }
@@ -193,19 +223,15 @@ class FunTargetApi {
       final retryToken = await _accessToken(allowRefresh: true);
       final sessionId = await _ensureSession(token: retryToken);
       try {
-        return await _client
-            .patch(
-              _uri(path),
-              headers: {
-                "Authorization": "Bearer $retryToken",
-                "Content-Type": "application/json",
-                "Accept": "application/json",
-                "X-Session-Id": sessionId,
-                "X-Platform": _platform(),
-              },
-              body: jsonEncode(payload),
-            )
-            .timeout(_timeout);
+        final headers = {
+          "Authorization": "Bearer $retryToken",
+          "Content-Type": "application/json",
+          "Accept": "application/json",
+          "X-Session-Id": sessionId,
+          "X-Platform": _platform(),
+        };
+        final body = jsonEncode(payload);
+        return await _patchUri(AppConfig.apiUri(path), headers, body);
       } on TimeoutException {
         throw StateError("Backend timeout. The server may be waking up; please retry.");
       }
@@ -240,20 +266,30 @@ class FunTargetApi {
     }
 
     // Always (re)start the session on first API use to avoid stale session ids.
-    final res = await _client
-        .post(
-          _uri("/api/session/start"),
-          headers: {
-            "Authorization": "Bearer $token",
-            "Content-Type": "application/json",
-            "Accept": "application/json",
-          },
-          body: jsonEncode({
-            "platform": _platform(),
-            "deviceId": _cachedDeviceId,
-          }),
-        )
-        .timeout(_timeout);
+    final headers = {
+      "Authorization": "Bearer $token",
+      "Content-Type": "application/json",
+      "Accept": "application/json",
+    };
+    final body = jsonEncode({
+      "platform": _platform(),
+      "deviceId": _cachedDeviceId,
+    });
+
+    http.Response res;
+    try {
+      res = await _postUri(AppConfig.apiUri("/api/session/start"), headers, body);
+    } on http.ClientException catch (e) {
+      if (_isHostLookupError(e)) {
+        res = await _postUri(
+          AppConfig.apiUriWithFallback("/api/session/start"),
+          headers,
+          body,
+        );
+      } else {
+        rethrow;
+      }
+    }
 
     if (res.statusCode < 200 || res.statusCode >= 300) {
       throw _apiError(res);
