@@ -124,12 +124,13 @@ class _GameScreenState extends State<GameScreen> {
       _error = null;
     });
     try {
-      // Render free instances can "cold start" after inactivity; allow enough time.
       final state =
           await _api.getState().timeout(const Duration(seconds: 75));
+      if (!mounted) return;
       _applyLoadedState(state);
     } on TimeoutException {
-      setState(() => _error = "Backend is starting (cold start). Please wait and retry.");
+      if (!mounted) return;
+      setState(() => _error = "Game server did not respond. Please retry.");
     } on StateError catch (e) {
       final text = e.message;
       if (text.contains("subscription_inactive") || text.contains("user_blocked")) {
@@ -184,13 +185,14 @@ class _GameScreenState extends State<GameScreen> {
         await Supabase.instance.client.auth.signOut();
         return;
       }
-      // Friendly message for common Render cold-start timeouts.
+      if (!mounted) return;
       if (text.toLowerCase().contains("timeout")) {
-        setState(() => _error = "Backend is starting (cold start). Please wait and retry.");
+        setState(() => _error = "Game server did not respond. Please retry.");
       } else {
         setState(() => _error = text);
       }
     } catch (e) {
+      if (!mounted) return;
       setState(() => _error = e.toString());
     }
   }
@@ -591,6 +593,12 @@ class _GameScreenState extends State<GameScreen> {
     if (mounted) context.go("/home");
   }
 
+  Future<bool> _handleSystemBack() async {
+    if (context.canPop()) return true;
+    if (mounted) context.go("/home");
+    return false;
+  }
+
   @override
   Widget build(BuildContext context) {
     final user = Supabase.instance.client.auth.currentUser;
@@ -609,9 +617,11 @@ class _GameScreenState extends State<GameScreen> {
         !_isFinalTenSeconds;
     final betOkDisabled =
         !isBettingPhase || _isBetConfirmed || totalBet <= 0;
-    return Scaffold(
-      backgroundColor: const Color(0xFF0B1220),
-      body: GestureDetector(
+    return WillPopScope(
+      onWillPop: _handleSystemBack,
+      child: Scaffold(
+        backgroundColor: const Color(0xFF0B1220),
+        body: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: _onUserGesture,
         child: SafeArea(
@@ -707,6 +717,7 @@ class _GameScreenState extends State<GameScreen> {
               // Intentionally no Refresh / Sign out buttons on the game screen.
             ],
           ),
+        ),
         ),
       ),
     );

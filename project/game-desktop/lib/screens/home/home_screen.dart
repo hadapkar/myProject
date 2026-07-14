@@ -11,6 +11,8 @@ import "../../storage/session_store.dart";
 
 const _funTargetLogo = "assets/app/logo.jpg";
 
+enum _HomeMenuAction { createUser, subscriptions, updates, signOut }
+
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
@@ -100,7 +102,29 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _openUserAccessDashboard() {
     if (!_isAdmin) return;
-    context.go("/admin/access");
+    context.push("/admin/access");
+  }
+
+  Future<void> _signOut() async {
+    await SessionStore.clearSessionId();
+    await Supabase.instance.client.auth.signOut();
+  }
+
+  Future<void> _handleMenuAction(_HomeMenuAction action) async {
+    switch (action) {
+      case _HomeMenuAction.createUser:
+        await _openCreateUserDialog();
+        return;
+      case _HomeMenuAction.subscriptions:
+        _openUserAccessDashboard();
+        return;
+      case _HomeMenuAction.updates:
+        await _openUpdateDialog();
+        return;
+      case _HomeMenuAction.signOut:
+        await _signOut();
+        return;
+    }
   }
 
   Future<void> _openUpdateDialog() async {
@@ -164,50 +188,12 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     final user = Supabase.instance.client.auth.currentUser;
     final email = user?.email ?? "-";
-
+    final compactActions = MediaQuery.sizeOf(context).width < 720;
     return Scaffold(
       backgroundColor: const Color(0xFF0B1220),
       appBar: AppBar(
         title: const Text("Games"),
-        actions: [
-          if (_roleLoaded && _isAdmin)
-            TextButton(
-              onPressed: _openCreateUserDialog,
-              child: const Text("Create User"),
-            ),
-          if (_roleLoaded && _isAdmin)
-            TextButton(
-              onPressed: _openUserAccessDashboard,
-              child: const Text("Subscriptions"),
-            ),
-          if (!kIsWeb)
-            ValueListenableBuilder(
-              valueListenable: UpdateService.instance.state,
-              builder: (context, UpdateState update, _) {
-                final hasUpdate = update.available != null;
-                final color = hasUpdate ? Colors.amberAccent : Colors.white70;
-                return IconButton(
-                  tooltip: hasUpdate ? "Update available" : "Updates",
-                  onPressed: _openUpdateDialog,
-                  icon: Icon(Icons.system_update_alt, color: color),
-                );
-              },
-            ),
-          Center(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              child: Text(email, style: const TextStyle(color: Colors.white70)),
-            ),
-          ),
-          TextButton(
-            onPressed: () async {
-              await SessionStore.clearSessionId();
-              await Supabase.instance.client.auth.signOut();
-            },
-            child: const Text("Sign out"),
-          ),
-          const SizedBox(width: 8),
-        ],
+        actions: compactActions ? _compactActions() : _wideActions(email),
       ),
       body: Padding(
         padding: const EdgeInsets.all(20),
@@ -231,32 +217,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   title: "FunTarget",
                   subtitle: "Wheel / Bet game",
                   imageAsset: _funTargetLogo,
-                  onTap: () async {
-                    if (_isMobile()) {
-                      if (!_roleLoaded) return;
-                      if (!_isAdmin) {
-                        await showDialog<void>(
-                          context: context,
-                          builder: (context) => AlertDialog(
-                            title: const Text("Admins only"),
-                            content: const Text("FunTarget Admin is available to Admin users only."),
-                            actions: [
-                              FilledButton(
-                                onPressed: () => Navigator.of(context).pop(),
-                                child: const Text("OK"),
-                              ),
-                            ],
-                          ),
-                        );
-                        return;
-                      }
-                      if (!context.mounted) return;
-                      context.go("/admin/funtarget");
-                      return;
-                    }
-
-                    context.go("/game");
-                  },
+                  onTap: () => context.push("/game"),
                 ),
               ],
             );
@@ -266,10 +227,83 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  bool _isMobile() {
-    if (kIsWeb) return false;
-    return defaultTargetPlatform == TargetPlatform.android ||
-        defaultTargetPlatform == TargetPlatform.iOS;
+  List<Widget> _wideActions(String email) {
+    return [
+      if (_roleLoaded && _isAdmin)
+        TextButton(
+          onPressed: _openCreateUserDialog,
+          child: const Text("Create User"),
+        ),
+      if (_roleLoaded && _isAdmin)
+        TextButton(
+          onPressed: _openUserAccessDashboard,
+          child: const Text("Subscriptions"),
+        ),
+      if (!kIsWeb)
+        ValueListenableBuilder(
+          valueListenable: UpdateService.instance.state,
+          builder: (context, UpdateState update, _) {
+            final hasUpdate = update.available != null;
+            final color = hasUpdate ? Colors.amberAccent : Colors.white70;
+            return IconButton(
+              tooltip: hasUpdate ? "Update available" : "Updates",
+              onPressed: _openUpdateDialog,
+              icon: Icon(Icons.system_update_alt, color: color),
+            );
+          },
+        ),
+      Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 240),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            child: Text(
+              email,
+              style: const TextStyle(color: Colors.white70),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ),
+      ),
+      TextButton.icon(
+        onPressed: _signOut,
+        icon: const Icon(Icons.logout),
+        label: const Text("Sign out"),
+      ),
+      const SizedBox(width: 8),
+    ];
+  }
+
+  List<Widget> _compactActions() {
+    return [
+      PopupMenuButton<_HomeMenuAction>(
+        tooltip: "Menu",
+        onSelected: (value) => unawaited(_handleMenuAction(value)),
+        itemBuilder: (context) => [
+          if (_roleLoaded && _isAdmin)
+            const PopupMenuItem(
+              value: _HomeMenuAction.createUser,
+              child: Text("Create User"),
+            ),
+          if (_roleLoaded && _isAdmin)
+            const PopupMenuItem(
+              value: _HomeMenuAction.subscriptions,
+              child: Text("Subscriptions"),
+            ),
+          if (!kIsWeb)
+            const PopupMenuItem(
+              value: _HomeMenuAction.updates,
+              child: Text("Updates"),
+            ),
+          const PopupMenuItem(
+            value: _HomeMenuAction.signOut,
+            child: Text("Sign out"),
+          ),
+        ],
+      ),
+      const SizedBox(width: 8),
+    ];
   }
 }
 

@@ -77,8 +77,7 @@ class _LoginScreenState extends State<LoginScreen> {
     try {
       res = await http.get(uri, headers: {"Accept": "application/json"});
     } on http.ClientException catch (e) {
-      // Some Android networks intermittently fail CNAME resolution for the
-      // Render vanity URL. Retry once using the origin host.
+      // Retry once through the configured fallback if the network lookup fails.
       if (e.message.contains("Failed host lookup")) {
         final fallbackUri =
             AppConfig.apiUriWithFallback("/public/login-check", queryParameters: query);
@@ -97,7 +96,6 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final backend = AppConfig.apiBaseUrl;
     return Scaffold(
       body: Center(
         child: ConstrainedBox(
@@ -131,12 +129,6 @@ class _LoginScreenState extends State<LoginScreen> {
                 FilledButton(
                   onPressed: _busy ? null : _signIn,
                   child: Text(_busy ? "Working..." : "Sign in"),
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  "Backend: $backend",
-                  style: const TextStyle(color: Colors.white38, fontSize: 12),
-                  textAlign: TextAlign.center,
                 ),
                 if (_message != null) ...[
                   const SizedBox(height: 12),
