@@ -97,7 +97,7 @@ class FunTargetApi {
     return token;
   }
 
-  Future<http.Response> _get(String path) async {
+  Future<http.Response> _get(String path, {Map<String, String>? queryParameters}) async {
     final token = await _accessToken();
     final sessionId = await _ensureSession(token: token);
     http.Response res;
@@ -108,7 +108,7 @@ class FunTargetApi {
         "X-Session-Id": sessionId,
         "X-Platform": _platform(),
       };
-      res = await _getUri(AppConfig.apiUri(path), headers);
+      res = await _getUri(AppConfig.apiUri(path, queryParameters: queryParameters), headers);
     } on http.ClientException catch (e) {
       if (_isHostLookupError(e)) {
         final headers = {
@@ -117,7 +117,7 @@ class FunTargetApi {
           "X-Session-Id": sessionId,
           "X-Platform": _platform(),
         };
-        res = await _getUri(AppConfig.apiUriWithFallback(path), headers);
+        res = await _getUri(AppConfig.apiUriWithFallback(path, queryParameters: queryParameters), headers);
       } else {
         throw _networkError(e);
       }
@@ -136,7 +136,7 @@ class FunTargetApi {
           "X-Session-Id": sessionId,
           "X-Platform": _platform(),
         };
-        return await _getUri(AppConfig.apiUri(path), headers);
+        return await _getUri(AppConfig.apiUri(path, queryParameters: queryParameters), headers);
       } on TimeoutException {
         throw StateError("Backend timeout. The server may be waking up; please retry.");
       }
@@ -382,7 +382,7 @@ class FunTargetApi {
   }
 
   Future<Map<String, dynamic>> listAdminFunTargetStates({int limit = 200}) async {
-    final res = await _get("/api/admin/funtarget/states?limit=$limit");
+    final res = await _get("/api/admin/funtarget/states", queryParameters: {"limit": "$limit"});
     if (res.statusCode < 200 || res.statusCode >= 300) throw _apiError(res);
     return jsonDecode(res.body) as Map<String, dynamic>;
   }
