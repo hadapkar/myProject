@@ -14,11 +14,11 @@ SERVICE="kingmaker-backend"
 HEALTH_URL="http://127.0.0.1/healthz"
 STATE_DIR="/run/kingmaker-backend-watchdog"
 FAIL_FILE="$STATE_DIR/failures"
-MAX_FAILURES=2
+MAX_FAILURES=1
 
 mkdir -p "$STATE_DIR"
 
-if timeout 8 curl -fsS "$HEALTH_URL" >/dev/null; then
+if curl --max-time 5 --connect-timeout 2 -fsS "$HEALTH_URL" >/dev/null; then
   echo 0 >"$FAIL_FILE"
   exit 0
 fi
@@ -53,6 +53,13 @@ TimeoutStopSec=20s
 KillMode=mixed
 StartLimitIntervalSec=300
 StartLimitBurst=10
+MemoryAccounting=true
+MemoryHigh=380M
+MemoryMax=430M
+TasksMax=160
+LimitNOFILE=4096
+Environment=MALLOC_ARENA_MAX=2
+Environment=JAVA_TOOL_OPTIONS=-XX:MaxRAMPercentage=55 -XX:InitialRAMPercentage=20 -XX:MaxMetaspaceSize=128m -XX:+UseSerialGC -XX:ActiveProcessorCount=1 -Djava.security.egd=file:/dev/urandom
 UNIT
 
 cat >/etc/systemd/system/kingmaker-backend-watchdog.service <<'UNIT'
@@ -68,11 +75,11 @@ UNIT
 
 cat >/etc/systemd/system/kingmaker-backend-watchdog.timer <<'UNIT'
 [Unit]
-Description=Run Kingmaker backend health watchdog every minute
+Description=Run Kingmaker backend health watchdog every 30 seconds
 
 [Timer]
 OnBootSec=90s
-OnUnitActiveSec=60s
+OnUnitActiveSec=30s
 AccuracySec=10s
 Unit=kingmaker-backend-watchdog.service
 
