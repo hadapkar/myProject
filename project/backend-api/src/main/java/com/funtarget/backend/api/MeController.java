@@ -2,6 +2,7 @@ package com.funtarget.backend.api;
 
 import com.funtarget.backend.supabase.SupabaseUser;
 import com.funtarget.backend.supabase.SupabaseRestService;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -30,8 +31,15 @@ public class MeController {
           isAdmin = supabaseRest.isAdmin(token, user.id());
         } catch (Exception ignored) {}
       }
-      return Map.of("id", user.id(), "email", user.email(), "isAdmin", isAdmin);
+      Map<String, Object> body = new LinkedHashMap<>();
+      body.put("id", user.id());
+      body.put("email", user.email());
+      body.put("isAdmin", isAdmin);
+      return body;
     }
-    return Map.of("id", null, "isAdmin", false);
+    Map<String, Object> body = new LinkedHashMap<>();
+    body.put("id", null);
+    body.put("isAdmin", false);
+    return body;
   }
 }

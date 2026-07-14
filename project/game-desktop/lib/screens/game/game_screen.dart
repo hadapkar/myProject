@@ -84,6 +84,7 @@ class _GameScreenState extends State<GameScreen> {
   void initState() {
     super.initState();
     _lockMobileLandscape();
+    _enterMobileFullscreen();
     unawaited(_loadBetOkHighlight());
     _load();
   }
@@ -120,6 +121,7 @@ class _GameScreenState extends State<GameScreen> {
     _timer?.cancel();
     unawaited(_sounds.dispose());
     _restoreMobileOrientation();
+    _exitMobileFullscreen();
     super.dispose();
   }
 
@@ -137,11 +139,24 @@ class _GameScreenState extends State<GameScreen> {
     ]));
   }
 
+  void _enterMobileFullscreen() {
+    if (!_isMobilePlatform) return;
+    unawaited(SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky));
+  }
+
   void _restoreMobileOrientation() {
     if (!_isMobilePlatform) return;
     unawaited(SystemChrome.setPreferredOrientations(const [
       DeviceOrientation.portraitUp,
     ]));
+  }
+
+  void _exitMobileFullscreen() {
+    if (!_isMobilePlatform) return;
+    unawaited(SystemChrome.setEnabledSystemUIMode(
+      SystemUiMode.manual,
+      overlays: SystemUiOverlay.values,
+    ));
   }
 
   Future<void> _load() async {

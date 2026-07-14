@@ -135,6 +135,19 @@ public class SupabaseRestService {
   public Map<String, Object> patchFunTargetStateForUserServiceRole(
       String targetUserId, Map<String, Object> patch) {
     requireServiceRoleConfigured();
+    Map<String, Object> updated = patchFunTargetStateForUserServiceRoleOnce(targetUserId, patch);
+    if (updated != null) return updated;
+
+    upsertFunTargetStateServiceRole(targetUserId);
+    updated = patchFunTargetStateForUserServiceRoleOnce(targetUserId, patch);
+    if (updated == null) {
+      throw new IllegalStateException("Unable to create fun_target_state row for user " + targetUserId);
+    }
+    return updated;
+  }
+
+  private Map<String, Object> patchFunTargetStateForUserServiceRoleOnce(
+      String targetUserId, Map<String, Object> patch) {
     List<Map<String, Object>> updated =
         restClient
             .patch()
@@ -152,6 +165,21 @@ public class SupabaseRestService {
             .body(List.class);
     if (updated == null || updated.isEmpty()) return null;
     return updated.get(0);
+  }
+
+  private void upsertFunTargetStateServiceRole(String targetUserId) {
+    if (targetUserId == null || targetUserId.isBlank()) {
+      throw new IllegalArgumentException("userId is required");
+    }
+    restClient
+        .post()
+        .uri(uriBuilder -> uriBuilder.path("/fun_target_state").queryParam("on_conflict", "user_id").build())
+        .header("apikey", props.serviceRoleKey())
+        .header(HttpHeaders.AUTHORIZATION, "Bearer " + props.serviceRoleKey())
+        .header("Prefer", "resolution=merge-duplicates,return=representation")
+        .body(List.of(Map.of("user_id", targetUserId)))
+        .retrieve()
+        .toBodilessEntity();
   }
 
   public Map<String, Object> getAppSubscription(String accessToken) {

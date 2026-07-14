@@ -84,6 +84,9 @@ public class AdminFunTargetController {
     patch.put("last_updated_from", "Admin");
 
     Map<String, Object> updated = supabaseRest.patchFunTargetStateForUserServiceRole(userId, patch);
+    if (updated == null) {
+      throw new IllegalStateException("No fun_target_state row found for user " + userId);
+    }
 
     try {
       supabaseRest.insertAuditLogServiceRole(
