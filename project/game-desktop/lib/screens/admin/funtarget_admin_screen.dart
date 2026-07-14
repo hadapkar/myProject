@@ -35,14 +35,14 @@ class _FunTargetAdminScreenState extends State<FunTargetAdminScreen> {
   Future<void> _guardAdmin() async {
     try {
       final me = await _api.getMe();
-      final isAdmin = me["isAdmin"] == true;
-      if (!isAdmin) {
+      final canManageFunTarget = me["canManageFunTarget"] == true || me["isAdmin"] == true;
+      if (!canManageFunTarget) {
         if (!mounted) return;
         await showDialog<void>(
           context: context,
           barrierDismissible: false,
           builder: (context) => AlertDialog(
-            title: const Text("Admins only"),
+            title: const Text("Manager access required"),
             content: const Text("You do not have access to FunTarget Admin."),
             actions: [
               FilledButton(

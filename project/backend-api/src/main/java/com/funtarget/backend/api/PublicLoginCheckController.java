@@ -56,7 +56,7 @@ public class PublicLoginCheckController {
       return Map.of("allowed", false, "reason", "unknown_user");
     }
 
-    String role = String.valueOf(access.getOrDefault("role", "MANAGER")).trim().toUpperCase();
+    String role = SupabaseRestService.normalizeUserRole(access.get("role"));
     String status = String.valueOf(access.getOrDefault("status", "active")).trim().toLowerCase();
     String endsAtStr = access.get("ends_at") == null ? "" : String.valueOf(access.get("ends_at"));
 

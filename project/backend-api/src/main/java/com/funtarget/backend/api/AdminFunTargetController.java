@@ -4,9 +4,12 @@ import com.funtarget.backend.supabase.SupabaseRestService;
 import com.funtarget.backend.supabase.SupabaseUser;
 import jakarta.servlet.http.HttpServletRequest;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import org.springframework.http.HttpHeaders;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.Authentication;
@@ -35,11 +38,12 @@ public class AdminFunTargetController {
       @RequestParam(name = "limit", required = false, defaultValue = "100") int limit) {
     SupabaseUser caller = requireUser(authentication);
     String accessToken = requireAccessToken(request);
-    if (!supabaseRest.isAdmin(accessToken, caller.id())) {
+    String callerRole = supabaseRest.getUserRole(accessToken, caller.id());
+    if (!callerRole.equals("ADMIN") && !callerRole.equals("MANAGER")) {
       throw new AccessDeniedException("Forbidden");
     }
-    List<Map<String, Object>> rows = supabaseRest.listFunTargetStatesServiceRole(limit);
-    return Map.of("count", rows == null ? 0 : rows.size(), "rows", rows == null ? List.of() : rows);
+    List<Map<String, Object>> rows = filterVisibleRows(callerRole, supabaseRest.listFunTargetStatesServiceRole(limit));
+    return Map.of("count", rows.size(), "rows", rows);
   }
 
   @PatchMapping("/state/{userId}")
@@ -50,10 +54,12 @@ public class AdminFunTargetController {
       @RequestBody(required = false) Map<String, Object> payload) {
     SupabaseUser caller = requireUser(authentication);
     String accessToken = requireAccessToken(request);
-    if (!supabaseRest.isAdmin(accessToken, caller.id())) {
+    String callerRole = supabaseRest.getUserRole(accessToken, caller.id());
+    if (!callerRole.equals("ADMIN") && !callerRole.equals("MANAGER")) {
       throw new AccessDeniedException("Forbidden");
     }
     if (userId == null || userId.isBlank()) throw new IllegalArgumentException("userId is required");
+    requireTargetVisibleToCaller(callerRole, userId);
 
     Map<String, Object> patch = new HashMap<>();
     if (payload != null) {
@@ -90,10 +96,58 @@ public class AdminFunTargetController {
 
     try {
       supabaseRest.insertAuditLogServiceRole(
-          caller.id(), "ADMIN", "admin_patch_funtarget_state", userId, patch);
+          caller.id(), callerRole, "admin_patch_funtarget_state", userId, patch);
     } catch (Exception ignored) {
     }
     return Map.of("updated", updated != null, "row", updated);
+  }
+
+  private List<Map<String, Object>> filterVisibleRows(String callerRole, List<Map<String, Object>> rows) {
+    if (rows == null || rows.isEmpty()) return List.of();
+    if ("ADMIN".equals(callerRole)) return rows;
+
+    Map<String, String> roleByUserId = new HashMap<>();
+    List<Map<String, Object>> accessRows = supabaseRest.listUserAccessServiceRole();
+    if (accessRows != null) {
+      for (Map<String, Object> access : accessRows) {
+        String userId = String.valueOf(access.getOrDefault("user_id", ""));
+        if (!userId.isBlank()) {
+          roleByUserId.put(userId, SupabaseRestService.normalizeUserRole(access.get("role")));
+        }
+      }
+    }
+
+    Set<String> adminUserIds = new HashSet<>();
+    List<Map<String, Object>> adminRows = supabaseRest.listAdminUsersServiceRole();
+    if (adminRows != null) {
+      for (Map<String, Object> admin : adminRows) {
+        String userId = String.valueOf(admin.getOrDefault("user_id", ""));
+        if (!userId.isBlank()) adminUserIds.add(userId);
+      }
+    }
+
+    List<Map<String, Object>> visible = new ArrayList<>();
+    for (Map<String, Object> row : rows) {
+      String userId = String.valueOf(row.getOrDefault("user_id", ""));
+      if (!userId.isBlank()
+          && !adminUserIds.contains(userId)
+          && "PLAYER".equals(roleByUserId.get(userId))) {
+        visible.add(row);
+      }
+    }
+    return visible;
+  }
+
+  private void requireTargetVisibleToCaller(String callerRole, String targetUserId) {
+    if ("ADMIN".equals(callerRole)) return;
+    if (supabaseRest.isAdminServiceRole(targetUserId)) {
+      throw new AccessDeniedException("Forbidden");
+    }
+    Map<String, Object> access = supabaseRest.getUserAccessByUserIdServiceRole(targetUserId);
+    String targetRole = SupabaseRestService.normalizeUserRole(access == null ? null : access.get("role"));
+    if (!"PLAYER".equals(targetRole)) {
+      throw new AccessDeniedException("Forbidden");
+    }
   }
 
   private static double toDouble(Object value, double defaultValue) {

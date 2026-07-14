@@ -25,21 +25,27 @@ public class MeController {
     if (principal instanceof SupabaseUser user) {
       Object creds = authentication.getCredentials();
       String token = creds instanceof String s ? s : null;
-      boolean isAdmin = false;
+      String role = "PLAYER";
       if (token != null && !token.isBlank()) {
         try {
-          isAdmin = supabaseRest.isAdmin(token, user.id());
+          role = supabaseRest.getUserRole(token, user.id());
         } catch (Exception ignored) {}
       }
+      boolean isAdmin = role.equals("ADMIN");
+      boolean canManageFunTarget = isAdmin || role.equals("MANAGER");
       Map<String, Object> body = new LinkedHashMap<>();
       body.put("id", user.id());
       body.put("email", user.email());
+      body.put("role", role);
       body.put("isAdmin", isAdmin);
+      body.put("canManageFunTarget", canManageFunTarget);
       return body;
     }
     Map<String, Object> body = new LinkedHashMap<>();
     body.put("id", null);
+    body.put("role", "PLAYER");
     body.put("isAdmin", false);
+    body.put("canManageFunTarget", false);
     return body;
   }
 }

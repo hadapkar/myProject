@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.client.RestClientResponseException;
 
 @RestController
 @RequestMapping("/api/admin")
@@ -35,13 +36,10 @@ public class AdminUsersController {
 
     String username = payload == null ? null : String.valueOf(payload.getOrDefault("username", "")).trim();
     String password = payload == null ? null : String.valueOf(payload.getOrDefault("password", "")).trim();
-    String role = payload == null ? "MANAGER" : String.valueOf(payload.getOrDefault("role", "MANAGER")).trim().toUpperCase();
+    String role = SupabaseRestService.normalizeUserRole(payload == null ? null : payload.getOrDefault("role", "PLAYER"));
     Object endsAtObj = payload == null ? null : payload.get("ends_at");
     String endsAt = endsAtObj == null ? "" : String.valueOf(endsAtObj).trim();
     if ("null".equalsIgnoreCase(endsAt)) endsAt = "";
-    if (!role.equals("ADMIN") && !role.equals("MANAGER")) {
-      throw new IllegalArgumentException("Invalid role");
-    }
 
     if (username == null || username.isBlank()) {
       throw new IllegalArgumentException("Username is required");
@@ -62,7 +60,12 @@ public class AdminUsersController {
           OffsetDateTime.parse(endsAt);
           supabaseRest.patchUserAccessServiceRole(created.id(), Map.of("ends_at", endsAt));
         }
-      } catch (Exception ignored) {
+      } catch (RestClientResponseException e) {
+        if (e.getStatusCode().value() == 400) {
+          throw new IllegalStateException(
+              "Unable to save user role. Apply Supabase migration 20260714103000_add_player_role.sql.");
+        }
+        throw e;
       }
     }
     if (created != null && created.id() != null && !created.id().isBlank()) {

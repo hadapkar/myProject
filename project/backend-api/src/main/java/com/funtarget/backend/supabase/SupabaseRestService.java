@@ -301,6 +301,29 @@ public class SupabaseRestService {
     }
   }
 
+  public Map<String, Object> getUserAccessByUserIdServiceRole(String userId) {
+    requireServiceRoleConfigured();
+    try {
+      return restClient
+          .get()
+          .uri(
+              uriBuilder ->
+                  uriBuilder
+                      .path("/user_access")
+                      .queryParam("select", "user_id,username,role,status,ends_at")
+                      .queryParam("user_id", "eq." + userId)
+                      .build())
+          .header("apikey", props.serviceRoleKey())
+          .header(HttpHeaders.AUTHORIZATION, "Bearer " + props.serviceRoleKey())
+          .header(HttpHeaders.ACCEPT, "application/vnd.pgrst.object+json")
+          .retrieve()
+          .body(Map.class);
+    } catch (RestClientResponseException e) {
+      if (e.getStatusCode().value() == 406) return null;
+      throw e;
+    }
+  }
+
   public Map<String, Object> getUserSessionSelf(String accessToken, String userId, String platformGroup) {
     requireConfigured();
     try {
@@ -446,8 +469,7 @@ public class SupabaseRestService {
     requireServiceRoleConfigured();
     if (userId == null || userId.isBlank()) throw new IllegalArgumentException("userId is required");
     if (username == null || username.isBlank()) throw new IllegalArgumentException("username is required");
-    String r = role == null ? "MANAGER" : role.trim().toUpperCase();
-    if (!r.equals("ADMIN") && !r.equals("MANAGER")) r = "MANAGER";
+    String r = normalizeUserRole(role);
     restClient
         .post()
         .uri(uriBuilder -> uriBuilder.path("/user_access").queryParam("on_conflict", "user_id").build())
@@ -486,6 +508,60 @@ public class SupabaseRestService {
     }
   }
 
+  public static String normalizeUserRole(Object role) {
+    String r = role == null ? "" : String.valueOf(role).trim().toUpperCase();
+    if (r.equals("ADMIN") || r.equals("MANAGER") || r.equals("PLAYER")) return r;
+    return "PLAYER";
+  }
+
+  public String getUserRole(String accessToken, String userId) {
+    if (isAdmin(accessToken, userId)) return "ADMIN";
+    Map<String, Object> access = getUserAccessSelf(accessToken, userId);
+    return normalizeUserRole(access == null ? null : access.get("role"));
+  }
+
+  public boolean canManageFunTarget(String accessToken, String userId) {
+    String role = getUserRole(accessToken, userId);
+    return role.equals("ADMIN") || role.equals("MANAGER");
+  }
+
+  public boolean isAdminServiceRole(String userId) {
+    requireServiceRoleConfigured();
+    if (userId == null || userId.isBlank()) return false;
+    try {
+      Map<String, Object> row =
+          restClient
+              .get()
+              .uri(
+                  uriBuilder ->
+                      uriBuilder
+                          .path("/admin_users")
+                          .queryParam("select", "user_id")
+                          .queryParam("user_id", "eq." + userId)
+                          .build())
+              .header("apikey", props.serviceRoleKey())
+              .header(HttpHeaders.AUTHORIZATION, "Bearer " + props.serviceRoleKey())
+              .header(HttpHeaders.ACCEPT, "application/vnd.pgrst.object+json")
+              .retrieve()
+              .body(Map.class);
+      return row != null && row.get("user_id") != null;
+    } catch (RestClientResponseException e) {
+      if (e.getStatusCode().value() == 406) return false;
+      throw e;
+    }
+  }
+
+  public List<Map<String, Object>> listAdminUsersServiceRole() {
+    requireServiceRoleConfigured();
+    return restClient
+        .get()
+        .uri(uriBuilder -> uriBuilder.path("/admin_users").queryParam("select", "user_id").build())
+        .header("apikey", props.serviceRoleKey())
+        .header(HttpHeaders.AUTHORIZATION, "Bearer " + props.serviceRoleKey())
+        .retrieve()
+        .body(List.class);
+  }
+
   public void upsertAdminUserServiceRole(String userId) {
     requireServiceRoleConfigured();
     restClient
@@ -495,6 +571,18 @@ public class SupabaseRestService {
         .header(HttpHeaders.AUTHORIZATION, "Bearer " + props.serviceRoleKey())
         .header("Prefer", "resolution=merge-duplicates,return=representation")
         .body(List.of(Map.of("user_id", userId)))
+        .retrieve()
+        .toBodilessEntity();
+  }
+
+  public void deleteAdminUserServiceRole(String userId) {
+    requireServiceRoleConfigured();
+    if (userId == null || userId.isBlank()) throw new IllegalArgumentException("userId is required");
+    restClient
+        .delete()
+        .uri(uriBuilder -> uriBuilder.path("/admin_users").queryParam("user_id", "eq." + userId).build())
+        .header("apikey", props.serviceRoleKey())
+        .header(HttpHeaders.AUTHORIZATION, "Bearer " + props.serviceRoleKey())
         .retrieve()
         .toBodilessEntity();
   }

@@ -26,7 +26,9 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   final _api = FunTargetApi();
+  String _role = "PLAYER";
   bool _isAdmin = false;
+  bool _canManageFunTarget = false;
   bool _roleLoaded = false;
   bool _subscriptionChecked = false;
 
@@ -47,17 +49,13 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _loadRole() async {
     try {
-      final user = Supabase.instance.client.auth.currentUser;
-      final uid = user?.id;
-      if (uid == null) return;
-      final row = await Supabase.instance.client
-          .from("admin_users")
-          .select("user_id")
-          .eq("user_id", uid)
-          .maybeSingle();
+      final me = await _api.getMe();
       if (!mounted) return;
+      final role = (me["role"] ?? "PLAYER").toString().trim().toUpperCase();
       setState(() {
-        _isAdmin = row != null;
+        _role = role == "ADMIN" || role == "MANAGER" ? role : "PLAYER";
+        _isAdmin = me["isAdmin"] == true || _role == "ADMIN";
+        _canManageFunTarget = me["canManageFunTarget"] == true || _isAdmin || _role == "MANAGER";
         _roleLoaded = true;
       });
     } catch (_) {
@@ -227,7 +225,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   imageAsset: _funTargetLogo,
                   onTap: () => context.push("/game"),
                 ),
-                if (_roleLoaded && _isAdmin)
+                if (_roleLoaded && _canManageFunTarget)
                   _GameTile(
                     title: "FunTarget Admin",
                     subtitle: "Manage live users and wheel results",
@@ -334,7 +332,7 @@ class _CreateUserDialog extends StatefulWidget {
 class _CreateUserDialogState extends State<_CreateUserDialog> {
   final _username = TextEditingController();
   final _password = TextEditingController();
-  String _role = "MANAGER";
+  String _role = "PLAYER";
   DateTime? _endDateLocal;
   bool _busy = false;
   String? _message;
@@ -403,10 +401,11 @@ class _CreateUserDialogState extends State<_CreateUserDialog> {
               initialValue: _role,
               decoration: const InputDecoration(labelText: "Role"),
               items: const [
+                DropdownMenuItem(value: "PLAYER", child: Text("Player")),
                 DropdownMenuItem(value: "MANAGER", child: Text("Manager")),
                 DropdownMenuItem(value: "ADMIN", child: Text("Admin")),
               ],
-              onChanged: _busy ? null : (v) => setState(() => _role = v ?? "MANAGER"),
+              onChanged: _busy ? null : (v) => setState(() => _role = v ?? "PLAYER"),
             ),
             const SizedBox(height: 10),
             Row(

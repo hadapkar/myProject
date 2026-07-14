@@ -79,9 +79,10 @@ class _UserAccessScreenState extends State<UserAccessScreen> {
     }
   }
 
-  Future<void> _updateRow(String userId, {String? status, String? endsAtIso}) async {
+  Future<void> _updateRow(String userId, {String? status, String? role, String? endsAtIso}) async {
     final payload = <String, dynamic>{};
     if (status != null) payload["status"] = status;
+    if (role != null) payload["role"] = role;
     if (endsAtIso != null) {
       payload["ends_at"] = endsAtIso.isEmpty ? null : endsAtIso;
     }
@@ -153,13 +154,30 @@ class _UserAccessScreenState extends State<UserAccessScreen> {
                         rows: _rows.map((row) {
                           final userId = (row["user_id"] ?? "").toString();
                           final username = (row["username"] ?? "").toString();
-                          final role = (row["role"] ?? "MANAGER").toString();
+                          final role = (row["role"] ?? "PLAYER").toString().toUpperCase();
                           final status = (row["status"] ?? "active").toString();
                           final endsAt = (row["ends_at"] ?? "").toString();
                           return DataRow(
                             cells: [
                               DataCell(Text(username)),
-                              DataCell(Text(role)),
+                              DataCell(
+                                DropdownButton<String>(
+                                  value: role == "ADMIN" || role == "MANAGER" ? role : "PLAYER",
+                                  underline: const SizedBox.shrink(),
+                                  dropdownColor: const Color(0xFF111827),
+                                  items: const [
+                                    DropdownMenuItem(value: "PLAYER", child: Text("Player")),
+                                    DropdownMenuItem(value: "MANAGER", child: Text("Manager")),
+                                    DropdownMenuItem(value: "ADMIN", child: Text("Admin")),
+                                  ],
+                                  onChanged: userId.isEmpty
+                                      ? null
+                                      : (value) {
+                                          if (value == null || value == role) return;
+                                          unawaited(_updateRow(userId, role: value));
+                                        },
+                                ),
+                              ),
                               DataCell(Text(status)),
                               DataCell(Text(endsAt.isEmpty ? "-" : endsAt)),
                               DataCell(

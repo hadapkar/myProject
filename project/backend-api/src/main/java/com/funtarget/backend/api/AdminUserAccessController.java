@@ -85,10 +85,7 @@ public class AdminUserAccessController {
         }
       }
       if (payload.containsKey("role")) {
-        String role = String.valueOf(payload.getOrDefault("role", "")).trim().toUpperCase();
-        if (!role.equals("ADMIN") && !role.equals("MANAGER")) {
-          throw new IllegalArgumentException("Invalid role");
-        }
+        String role = SupabaseRestService.normalizeUserRole(payload.get("role"));
         patch.put("role", role);
       }
     }
@@ -101,6 +98,17 @@ public class AdminUserAccessController {
       Map<String, Object> updated = supabaseRest.patchUserAccessServiceRole(userId, patch);
       if (updated == null) {
         return Map.of("updated", false);
+      }
+      try {
+        if (patch.containsKey("role")) {
+          String role = SupabaseRestService.normalizeUserRole(patch.get("role"));
+          if (role.equals("ADMIN")) {
+            supabaseRest.upsertAdminUserServiceRole(userId);
+          } else {
+            supabaseRest.deleteAdminUserServiceRole(userId);
+          }
+        }
+      } catch (Exception ignored) {
       }
       try {
         Object principal = authentication == null ? null : authentication.getPrincipal();
