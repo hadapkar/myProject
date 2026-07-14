@@ -164,7 +164,7 @@ class _FunTargetAdminScreenState extends State<FunTargetAdminScreen> {
           const SizedBox(width: 8),
         ],
       ),
-      body: Padding(
+      body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -176,13 +176,11 @@ class _FunTargetAdminScreenState extends State<FunTargetAdminScreen> {
               ),
             const Padding(
               padding: EdgeInsets.only(bottom: 10),
-              child: Text("Select a user from Live Bets below.", style: TextStyle(color: Colors.white70)),
+              child: Text("Select a user.", style: TextStyle(color: Colors.white70)),
             ),
             _buildUserPicker(selected),
             const SizedBox(height: 12),
             _buildWheelPanel(selected),
-            const SizedBox(height: 12),
-            _buildLivePanel(selected),
             const SizedBox(height: 12),
             _buildScorePanel(selected),
           ],
@@ -296,40 +294,6 @@ class _FunTargetAdminScreenState extends State<FunTargetAdminScreen> {
           ),
         );
       }).toList(growable: false),
-    );
-  }
-
-  Widget _buildLivePanel(Map<String, dynamic>? selected) {
-    return Expanded(
-      child: _card(
-        child: _loading
-            ? const Center(child: CircularProgressIndicator())
-            : ListView.separated(
-                itemCount: _rows.length,
-                separatorBuilder: (_, __) => const Divider(height: 1),
-                itemBuilder: (context, index) {
-                  final r = _rows[index];
-                  final uid = (r["user_id"] ?? "").toString();
-                  final score = (r["score"] ?? 0).toString();
-                  final totalBet = (r["total_bet_amount"] ?? 0).toString();
-                  final winner = (r["winner_amount"] ?? 0).toString();
-                  final updatedAt = (r["updated_at"] ?? "").toString();
-                  final isSel = selected != null && (selected["user_id"] ?? "").toString() == uid;
-                  return ListTile(
-                    dense: true,
-                    selected: isSel,
-                    onTap: _isRefreshDisabled
-                        ? null
-                        : () => setState(() => _selected = r),
-                    title: Text(_username(r), style: const TextStyle(color: Colors.white)),
-                    subtitle: Text(
-                      "score=$score  totalBet=$totalBet  winner=$winner\nupdated=$updatedAt",
-                      style: const TextStyle(color: Colors.white70),
-                    ),
-                  );
-                },
-              ),
-      ),
     );
   }
 
