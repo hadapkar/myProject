@@ -3,10 +3,10 @@ package com.funtarget.backend.api;
 import com.funtarget.backend.supabase.SupabaseRestService;
 import com.funtarget.backend.supabase.SupabaseUser;
 import jakarta.servlet.http.HttpServletRequest;
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -42,7 +42,8 @@ public class AdminFunTargetController {
     if (!callerRole.equals("ADMIN") && !callerRole.equals("MANAGER")) {
       throw new AccessDeniedException("Forbidden");
     }
-    List<Map<String, Object>> rows = filterVisibleRows(callerRole, supabaseRest.listFunTargetStatesServiceRole(limit));
+    List<Map<String, Object>> rows =
+        buildVisibleRows(callerRole, supabaseRest.listFunTargetStatesServiceRole(limit), limit);
     return Map.of("count", rows.size(), "rows", rows);
   }
 
@@ -65,7 +66,6 @@ public class AdminFunTargetController {
     if (payload != null) {
       if (payload.containsKey("score_delta")) {
         double delta = toDouble(payload.get("score_delta"), 0);
-        // We need current score to apply delta.
         Map<String, Object> target = supabaseRest.getFunTargetStateForUserServiceRole(userId);
         double current = toDouble(target == null ? null : target.get("score"), 0);
         patch.put("score", Math.max(0, current + delta));
@@ -102,18 +102,24 @@ public class AdminFunTargetController {
     return Map.of("updated", updated != null, "row", updated);
   }
 
-  private List<Map<String, Object>> filterVisibleRows(String callerRole, List<Map<String, Object>> rows) {
-    if (rows == null || rows.isEmpty()) return List.of();
-    if ("ADMIN".equals(callerRole)) return rows;
+  private List<Map<String, Object>> buildVisibleRows(
+      String callerRole, List<Map<String, Object>> stateRows, int limit) {
+    int safeLimit = Math.max(1, Math.min(500, limit));
 
-    Map<String, String> roleByUserId = new HashMap<>();
+    Map<String, Map<String, Object>> stateByUserId = new HashMap<>();
+    if (stateRows != null) {
+      for (Map<String, Object> row : stateRows) {
+        String userId = String.valueOf(row.getOrDefault("user_id", ""));
+        if (!userId.isBlank()) stateByUserId.put(userId, row);
+      }
+    }
+
     List<Map<String, Object>> accessRows = supabaseRest.listUserAccessServiceRole();
+    Map<String, Map<String, Object>> accessByUserId = new HashMap<>();
     if (accessRows != null) {
       for (Map<String, Object> access : accessRows) {
         String userId = String.valueOf(access.getOrDefault("user_id", ""));
-        if (!userId.isBlank()) {
-          roleByUserId.put(userId, SupabaseRestService.normalizeUserRole(access.get("role")));
-        }
+        if (!userId.isBlank()) accessByUserId.put(userId, access);
       }
     }
 
@@ -127,15 +133,56 @@ public class AdminFunTargetController {
     }
 
     List<Map<String, Object>> visible = new ArrayList<>();
-    for (Map<String, Object> row : rows) {
-      String userId = String.valueOf(row.getOrDefault("user_id", ""));
-      if (!userId.isBlank()
-          && !adminUserIds.contains(userId)
-          && "PLAYER".equals(roleByUserId.get(userId))) {
-        visible.add(row);
+    Set<String> emitted = new HashSet<>();
+    if (accessRows != null) {
+      for (Map<String, Object> access : accessRows) {
+        if (visible.size() >= safeLimit) break;
+        String userId = String.valueOf(access.getOrDefault("user_id", ""));
+        if (userId.isBlank()) continue;
+        String role = SupabaseRestService.normalizeUserRole(access.get("role"));
+        if ("MANAGER".equals(callerRole) && (adminUserIds.contains(userId) || !"PLAYER".equals(role))) {
+          continue;
+        }
+        visible.add(withUserAccess(stateByUserId.get(userId), userId, access));
+        emitted.add(userId);
+      }
+    }
+
+    if ("ADMIN".equals(callerRole) && stateRows != null) {
+      for (Map<String, Object> row : stateRows) {
+        if (visible.size() >= safeLimit) break;
+        String userId = String.valueOf(row.getOrDefault("user_id", ""));
+        if (userId.isBlank() || emitted.contains(userId)) continue;
+        visible.add(withUserAccess(row, userId, accessByUserId.get(userId)));
       }
     }
     return visible;
+  }
+
+  private Map<String, Object> withUserAccess(
+      Map<String, Object> state, String userId, Map<String, Object> access) {
+    Map<String, Object> row = new LinkedHashMap<>();
+    if (state != null) row.putAll(state);
+    row.putIfAbsent("user_id", userId);
+    row.putIfAbsent("score", 0);
+    row.putIfAbsent("total_bet_amount", 0);
+    row.putIfAbsent("winner_amount", 0);
+    row.putIfAbsent("predefined_wheel_number", null);
+    row.putIfAbsent("last_updated_from", "-");
+    row.putIfAbsent("updated_at", "");
+
+    if (access != null) {
+      row.put("username", String.valueOf(access.getOrDefault("username", userId)));
+      row.put("role", SupabaseRestService.normalizeUserRole(access.get("role")));
+      row.put("access_status", String.valueOf(access.getOrDefault("status", "active")));
+      row.put("ends_at", access.get("ends_at"));
+    } else {
+      row.put("username", userId);
+      row.put("role", "PLAYER");
+      row.put("access_status", "active");
+      row.put("ends_at", "");
+    }
+    return row;
   }
 
   private void requireTargetVisibleToCaller(String callerRole, String targetUserId) {

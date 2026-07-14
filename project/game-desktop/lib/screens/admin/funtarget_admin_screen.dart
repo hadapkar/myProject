@@ -105,6 +105,12 @@ class _FunTargetAdminScreenState extends State<FunTargetAdminScreen> {
     return null;
   }
 
+  String _username(Map<String, dynamic> row) {
+    final username = (row["username"] ?? "").toString().trim();
+    if (username.isNotEmpty) return username;
+    return (row["user_id"] ?? "").toString();
+  }
+
   void _startRealtime() {
     final supabase = Supabase.instance.client;
     _channel = supabase
@@ -168,11 +174,12 @@ class _FunTargetAdminScreenState extends State<FunTargetAdminScreen> {
                 padding: const EdgeInsets.only(bottom: 12),
                 child: Text(_error!, style: const TextStyle(color: Colors.redAccent)),
               ),
-            if (selected == null)
-              const Padding(
-                padding: EdgeInsets.only(bottom: 10),
-                child: Text("Select a user from Live Bets below.", style: TextStyle(color: Colors.white70)),
-              ),
+            const Padding(
+              padding: EdgeInsets.only(bottom: 10),
+              child: Text("Select a user from Live Bets below.", style: TextStyle(color: Colors.white70)),
+            ),
+            _buildUserPicker(selected),
+            const SizedBox(height: 12),
             _buildWheelPanel(selected),
             const SizedBox(height: 12),
             _buildLivePanel(selected),
@@ -194,6 +201,38 @@ class _FunTargetAdminScreenState extends State<FunTargetAdminScreen> {
         border: Border.all(color: const Color.fromRGBO(255, 255, 255, 0.10)),
       ),
       child: child,
+    );
+  }
+
+  Widget _buildUserPicker(Map<String, dynamic>? selected) {
+    final selectedId = selected == null ? null : (selected["user_id"] ?? "").toString();
+    final value = selectedId != null && _findById(selectedId) != null ? selectedId : null;
+    return _card(
+      child: DropdownButtonFormField<String>(
+        value: value,
+        isExpanded: true,
+        decoration: const InputDecoration(labelText: "Username"),
+        hint: Text(_loading ? "Loading users..." : "Select user"),
+        items: _rows
+            .map(
+              (row) => DropdownMenuItem<String>(
+                value: (row["user_id"] ?? "").toString(),
+                child: Text(
+                  _username(row),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            )
+            .where((item) => item.value != null && item.value!.isNotEmpty)
+            .toList(growable: false),
+        onChanged: _isRefreshDisabled
+            ? null
+            : (userId) {
+                if (userId == null) return;
+                setState(() => _selected = _findById(userId));
+              },
+      ),
     );
   }
 
@@ -282,7 +321,7 @@ class _FunTargetAdminScreenState extends State<FunTargetAdminScreen> {
                     onTap: _isRefreshDisabled
                         ? null
                         : () => setState(() => _selected = r),
-                    title: Text(uid, style: const TextStyle(color: Colors.white)),
+                    title: Text(_username(r), style: const TextStyle(color: Colors.white)),
                     subtitle: Text(
                       "score=$score  totalBet=$totalBet  winner=$winner\nupdated=$updatedAt",
                       style: const TextStyle(color: Colors.white70),

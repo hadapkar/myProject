@@ -53,12 +53,13 @@ class _AndroidUpdateDialogState extends State<_AndroidUpdateDialog> {
   String? _progressText;
   String? _error;
   String? _status;
+  bool _downloadReady = false;
 
   Future<void> _downloadAndInstall() async {
     setState(() {
       _busy = true;
-      _progress = null;
-      _progressText = "Preparing download...";
+      _progress = _downloadReady ? 1 : 0;
+      _progressText = _downloadReady ? "Download complete" : "Starting download...";
       _error = null;
       _status = null;
     });
@@ -70,7 +71,7 @@ class _AndroidUpdateDialogState extends State<_AndroidUpdateDialog> {
           if (!mounted) return;
           final hasTotal = total != null && total > 0;
           setState(() {
-            _progress = hasTotal ? received / total : null;
+            _progress = hasTotal ? (received / total).clamp(0, 1).toDouble() : null;
             _progressText = hasTotal
                 ? "${AndroidUpdateService.formatBytes(received)} of ${AndroidUpdateService.formatBytes(total)}"
                 : AndroidUpdateService.formatBytes(received);
@@ -84,7 +85,9 @@ class _AndroidUpdateDialogState extends State<_AndroidUpdateDialog> {
       }
       setState(() {
         _busy = false;
+        _downloadReady = true;
         _progress = 1;
+        _progressText = "Download complete";
         _status = "Installer opened. Complete installation to continue.";
       });
     } catch (e) {
@@ -113,14 +116,8 @@ class _AndroidUpdateDialogState extends State<_AndroidUpdateDialog> {
                   : "A newer Android version is available.",
             ),
             const SizedBox(height: 12),
-            Text(
-              "Current: ${AndroidUpdateService.currentVersion}",
-            ),
+            Text("Current: ${AndroidUpdateService.currentVersion}"),
             Text("Available: ${widget.info.displayVersion}"),
-            if (widget.info.notes.isNotEmpty) ...[
-              const SizedBox(height: 12),
-              Text(widget.info.notes),
-            ],
             if (_busy || _progressText != null) ...[
               const SizedBox(height: 16),
               LinearProgressIndicator(value: _progress),
@@ -145,7 +142,11 @@ class _AndroidUpdateDialogState extends State<_AndroidUpdateDialog> {
             ),
           FilledButton(
             onPressed: _busy ? null : _downloadAndInstall,
-            child: Text(_busy ? "Downloading..." : "Download & install"),
+            child: Text(
+              _busy
+                  ? "Downloading..."
+                  : (_downloadReady ? "Open installer" : "Download & install"),
+            ),
           ),
         ],
       ),

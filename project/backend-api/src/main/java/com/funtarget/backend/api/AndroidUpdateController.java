@@ -54,25 +54,33 @@ public class AndroidUpdateController {
   }
 
   @GetMapping("/download")
-  public ResponseEntity<StreamingResponseBody> download() {
+  public ResponseEntity<StreamingResponseBody> download() throws Exception {
     String sourceApkUrl = get("app.android-update.source-apk-url");
     if (!isHttpUrl(sourceApkUrl)) {
       return ResponseEntity.notFound().build();
     }
+
+    URLConnection connection = URI.create(sourceApkUrl).toURL().openConnection();
+    connection.setConnectTimeout(15_000);
+    connection.setReadTimeout(120_000);
+    connection.setRequestProperty("User-Agent", "KingMaker-Updater");
+    long contentLength = connection.getContentLengthLong();
+
     StreamingResponseBody body =
         outputStream -> {
-          URLConnection connection = URI.create(sourceApkUrl).toURL().openConnection();
-          connection.setConnectTimeout(15_000);
-          connection.setReadTimeout(120_000);
-          connection.setRequestProperty("User-Agent", "KingMaker-Updater");
           try (InputStream inputStream = connection.getInputStream()) {
             inputStream.transferTo(outputStream);
           }
         };
-    return ResponseEntity.ok()
-        .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"KingMaker.apk\"")
-        .contentType(MediaType.parseMediaType("application/vnd.android.package-archive"))
-        .body(body);
+
+    ResponseEntity.BodyBuilder builder =
+        ResponseEntity.ok()
+            .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"KingMaker.apk\"")
+            .contentType(MediaType.parseMediaType("application/vnd.android.package-archive"));
+    if (contentLength > 0) {
+      builder.contentLength(contentLength);
+    }
+    return builder.body(body);
   }
 
   private String get(String propertyName) {

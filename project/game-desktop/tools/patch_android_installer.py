@@ -113,7 +113,9 @@ class MainActivity : FlutterActivity() {{
                 "getApkPath" -> {{
                     val updateDir = File(cacheDir, "updates")
                     updateDir.mkdirs()
-                    result.success(File(updateDir, "KingMaker.apk").absolutePath)
+                    val requestedName = call.argument<String>("fileName") ?: "KingMaker.apk"
+                    val safeName = requestedName.replace(Regex("[^A-Za-z0-9._-]"), "_")
+                    result.success(File(updateDir, safeName).absolutePath)
                 }}
                 "installApk" -> {{
                     val path = call.argument<String>("path")

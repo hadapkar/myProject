@@ -85,7 +85,11 @@ class AndroidUpdateService {
     if (uri == null || !uri.hasScheme) {
       throw StateError("Invalid update download link.");
     }
-    await downloadAndInstallApk(uri, onProgress: onProgress);
+    await downloadAndInstallApk(
+      uri,
+      fileName: "KingMaker-${info.build}.apk",
+      onProgress: onProgress,
+    );
   }
 
   static String formatBytes(int bytes) {
