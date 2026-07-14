@@ -37,7 +37,7 @@ class AndroidUpdateInfo {
     );
   }
 
-  String get displayVersion => version.isEmpty ? "build $build" : "$version+$build";
+  String get displayVersion => version.isEmpty ? "build $build" : version;
 
   static int _intValue(Object? value) {
     if (value is int) return value;

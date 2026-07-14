@@ -29,6 +29,24 @@ sudo systemctl status kingmaker-backend
 curl http://80.225.236.170/healthz
 ```
 
+
+## Backend watchdog
+
+Install the watchdog on the Oracle VM after deployment or after a VM rebuild:
+
+```bash
+cd /opt/kingmaker/backend-api
+sudo bash ops/install-oracle-watchdog.sh
+```
+
+What it does:
+
+- Keeps `kingmaker-backend` under `Restart=always`.
+- Runs a local `http://127.0.0.1/healthz` check every minute.
+- Restarts `kingmaker-backend` after 2 failed local health checks.
+
+This fixes a hung Java/backend process. If the whole Oracle VM or SSH daemon freezes, use Oracle Console auto-recovery/hard reboot; no in-VM watchdog can recover an OS-level freeze.
+
 ## Notes
 
 - Desktop and Android can call the HTTP Oracle IP directly.

@@ -84,6 +84,15 @@ Notes:
 - This requires the GitHub Release asset to be reachable by end users (public repo or otherwise publicly accessible release artifacts).
 - Web builds don’t self-update; GitHub Pages/Vercel deployments update automatically.
 
+
+## Versioning
+
+Use `major.minor.patch+build` in `pubspec.yaml`.
+
+- User-facing release version: `0.1.8`, then `0.1.9`, then `0.1.10`.
+- Android build number: always increment the `+build` value for every APK, for example `0.1.8+9`, `0.1.9+10`, `0.1.10+11`.
+- The app UI shows only the user-facing release version. Android and the updater use the build number internally.
+
 ## Android forced update
 
 The Android app checks the backend endpoint `/public/android/latest` only from the login and home screens. It does not run from FunTarget or FunTarget Admin, so an active tile screen is not interrupted.

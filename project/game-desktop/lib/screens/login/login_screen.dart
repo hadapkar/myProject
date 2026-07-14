@@ -2,6 +2,7 @@ import "dart:async";
 import "dart:convert";
 
 import "package:flutter/material.dart";
+import "package:go_router/go_router.dart";
 import "package:http/http.dart" as http;
 import "package:supabase_flutter/supabase_flutter.dart";
 
@@ -17,6 +18,9 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
+  static const _loginCheckTimeout = Duration(seconds: 12);
+  static const _signInTimeout = Duration(seconds: 20);
+
   final _usernameController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _busy = false;
@@ -49,6 +53,10 @@ class _LoginScreenState extends State<LoginScreen> {
         setState(() => _message = "Username is required");
         return;
       }
+      if (_passwordController.text.isEmpty) {
+        setState(() => _message = "Password is required");
+        return;
+      }
 
       // Block at login page (before Supabase sign-in).
       final check = await _loginCheck(raw);
@@ -63,12 +71,22 @@ class _LoginScreenState extends State<LoginScreen> {
 
       final email =
           raw.contains("@") ? raw : "${raw.toLowerCase()}@kingmaker.local";
-      await Supabase.instance.client.auth.signInWithPassword(
-        email: email,
-        password: _passwordController.text,
-      );
+      final response = await Supabase.instance.client.auth
+          .signInWithPassword(
+            email: email,
+            password: _passwordController.text,
+          )
+          .timeout(_signInTimeout);
+      if (!mounted) return;
+      if (response.session == null) {
+        setState(() => _message = "Sign in failed. Please retry.");
+        return;
+      }
+      context.go("/home");
     } on AuthException catch (e) {
       setState(() => _message = e.message);
+    } on TimeoutException {
+      setState(() => _message = "Sign in timed out. Check your internet and retry.");
     } on StateError catch (e) {
       setState(() => _message = e.message);
     } catch (e) {
@@ -87,15 +105,27 @@ class _LoginScreenState extends State<LoginScreen> {
     final uri = AppConfig.apiUri("/public/login-check", queryParameters: query);
     http.Response res;
     try {
-      res = await http.get(uri, headers: {"Accept": "application/json"});
+      res = await http
+          .get(uri, headers: {"Accept": "application/json"})
+          .timeout(_loginCheckTimeout);
+    } on TimeoutException {
+      throw StateError("Backend is not reachable. Please retry in a minute.");
     } on http.ClientException catch (e) {
       // Retry once through the configured fallback if the network lookup fails.
       if (e.message.contains("Failed host lookup")) {
         final fallbackUri =
             AppConfig.apiUriWithFallback("/public/login-check", queryParameters: query);
-        res = await http.get(fallbackUri, headers: {"Accept": "application/json"});
+        try {
+          res = await http
+              .get(fallbackUri, headers: {"Accept": "application/json"})
+              .timeout(_loginCheckTimeout);
+        } on TimeoutException {
+          throw StateError("Backend is not reachable. Please retry in a minute.");
+        } on http.ClientException {
+          throw StateError("Backend is not reachable. Please retry in a minute.");
+        }
       } else {
-        rethrow;
+        throw StateError("Backend is not reachable. Please retry in a minute.");
       }
     }
     if (res.statusCode < 200 || res.statusCode >= 300) {
@@ -163,7 +193,7 @@ class _LoginScreenState extends State<LoginScreen> {
             Padding(
               padding: const EdgeInsets.only(bottom: 12),
               child: Text(
-                "Version ${AndroidUpdateService.currentVersion}+${AndroidUpdateService.currentBuildNumber}",
+                "Version ${AndroidUpdateService.currentVersion}",
                 style: const TextStyle(color: Colors.white54, fontSize: 12),
                 textAlign: TextAlign.center,
               ),
