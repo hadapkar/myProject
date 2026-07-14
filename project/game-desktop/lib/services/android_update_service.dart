@@ -1,10 +1,10 @@
-﻿import "dart:convert";
+import "dart:convert";
 
 import "package:flutter/foundation.dart";
 import "package:http/http.dart" as http;
-import "package:url_launcher/url_launcher.dart";
 
 import "../config/app_config.dart";
+import "android_update_downloader.dart";
 
 class AndroidUpdateInfo {
   final bool enabled;
@@ -77,9 +77,22 @@ class AndroidUpdateService {
     return info;
   }
 
-  static Future<bool> openUpdate(AndroidUpdateInfo info) async {
+  static Future<void> downloadAndInstall(
+    AndroidUpdateInfo info, {
+    void Function(int receivedBytes, int? totalBytes)? onProgress,
+  }) async {
     final uri = Uri.tryParse(info.apkUrl);
-    if (uri == null || !uri.hasScheme) return false;
-    return launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (uri == null || !uri.hasScheme) {
+      throw StateError("Invalid update download link.");
+    }
+    await downloadAndInstallApk(uri, onProgress: onProgress);
+  }
+
+  static String formatBytes(int bytes) {
+    const mb = 1024 * 1024;
+    if (bytes >= mb) return "${(bytes / mb).toStringAsFixed(1)} MB";
+    const kb = 1024;
+    if (bytes >= kb) return "${(bytes / kb).toStringAsFixed(0)} KB";
+    return "$bytes B";
   }
 }

@@ -7,6 +7,7 @@ import "package:supabase_flutter/supabase_flutter.dart";
 
 import "../../config/app_config.dart";
 import "../../services/android_update_gate.dart";
+import "../../services/android_update_service.dart";
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -108,50 +109,66 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 520),
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                const Text(
-                  "King Maker",
-                  style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 24),
-                TextField(
-                  controller: _usernameController,
-                  decoration: const InputDecoration(labelText: "Username"),
-                  keyboardType: TextInputType.text,
-                  autofillHints: const [AutofillHints.username],
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: _passwordController,
-                  decoration: const InputDecoration(labelText: "Password"),
-                  obscureText: true,
-                  autofillHints: const [AutofillHints.password],
-                ),
-                const SizedBox(height: 18),
-                FilledButton(
-                  onPressed: _busy ? null : _signIn,
-                  child: Text(_busy ? "Working..." : "Sign in"),
-                ),
-                if (_message != null) ...[
-                  const SizedBox(height: 12),
-                  Text(
-                    _message!,
-                    style: const TextStyle(color: Colors.white70),
-                    textAlign: TextAlign.center,
+      body: SafeArea(
+        child: Column(
+          children: [
+            Expanded(
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 520),
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        const Text(
+                          "King Maker",
+                          style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold),
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 24),
+                        TextField(
+                          controller: _usernameController,
+                          decoration: const InputDecoration(labelText: "Username"),
+                          keyboardType: TextInputType.text,
+                          autofillHints: const [AutofillHints.username],
+                        ),
+                        const SizedBox(height: 12),
+                        TextField(
+                          controller: _passwordController,
+                          decoration: const InputDecoration(labelText: "Password"),
+                          obscureText: true,
+                          autofillHints: const [AutofillHints.password],
+                        ),
+                        const SizedBox(height: 18),
+                        FilledButton(
+                          onPressed: _busy ? null : _signIn,
+                          child: Text(_busy ? "Working..." : "Sign in"),
+                        ),
+                        if (_message != null) ...[
+                          const SizedBox(height: 12),
+                          Text(
+                            _message!,
+                            style: const TextStyle(color: Colors.white70),
+                            textAlign: TextAlign.center,
+                          ),
+                        ],
+                      ],
+                    ),
                   ),
-                ],
-              ],
+                ),
+              ),
             ),
-          ),
+            Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: Text(
+                "Version ${AndroidUpdateService.currentVersion}+${AndroidUpdateService.currentBuildNumber}",
+                style: const TextStyle(color: Colors.white54, fontSize: 12),
+                textAlign: TextAlign.center,
+              ),
+            ),
+          ],
         ),
       ),
     );

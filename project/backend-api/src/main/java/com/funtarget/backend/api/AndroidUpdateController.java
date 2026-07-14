@@ -1,12 +1,19 @@
 package com.funtarget.backend.api;
 
+import jakarta.servlet.http.HttpServletRequest;
+import java.io.InputStream;
 import java.net.URI;
+import java.net.URLConnection;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import org.springframework.core.env.Environment;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 
 @RestController
 @RequestMapping("/public/android")
@@ -19,14 +26,21 @@ public class AndroidUpdateController {
   }
 
   @GetMapping("/latest")
-  public Map<String, Object> latest() {
+  public Map<String, Object> latest(HttpServletRequest request) {
     String version = get("app.android-update.latest-version");
     int build = parseInt(get("app.android-update.latest-build"));
     String apkUrl = get("app.android-update.apk-url");
+    String sourceApkUrl = get("app.android-update.source-apk-url");
     String sha256 = get("app.android-update.apk-sha256");
     boolean force = parseBool(get("app.android-update.force"));
     String notes = get("app.android-update.release-notes");
-    boolean enabled = build > 0 && isHttpUrl(apkUrl);
+    if (apkUrl.isBlank() && isHttpUrl(sourceApkUrl)) {
+      apkUrl = publicDownloadUrl(request);
+    }
+    boolean enabled =
+        build > 0
+            && isHttpUrl(apkUrl)
+            && (isHttpUrl(sourceApkUrl) || !apkUrl.endsWith("/public/android/download"));
 
     Map<String, Object> response = new LinkedHashMap<>();
     response.put("enabled", enabled);
@@ -37,6 +51,28 @@ public class AndroidUpdateController {
     response.put("force", force);
     response.put("notes", notes);
     return response;
+  }
+
+  @GetMapping("/download")
+  public ResponseEntity<StreamingResponseBody> download() {
+    String sourceApkUrl = get("app.android-update.source-apk-url");
+    if (!isHttpUrl(sourceApkUrl)) {
+      return ResponseEntity.notFound().build();
+    }
+    StreamingResponseBody body =
+        outputStream -> {
+          URLConnection connection = URI.create(sourceApkUrl).toURL().openConnection();
+          connection.setConnectTimeout(15_000);
+          connection.setReadTimeout(120_000);
+          connection.setRequestProperty("User-Agent", "KingMaker-Updater");
+          try (InputStream inputStream = connection.getInputStream()) {
+            inputStream.transferTo(outputStream);
+          }
+        };
+    return ResponseEntity.ok()
+        .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"KingMaker.apk\"")
+        .contentType(MediaType.parseMediaType("application/vnd.android.package-archive"))
+        .body(body);
   }
 
   private String get(String propertyName) {
@@ -70,5 +106,18 @@ public class AndroidUpdateController {
     } catch (Exception ignored) {
       return false;
     }
+  }
+
+  private static String publicDownloadUrl(HttpServletRequest request) {
+    String scheme = request == null ? "http" : request.getScheme();
+    String host = request == null ? "" : request.getServerName();
+    int port = request == null ? -1 : request.getServerPort();
+    StringBuilder url = new StringBuilder();
+    url.append(scheme).append("://").append(host);
+    if (port > 0 && !(scheme.equals("http") && port == 80) && !(scheme.equals("https") && port == 443)) {
+      url.append(":").append(port);
+    }
+    url.append("/public/android/download");
+    return url.toString();
   }
 }

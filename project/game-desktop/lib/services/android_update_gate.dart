@@ -49,38 +49,58 @@ class _AndroidUpdateDialog extends StatefulWidget {
 
 class _AndroidUpdateDialogState extends State<_AndroidUpdateDialog> {
   bool _busy = false;
+  double? _progress;
+  String? _progressText;
   String? _error;
+  String? _status;
 
-  Future<void> _openUpdate() async {
+  Future<void> _downloadAndInstall() async {
     setState(() {
       _busy = true;
+      _progress = null;
+      _progressText = "Preparing download...";
       _error = null;
+      _status = null;
     });
 
-    final opened = await AndroidUpdateService.openUpdate(widget.info);
-    if (!mounted) return;
-
-    if (!opened) {
+    try {
+      await AndroidUpdateService.downloadAndInstall(
+        widget.info,
+        onProgress: (received, total) {
+          if (!mounted) return;
+          final hasTotal = total != null && total > 0;
+          setState(() {
+            _progress = hasTotal ? received / total : null;
+            _progressText = hasTotal
+                ? "${AndroidUpdateService.formatBytes(received)} of ${AndroidUpdateService.formatBytes(total)}"
+                : AndroidUpdateService.formatBytes(received);
+          });
+        },
+      );
+      if (!mounted) return;
+      if (!widget.info.force) {
+        Navigator.of(context).pop(false);
+        return;
+      }
       setState(() {
         _busy = false;
-        _error = "Could not open the update download link.";
+        _progress = 1;
+        _status = "Installer opened. Complete installation to continue.";
       });
-      return;
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _busy = false;
+        _error = e.toString();
+      });
     }
-
-    if (!widget.info.force) {
-      Navigator.of(context).pop(false);
-      return;
-    }
-
-    setState(() => _busy = false);
   }
 
   @override
   Widget build(BuildContext context) {
     final force = widget.info.force;
     return WillPopScope(
-      onWillPop: () async => !force,
+      onWillPop: () async => !force && !_busy,
       child: AlertDialog(
         title: Text(force ? "Update required" : "Update available"),
         content: Column(
@@ -101,6 +121,16 @@ class _AndroidUpdateDialogState extends State<_AndroidUpdateDialog> {
               const SizedBox(height: 12),
               Text(widget.info.notes),
             ],
+            if (_busy || _progressText != null) ...[
+              const SizedBox(height: 16),
+              LinearProgressIndicator(value: _progress),
+              const SizedBox(height: 8),
+              Text(_progressText ?? "Downloading..."),
+            ],
+            if (_status != null) ...[
+              const SizedBox(height: 12),
+              Text(_status!, style: const TextStyle(color: Colors.white70)),
+            ],
             if (_error != null) ...[
               const SizedBox(height: 12),
               Text(_error!, style: const TextStyle(color: Colors.redAccent)),
@@ -114,8 +144,8 @@ class _AndroidUpdateDialogState extends State<_AndroidUpdateDialog> {
               child: const Text("Later"),
             ),
           FilledButton(
-            onPressed: _busy ? null : _openUpdate,
-            child: Text(_busy ? "Opening..." : "Download update"),
+            onPressed: _busy ? null : _downloadAndInstall,
+            child: Text(_busy ? "Downloading..." : "Download & install"),
           ),
         ],
       ),
