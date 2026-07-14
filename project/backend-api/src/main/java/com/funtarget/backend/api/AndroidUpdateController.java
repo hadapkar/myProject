@@ -1,4 +1,4 @@
-﻿package com.funtarget.backend.api;
+package com.funtarget.backend.api;
 
 import java.net.URI;
 import java.util.LinkedHashMap;
@@ -65,6 +65,7 @@ public class AndroidUpdateController {
       URI uri = URI.create(value);
       String scheme = uri.getScheme();
       return uri.getHost() != null
+          && scheme != null
           && (scheme.equalsIgnoreCase("http") || scheme.equalsIgnoreCase("https"));
     } catch (Exception ignored) {
       return false;
