@@ -62,10 +62,7 @@ class _LoginScreenState extends State<LoginScreen> {
       final check = await _loginCheck(raw);
       final allowed = check["allowed"] == true;
       if (!allowed) {
-        final reason = (check["reason"] ?? "blocked").toString();
-        final endsAt = (check["endsAt"] ?? "").toString();
-        final suffix = endsAt.isNotEmpty ? " (endsAt: $endsAt)" : "";
-        setState(() => _message = "Login blocked: $reason$suffix");
+        setState(() => _message = "Please contact admin");
         return;
       }
 
