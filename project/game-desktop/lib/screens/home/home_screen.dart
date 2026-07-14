@@ -5,11 +5,15 @@ import "package:flutter/material.dart";
 import "package:go_router/go_router.dart";
 import "package:supabase_flutter/supabase_flutter.dart";
 
+import "../../services/android_update_gate.dart";
 import "../../services/update_service.dart";
 import "../../services/funtarget_api.dart";
 import "../../storage/session_store.dart";
 
 const _funTargetLogo = "assets/app/logo.jpg";
+
+bool get _desktopUpdatesSupported =>
+    !kIsWeb && defaultTargetPlatform == TargetPlatform.windows;
 
 enum _HomeMenuAction { createUser, subscriptions, updates, signOut }
 
@@ -31,7 +35,11 @@ class _HomeScreenState extends State<HomeScreen> {
     super.initState();
     unawaited(_loadRole());
     unawaited(_checkSubscriptionGate());
-    if (!kIsWeb) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      unawaited(AndroidUpdateGate.maybeShow(context));
+    });
+    if (_desktopUpdatesSupported) {
       // Background check; UI will show "update available" if needed.
       UpdateService.instance.checkForUpdates();
     }
@@ -128,7 +136,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _openUpdateDialog() async {
-    if (kIsWeb) return;
+    if (!_desktopUpdatesSupported) return;
     await showDialog<void>(
       context: context,
       builder: (context) {
@@ -246,7 +254,7 @@ class _HomeScreenState extends State<HomeScreen> {
           onPressed: _openUserAccessDashboard,
           child: const Text("Subscriptions"),
         ),
-      if (!kIsWeb)
+      if (_desktopUpdatesSupported)
         ValueListenableBuilder(
           valueListenable: UpdateService.instance.state,
           builder: (context, UpdateState update, _) {
@@ -298,7 +306,7 @@ class _HomeScreenState extends State<HomeScreen> {
               value: _HomeMenuAction.subscriptions,
               child: Text("Subscriptions"),
             ),
-          if (!kIsWeb)
+          if (_desktopUpdatesSupported)
             const PopupMenuItem(
               value: _HomeMenuAction.updates,
               child: Text("Updates"),

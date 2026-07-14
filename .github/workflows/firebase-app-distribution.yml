@@ -134,11 +134,20 @@ jobs:
             echo "Missing required secrets SUPABASE_URL / SUPABASE_ANON_KEY" >&2
             exit 1
           fi
+          APP_PUBSPEC_VERSION="$(grep '^version:' pubspec.yaml | awk '{print $2}')"
+          APP_VERSION_NAME="${APP_PUBSPEC_VERSION%%+*}"
+          APP_BUILD_NUMBER="${APP_PUBSPEC_VERSION##*+}"
+          if [ "$APP_VERSION_NAME" = "$APP_BUILD_NUMBER" ]; then
+            APP_BUILD_NUMBER="$GITHUB_RUN_NUMBER"
+          fi
           flutter build apk --release \
+            --build-name="$APP_VERSION_NAME" \
+            --build-number="$APP_BUILD_NUMBER" \
             --dart-define=SUPABASE_URL="$SUPABASE_URL" \
             --dart-define=SUPABASE_ANON_KEY="$SUPABASE_ANON_KEY" \
             --dart-define=API_BASE_URL="$API_BASE_URL" \
-            --dart-define=APP_VERSION="0.0.0-android+${GITHUB_SHA:0:7}"
+            --dart-define=APP_VERSION="$APP_VERSION_NAME" \
+            --dart-define=APP_BUILD_NUMBER="$APP_BUILD_NUMBER"
 
       - name: Install firebase-tools
         run: npm i -g firebase-tools

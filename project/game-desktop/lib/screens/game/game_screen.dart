@@ -150,7 +150,7 @@ class _GameScreenState extends State<GameScreen> {
     });
     try {
       final state =
-          await _api.getState().timeout(const Duration(seconds: 75));
+          await _api.getState().timeout(const Duration(seconds: 25));
       if (!mounted) return;
       _applyLoadedState(state);
     } on TimeoutException {

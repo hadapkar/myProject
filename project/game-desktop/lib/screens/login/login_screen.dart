@@ -1,3 +1,4 @@
+import "dart:async";
 import "dart:convert";
 
 import "package:flutter/material.dart";
@@ -5,6 +6,7 @@ import "package:http/http.dart" as http;
 import "package:supabase_flutter/supabase_flutter.dart";
 
 import "../../config/app_config.dart";
+import "../../services/android_update_gate.dart";
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -18,6 +20,15 @@ class _LoginScreenState extends State<LoginScreen> {
   final _passwordController = TextEditingController();
   bool _busy = false;
   String? _message;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      unawaited(AndroidUpdateGate.maybeShow(context));
+    });
+  }
 
   @override
   void dispose() {

@@ -82,7 +82,7 @@ public class SecurityConfig {
       @Value("${app.cors.allowed-origins:}") String allowedOrigins) {
     CorsConfiguration cors = new CorsConfiguration();
     cors.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
-    cors.setAllowedHeaders(List.of("Authorization", "Content-Type", "Accept", "apikey"));
+    cors.setAllowedHeaders(List.of("Authorization", "Content-Type", "Accept", "apikey", "X-Session-Id", "X-Platform"));
     cors.setAllowCredentials(false);
 
     if (allowedOrigins != null && !allowedOrigins.isBlank()) {

@@ -83,3 +83,18 @@ Notes:
 
 - This requires the GitHub Release asset to be reachable by end users (public repo or otherwise publicly accessible release artifacts).
 - Web builds don’t self-update; GitHub Pages/Vercel deployments update automatically.
+
+## Android forced update
+
+The Android app checks the backend endpoint `/public/android/latest` only from the login and home screens. It does not run from FunTarget or FunTarget Admin, so an active tile screen is not interrupted.
+
+Configure these backend environment variables to enable it:
+
+- `ANDROID_LATEST_VERSION` example: `0.1.5`
+- `ANDROID_LATEST_BUILD` example: `6`
+- `ANDROID_APK_URL` direct APK download URL
+- `ANDROID_FORCE_UPDATE` set `true` to block login/home until update is opened
+- `ANDROID_RELEASE_NOTES` optional text shown in the dialog
+- `ANDROID_APK_SHA256` optional metadata for the APK checksum
+
+If `ANDROID_APK_URL` is empty or `ANDROID_LATEST_BUILD` is not greater than the installed build number, no update prompt is shown.

@@ -11,7 +11,7 @@ import "funtarget_models.dart";
 import "../storage/session_store.dart";
 
 class FunTargetApi {
-  static const Duration _timeout = Duration(seconds: 65);
+  static const Duration _timeout = Duration(seconds: 25);
 
   final http.Client _client = http.Client();
 
@@ -20,6 +20,15 @@ class FunTargetApi {
 
   bool _isHostLookupError(Object e) =>
       e is http.ClientException && e.message.contains("Failed host lookup");
+
+  StateError _networkError(http.ClientException e) {
+    if (kIsWeb && e.message.contains("XMLHttpRequest error")) {
+      return StateError(
+        "Backend request blocked. Check CORS_ALLOWED_ORIGINS and allowed headers.",
+      );
+    }
+    return StateError("Backend request failed: ${e.message}");
+  }
 
   Future<http.Response> _getUri(Uri uri, Map<String, String> headers) =>
       _client.get(uri, headers: headers).timeout(_timeout);
@@ -110,7 +119,7 @@ class FunTargetApi {
         };
         res = await _getUri(AppConfig.apiUriWithFallback(path), headers);
       } else {
-        rethrow;
+        throw _networkError(e);
       }
     } on TimeoutException {
       throw StateError("Backend timeout. The server may be waking up; please retry.");
@@ -161,7 +170,7 @@ class FunTargetApi {
         final body = jsonEncode(payload);
         res = await _postUri(AppConfig.apiUriWithFallback(path), headers, body);
       } else {
-        rethrow;
+        throw _networkError(e);
       }
     } on TimeoutException {
       throw StateError("Backend timeout. The server may be waking up; please retry.");
@@ -213,7 +222,7 @@ class FunTargetApi {
         final body = jsonEncode(payload);
         res = await _patchUri(AppConfig.apiUriWithFallback(path), headers, body);
       } else {
-        rethrow;
+        throw _networkError(e);
       }
     } on TimeoutException {
       throw StateError("Backend timeout. The server may be waking up; please retry.");
@@ -287,7 +296,7 @@ class FunTargetApi {
           body,
         );
       } else {
-        rethrow;
+        throw _networkError(e);
       }
     }
 
