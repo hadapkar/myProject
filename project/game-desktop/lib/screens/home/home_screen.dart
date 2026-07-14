@@ -219,6 +219,13 @@ class _HomeScreenState extends State<HomeScreen> {
                   imageAsset: _funTargetLogo,
                   onTap: () => context.push("/game"),
                 ),
+                if (_roleLoaded && _isAdmin)
+                  _GameTile(
+                    title: "FunTarget Admin",
+                    subtitle: "Manage live users and wheel results",
+                    imageAsset: _funTargetLogo,
+                    onTap: () => context.push("/admin/funtarget"),
+                  ),
               ],
             );
           },
