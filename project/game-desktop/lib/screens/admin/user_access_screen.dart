@@ -195,7 +195,7 @@ class _UserAccessScreenState extends State<UserAccessScreen> {
         onToggleStatus: () {
           final userId = (_rows[index]["user_id"] ?? "").toString();
           final status = _statusValue(_rows[index]);
-          return _updateRow(userId, status: status == "active" ? "blocked" : "active");
+          unawaited(_updateRow(userId, status: status == "active" ? "blocked" : "active"));
         },
       ),
     );
