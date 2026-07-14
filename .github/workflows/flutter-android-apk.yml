@@ -191,6 +191,7 @@ jobs:
           TAG="android-latest"
           ASSET="KingMaker.apk"
           APK="build/app/outputs/flutter-apk/app-release.apk"
+          cp "$APK" "$ASSET"
           gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 || \
             gh release create "$TAG" --target "$GITHUB_SHA" --title "Android Latest" --notes "Latest Android APK for in-app updater." --repo "$GITHUB_REPOSITORY"
-          gh release upload "$TAG" "$APK#$ASSET" --clobber --repo "$GITHUB_REPOSITORY"
+          gh release upload "$TAG" "$ASSET" --clobber --repo "$GITHUB_REPOSITORY"
