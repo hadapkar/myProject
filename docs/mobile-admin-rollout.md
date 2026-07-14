@@ -19,7 +19,7 @@ Then, ensure your admin user is present:
 - `public.admin_users` must contain the admin `auth.users.id`
 - `public.user_access` should contain the admin user with role `ADMIN`
 
-## 2) Render (backend-api)
+## 2) Oracle VM (backend-api)
 
 Environment variables required:
 - `SUPABASE_URL`
@@ -27,7 +27,7 @@ Environment variables required:
 - `SUPABASE_SERVICE_ROLE_KEY` (required for admin actions + sessions)
 - `CORS_ALLOWED_ORIGINS` (include your web URL(s) if used)
 
-Deploy the latest `main` to Render.
+Deploy the latest `main` to the Oracle VM and restart `kingmaker-backend`.
 
 Quick sanity checks:
 - `GET /healthz` returns OK

@@ -6,10 +6,7 @@ export type ApiClient = {
 };
 
 export function createApiClient(supabase: SupabaseClient): ApiClient | null {
-  const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
-  if (!baseUrl) {
-    return null;
-  }
+  const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || "http://80.225.236.170";
 
   const request = async <T>(method: string, path: string, body?: unknown): Promise<T> => {
     const { data } = await supabase.auth.getSession();

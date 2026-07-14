@@ -20,7 +20,7 @@ import com.funtarget.backend.security.RequestIdFilter;
 /**
  * Simple in-memory fixed-window rate limiting for /api/* endpoints.
  *
- * <p>This is intentionally dependency-free for the initial Render deployment.
+ * <p>This is intentionally dependency-free for the initial Oracle VM deployment.
  * In the future we can move to a distributed limiter (Redis) if needed.</p>
  */
 public class RateLimitFilter extends OncePerRequestFilter {

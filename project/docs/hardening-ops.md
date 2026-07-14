@@ -1,10 +1,10 @@
-# Hardening Ops (Render + Supabase)
+# Hardening Ops (Oracle VM + Supabase)
 
 This doc covers the operational steps required after the hardening changes landed in code.
 
-## 1) Render (backend-api) required env vars
+## 1) Oracle VM (backend-api) required env vars
 
-Set these in your Render service:
+Set these in `/etc/kingmaker-backend.env` on the Oracle VM:
 
 - `SUPABASE_URL`
 - `SUPABASE_ANON_KEY`
@@ -24,7 +24,7 @@ Comma-separated origins, no trailing slashes. Examples:
 - GitHub Pages (repo site):
   - `https://hadapkar.github.io/myProject`
 
-After updating env vars, trigger a redeploy on Render.
+After updating env vars, restart the service: `sudo systemctl restart kingmaker-backend`.
 
 ## 2) Apply Supabase migrations (prod)
 

@@ -7,7 +7,7 @@ This repository contains both the **legacy Salesforce implementation** and the *
 - `salesforce/` — legacy Salesforce DX project (Apex, LWC, metadata). Do not modify unless explicitly requested.
 - `project/` — new platform workspace:
   - `project/game-desktop/` — Flutter Windows `.exe` (primary client going forward)
-  - `project/backend-api/` — Spring Boot (deploy on Render)
+  - `project/backend-api/` — Spring Boot (deploy on Oracle Always Free VM)
   - `project/database/` — DB docs/notes (source-of-truth migrations live in `supabase/`)
   - `project/migration/` — Salesforce → Postgres mapping + tools
   - `project/docs/` — setup + runbooks

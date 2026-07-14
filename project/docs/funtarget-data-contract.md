@@ -1,6 +1,6 @@
 # FunTarget – Data Contract (Supabase)
 
-This document describes the **minimal** database contract needed to reproduce the current FunTarget behavior (as implemented in the Salesforce LWC) in the new stack (Flutter desktop + Supabase + backend on Render).
+This document describes the **minimal** database contract needed to reproduce the current FunTarget behavior (as implemented in the Salesforce LWC) in the new stack (Flutter desktop + Supabase + backend on Oracle VM).
 
 Source of truth: `supabase/migrations/`.
 
@@ -55,7 +55,7 @@ Admin dashboards (future Android app) should subscribe to database changes inste
 - subscribe to `public.fun_target_state` changes
 - subscribe to `public.admin_users` changes (optional)
 
-## What the backend (Render) will enforce
+## What the backend (Oracle VM) will enforce
 
 The Flutter client keeps most game logic client-side for UX, but the backend should validate:
 

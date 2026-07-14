@@ -16,10 +16,11 @@ Add:
 
 - `SUPABASE_URL` = `https://<project_ref>.supabase.co`
 - `SUPABASE_ANON_KEY` = `<anon key>`
-- `API_BASE_URL` = `https://<your-render-backend>`
 
 Notes:
 
+- The workflow builds with the Oracle backend URL: http://80.225.236.170.
+- GitHub Pages is HTTPS, so browsers can block calls to the HTTP Oracle IP as mixed content until the backend has HTTPS/domain.
 - Supabase anon key is publishable (safe for clients), but still keep it in secrets to avoid accidental copy/paste mistakes.
 
 ### 2) Enable GitHub Pages from Actions

@@ -1118,7 +1118,7 @@ export function FunTargetGame() {
   if (!api) {
     return (
       <div className="container">
-        <div className="card">Missing backend env var: NEXT_PUBLIC_API_BASE_URL.</div>
+        <div className="card">Backend URL defaulted to Oracle. Check network/CORS if loading fails.</div>
       </div>
     );
   }
