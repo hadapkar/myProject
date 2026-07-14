@@ -15,6 +15,11 @@ const _funTargetLogo = "assets/app/logo.jpg";
 bool get _desktopUpdatesSupported =>
     !kIsWeb && defaultTargetPlatform == TargetPlatform.windows;
 
+bool get _mobileApp =>
+    !kIsWeb &&
+    (defaultTargetPlatform == TargetPlatform.android ||
+        defaultTargetPlatform == TargetPlatform.iOS);
+
 enum _HomeMenuAction { createUser, subscriptions, updates, signOut }
 
 class HomeScreen extends StatefulWidget {
@@ -225,11 +230,12 @@ class _HomeScreenState extends State<HomeScreen> {
                   imageAsset: _funTargetLogo,
                   onTap: () => context.push("/game"),
                 ),
-                if (_roleLoaded && _canManageFunTarget)
+                if (_roleLoaded && _canManageFunTarget && _mobileApp)
                   _GameTile(
                     title: "FunTarget Admin",
                     subtitle: "Manage live users and wheel results",
                     imageAsset: _funTargetLogo,
+                    actionLabel: "Open",
                     onTap: () => context.push("/admin/funtarget"),
                   ),
               ],
@@ -477,12 +483,14 @@ class _GameTile extends StatelessWidget {
   final String subtitle;
   final String imageAsset;
   final VoidCallback onTap;
+  final String actionLabel;
 
   const _GameTile({
     required this.title,
     required this.subtitle,
     required this.imageAsset,
     required this.onTap,
+    this.actionLabel = "Play",
   });
 
   @override
@@ -532,11 +540,11 @@ class _GameTile extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                     ),
                     const SizedBox(height: 10),
-                    const Row(
+                    Row(
                       children: [
-                        Icon(Icons.play_arrow, size: 18, color: Colors.white70),
-                        SizedBox(width: 6),
-                        Text("Play", style: TextStyle(color: Colors.white70)),
+                        const Icon(Icons.play_arrow, size: 18, color: Colors.white70),
+                        const SizedBox(width: 6),
+                        Text(actionLabel, style: const TextStyle(color: Colors.white70)),
                       ],
                     ),
                   ],

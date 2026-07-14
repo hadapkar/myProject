@@ -25,6 +25,7 @@ class GameScreen extends StatefulWidget {
 class _GameScreenState extends State<GameScreen> {
   final _api = FunTargetApi();
   final _sounds = FunTargetSounds();
+  static const _gameDisplayChannel = MethodChannel("kingmaker/game_display");
 
   FunTargetState? _state;
   String? _error;
@@ -131,6 +132,12 @@ class _GameScreenState extends State<GameScreen> {
         defaultTargetPlatform == TargetPlatform.iOS;
   }
 
+  Future<void> _invokeGameDisplay(String method) async {
+    try {
+      await _gameDisplayChannel.invokeMethod<void>(method);
+    } catch (_) {}
+  }
+
   void _lockMobileLandscape() {
     if (!_isMobilePlatform) return;
     unawaited(SystemChrome.setPreferredOrientations(const [
@@ -141,6 +148,7 @@ class _GameScreenState extends State<GameScreen> {
 
   void _enterMobileFullscreen() {
     if (!_isMobilePlatform) return;
+    unawaited(_invokeGameDisplay("enterGameDisplay"));
     unawaited(SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky));
   }
 
@@ -153,6 +161,7 @@ class _GameScreenState extends State<GameScreen> {
 
   void _exitMobileFullscreen() {
     if (!_isMobilePlatform) return;
+    unawaited(_invokeGameDisplay("exitGameDisplay"));
     unawaited(SystemChrome.setEnabledSystemUIMode(
       SystemUiMode.manual,
       overlays: SystemUiOverlay.values,
@@ -664,8 +673,7 @@ class _GameScreenState extends State<GameScreen> {
         body: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: _onUserGesture,
-        child: SafeArea(
-          child: Stack(
+        child: Stack(
             children: [
               Positioned.fill(
                 child: state == null
@@ -757,7 +765,6 @@ class _GameScreenState extends State<GameScreen> {
               // Intentionally no Refresh / Sign out buttons on the game screen.
             ],
           ),
-        ),
         ),
       ),
     );
