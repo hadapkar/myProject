@@ -1,7 +1,9 @@
 import "dart:async";
 import "dart:math";
 
+import "package:flutter/foundation.dart";
 import "package:flutter/material.dart";
+import "package:flutter/services.dart";
 import "package:go_router/go_router.dart";
 import "package:supabase_flutter/supabase_flutter.dart";
 
@@ -81,6 +83,7 @@ class _GameScreenState extends State<GameScreen> {
   @override
   void initState() {
     super.initState();
+    _lockMobileLandscape();
     unawaited(_loadBetOkHighlight());
     _load();
   }
@@ -116,7 +119,29 @@ class _GameScreenState extends State<GameScreen> {
   void dispose() {
     _timer?.cancel();
     unawaited(_sounds.dispose());
+    _restoreMobileOrientation();
     super.dispose();
+  }
+
+  bool get _isMobilePlatform {
+    if (kIsWeb) return false;
+    return defaultTargetPlatform == TargetPlatform.android ||
+        defaultTargetPlatform == TargetPlatform.iOS;
+  }
+
+  void _lockMobileLandscape() {
+    if (!_isMobilePlatform) return;
+    unawaited(SystemChrome.setPreferredOrientations(const [
+      DeviceOrientation.landscapeLeft,
+      DeviceOrientation.landscapeRight,
+    ]));
+  }
+
+  void _restoreMobileOrientation() {
+    if (!_isMobilePlatform) return;
+    unawaited(SystemChrome.setPreferredOrientations(const [
+      DeviceOrientation.portraitUp,
+    ]));
   }
 
   Future<void> _load() async {
