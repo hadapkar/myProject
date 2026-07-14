@@ -24,7 +24,7 @@ The desktop app will need these values:
 
 - `SUPABASE_URL` (ex: `https://ydljofhkpeusxoegnvfs.supabase.co`)
 - `SUPABASE_ANON_KEY` (Supabase “anon” key)
-- `API_BASE_URL` (Render backend base URL, ex: `https://backend-api-ia1r.onrender.com`)
+- `API_BASE_URL` (backend base URL, currently `http://80.225.236.170` while no domain is configured)
 
 **Desktop runtime config (recommended):**
 

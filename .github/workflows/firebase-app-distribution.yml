@@ -35,37 +35,58 @@ jobs:
             flutter create --platforms=android .
           fi
 
-      - name: Ensure Android internet permissions
+      - name: Ensure Android network access
         shell: bash
         run: |
           python3 - <<'PY'
           from pathlib import Path
+          import re
 
           p = Path("android/app/src/main/AndroidManifest.xml")
           if not p.exists():
               raise SystemExit("AndroidManifest.xml not found")
 
           text = p.read_text(encoding="utf-8")
-          if "android.permission.INTERNET" in text:
-              print("INTERNET permission already present")
-              raise SystemExit(0)
+          changed = False
 
-          insert = (
-              '    <uses-permission android:name="android.permission.INTERNET"/>\n'
-              '    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>\n'
-          )
-          lines = text.splitlines(True)
-          out = []
-          inserted = False
-          for line in lines:
-              out.append(line)
-              if (not inserted) and ("<manifest" in line):
-                  out.append(insert)
-                  inserted = True
-          if not inserted:
-              raise SystemExit("Failed to insert permissions: <manifest> not found")
-          p.write_text("".join(out), encoding="utf-8")
-          print("Inserted INTERNET + ACCESS_NETWORK_STATE permissions")
+          missing_permissions = []
+          if "android.permission.INTERNET" not in text:
+              missing_permissions.append('    <uses-permission android:name="android.permission.INTERNET"/>\n')
+          if "android.permission.ACCESS_NETWORK_STATE" not in text:
+              missing_permissions.append('    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>\n')
+
+          if missing_permissions:
+              lines = text.splitlines(True)
+              out = []
+              inserted = False
+              for line in lines:
+                  out.append(line)
+                  if (not inserted) and ("<manifest" in line):
+                      out.extend(missing_permissions)
+                      inserted = True
+              if not inserted:
+                  raise SystemExit("Failed to insert permissions: <manifest> not found")
+              text = "".join(out)
+              changed = True
+
+          # The production backend currently uses an Oracle public IP over HTTP.
+          # Android release builds block cleartext by default unless explicitly allowed.
+          if "android:usesCleartextTraffic" not in text:
+              text, count = re.subn(
+                  r"(<application\b)",
+                  r'\1 android:usesCleartextTraffic="true"',
+                  text,
+                  count=1,
+              )
+              if count != 1:
+                  raise SystemExit("Failed to add usesCleartextTraffic: <application> not found")
+              changed = True
+
+          if changed:
+              p.write_text(text, encoding="utf-8")
+              print("Updated Android network permissions/cleartext access")
+          else:
+              print("Android network access already configured")
           PY
 
       - name: Set Android package name (com.kingmaker.admin)
@@ -107,10 +128,10 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
-          API_BASE_URL: ${{ secrets.API_BASE_URL }}
         run: |
-          if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_ANON_KEY" ] || [ -z "$API_BASE_URL" ]; then
-            echo "Missing required secrets SUPABASE_URL / SUPABASE_ANON_KEY / API_BASE_URL" >&2
+          API_BASE_URL="http://80.225.236.170"
+          if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_ANON_KEY" ]; then
+            echo "Missing required secrets SUPABASE_URL / SUPABASE_ANON_KEY" >&2
             exit 1
           fi
           flutter build apk --release \

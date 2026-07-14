@@ -17,7 +17,7 @@ class ConfigMissingScreen extends StatelessWidget {
               "{\n"
               "  \"SUPABASE_URL\": \"https://<project>.supabase.co\",\n"
               "  \"SUPABASE_ANON_KEY\": \"<anon>\",\n"
-              "  \"API_BASE_URL\": \"https://<render-service>.onrender.com\"\n"
+              "  \"API_BASE_URL\": \"http://80.225.236.170\"\n"
               "}\n\n"
               "Or set Windows environment variables:\n"
               "  SUPABASE_URL / SUPABASE_ANON_KEY / API_BASE_URL\n\n"

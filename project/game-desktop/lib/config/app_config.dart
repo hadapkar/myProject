@@ -2,8 +2,8 @@ import "app_config_runtime.dart";
 
 class AppConfig {
   static String _sanitizeUrl(String v) => v.replaceAll(RegExp(r"\\s+"), "");
-  static const String defaultApiBaseUrl = "https://backend-api-ia1r.onrender.com";
-  static const String fallbackApiBaseUrl = "https://gcp-us-west1-1.origin.onrender.com";
+  static const String defaultApiBaseUrl = "http://80.225.236.170";
+  static const String fallbackApiBaseUrl = defaultApiBaseUrl;
 
   static String _normalizeBaseUrl(String v, {required String fallback}) {
     final sanitized = _sanitizeUrl(v).trim();
@@ -35,7 +35,7 @@ class AppConfig {
 
   // `--dart-define` values (GitHub Actions, CI) sometimes end up with trailing
   // newlines/whitespace when copied/pasted into secrets. Strip all whitespace
-  // to avoid invalid hostnames like `backend-api- ia1r.onrender.com`.
+  // to avoid invalid hostnames.
   static String supabaseUrl = _sanitizeUrl(const String.fromEnvironment("SUPABASE_URL"));
   static String supabaseAnonKey = const String.fromEnvironment("SUPABASE_ANON_KEY").trim();
   static String apiBaseUrl = _normalizeBaseUrl(
