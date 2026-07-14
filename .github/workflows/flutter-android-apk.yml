@@ -157,7 +157,7 @@ jobs:
           storePassword=$ANDROID_KEYSTORE_PASSWORD
           keyPassword=$ANDROID_KEY_PASSWORD
           keyAlias=$ANDROID_KEY_ALIAS
-          storeFile=app/kingmaker-release.jks
+          storeFile=kingmaker-release.jks
           EOF
           sed -i 's/^[[:space:]]*//' android/key.properties
           python3 tools/patch_android_signing.py
