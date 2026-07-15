@@ -1,6 +1,7 @@
 package com.funtarget.backend.api;
 
 import com.funtarget.backend.supabase.SupabaseAdminService;
+import com.funtarget.backend.supabase.SupabaseAdminService.DuplicateUserException;
 import com.funtarget.backend.supabase.SupabaseRestService;
 import com.funtarget.backend.supabase.SupabaseUser;
 import java.time.OffsetDateTime;
@@ -49,9 +50,24 @@ public class AdminUsersController {
       throw new IllegalArgumentException("Invalid username (use 3-32 chars: a-z, 0-9, . _ -)");
     }
 
-    String email = normalized + "@kingmaker.local";
+    Map<String, Object> existingAccess = supabaseRest.getUserAccessByUsernameServiceRole(normalized);
+    if (existingAccess != null && existingAccess.get("user_id") != null) {
+      throw new IllegalArgumentException("Username already exists");
+    }
 
-    SupabaseUser created = supabaseAdmin.createUser(email, password);
+    String email = normalized + "@kingmaker.local";
+    boolean repairedExistingAuthUser = false;
+    SupabaseUser created;
+    try {
+      created = supabaseAdmin.createUser(email, password);
+    } catch (DuplicateUserException e) {
+      created = supabaseAdmin.findUserByEmail(email);
+      if (created == null || created.id() == null || created.id().isBlank()) {
+        throw e;
+      }
+      repairedExistingAuthUser = true;
+    }
+
     if (created != null && created.id() != null && !created.id().isBlank()) {
       try {
         supabaseRest.upsertUserAccessServiceRole(created.id(), normalized, role);
@@ -61,6 +77,12 @@ public class AdminUsersController {
           supabaseRest.patchUserAccessServiceRole(created.id(), Map.of("ends_at", endsAt));
         }
       } catch (RestClientResponseException e) {
+        if (!repairedExistingAuthUser) {
+          try {
+            supabaseAdmin.deleteUser(created.id());
+          } catch (Exception ignored) {
+          }
+        }
         if (e.getStatusCode().value() == 400) {
           throw new IllegalStateException(
               "Unable to save user role. Apply Supabase migration 20260714103000_add_player_role.sql.");
@@ -74,8 +96,12 @@ public class AdminUsersController {
       } catch (Exception ignored) {
       }
     }
-    if ("ADMIN".equals(role) && created != null && created.id() != null && !created.id().isBlank()) {
-      supabaseRest.upsertAdminUserServiceRole(created.id());
+    if (created != null && created.id() != null && !created.id().isBlank()) {
+      if ("ADMIN".equals(role)) {
+        supabaseRest.upsertAdminUserServiceRole(created.id());
+      } else {
+        supabaseRest.deleteAdminUserServiceRole(created.id());
+      }
     }
 
     try {
@@ -83,7 +109,7 @@ public class AdminUsersController {
         supabaseRest.insertAuditLogServiceRole(
             caller.id(),
             "ADMIN",
-            "admin_create_user",
+            repairedExistingAuthUser ? "admin_repair_user_access" : "admin_create_user",
             created.id(),
             Map.of("username", normalized, "role", role, "ends_at", endsAt == null ? "" : endsAt));
       }
@@ -94,7 +120,8 @@ public class AdminUsersController {
         "id", created == null ? null : created.id(),
         "email", created == null ? null : created.email(),
         "username", normalized,
-        "role", role);
+        "role", role,
+        "repaired", repairedExistingAuthUser);
   }
 
   private static SupabaseUser requireUser(Authentication authentication) {
