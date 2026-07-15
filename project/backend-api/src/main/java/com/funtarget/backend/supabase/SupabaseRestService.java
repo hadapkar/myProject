@@ -1,5 +1,6 @@
 package com.funtarget.backend.supabase;
 
+import java.net.http.HttpClient;
 import java.util.List;
 import java.util.Map;
 import java.time.Duration;
@@ -7,7 +8,7 @@ import java.time.Instant;
 import java.time.OffsetDateTime;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
-import org.springframework.http.client.SimpleClientHttpRequestFactory;
+import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientResponseException;
@@ -23,8 +24,12 @@ public class SupabaseRestService {
     if (base.isBlank()) {
       base = "http://localhost";
     }
-    SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
-    requestFactory.setConnectTimeout(Duration.ofSeconds(5));
+    HttpClient httpClient =
+        HttpClient.newBuilder()
+            .connectTimeout(Duration.ofSeconds(5))
+            .version(HttpClient.Version.HTTP_1_1)
+            .build();
+    JdkClientHttpRequestFactory requestFactory = new JdkClientHttpRequestFactory(httpClient);
     requestFactory.setReadTimeout(Duration.ofSeconds(10));
     this.restClient =
         RestClient.builder()
