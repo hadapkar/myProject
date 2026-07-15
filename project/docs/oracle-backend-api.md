@@ -57,10 +57,38 @@ What it does:
 - Gives Spring Boot 120 seconds of startup grace before health failures count.
 - Restarts `kingmaker-backend` after 3 failed local health checks.
 - Applies systemd memory/task limits so the backend restarts before it can starve the tiny VM.
-- Applies low-memory JVM defaults for heap/metaspace/GC on the Always Free VM.
+- Adds a 1.5 GB swapfile when no swap exists, so short memory spikes do not freeze Linux userspace.
+- Applies low-memory kernel settings for the 1 GB VM.
+- Disables automatic `dnf` metadata refresh, `mlocate` indexing, and Ksplice background jobs that can spike memory on the 1 GB VM.
+- Keeps Oracle Cloud Agent enabled so console monitoring/run-command remains available.
+- Applies low-memory JVM defaults for heap/metaspace/direct memory/code cache/GC on the Always Free VM.
+- Marks Java as the preferred OOM victim, so the backend restarts before SSH/nginx/the OS become unresponsive.
 - Enables bounded persistent journald logs for future RCA.
 
-This fixes a hung Java/backend process. If the whole Oracle VM or SSH daemon freezes, use Oracle Console auto-recovery/hard reboot; no in-VM watchdog can recover an OS-level freeze.
+This fixes a hung Java/backend process and reduces the chance that the 1 GB VM freezes under memory pressure. If the whole Oracle VM or SSH daemon freezes, use Oracle Console force reboot; no in-VM watchdog can recover an OS-level freeze once Linux userspace stops responding.
+
+
+## RCA: July 15, 2026 VM hang
+
+The VM did not fail because of a Render-style cold start. Persistent journal logs from the previous boot showed an OS-level out-of-memory event:
+
+- `dnf` package metadata refresh was started by background maintenance.
+- `dnf` reached roughly 690 MB resident memory on a 1 GB VM.
+- The kernel invoked the OOM killer.
+- After memory pressure, Linux userspace became unhealthy enough that HTTP and SSH stopped responding.
+
+The mitigation is to keep package/search/kernel patch refresh manual on the 1 GB VM. Manual package updates still work, but should be run intentionally during a maintenance window.
+
+## 1 GB VM fallback
+
+`VM.Standard.A1.Flex` is the preferred Always Free target, but it is often out of capacity. When A1 is unavailable, keep the current `VM.Standard.E2.1.Micro` and reapply the watchdog script after deployments or VM rebuilds:
+
+```bash
+cd /opt/kingmaker/backend-api
+sudo bash ops/install-oracle-watchdog.sh
+```
+
+For the 1 GB VM, avoid building large artifacts on the VM while users are active. Build with Gradle using `--no-daemon --max-workers=1`, then restart only `kingmaker-backend`.
 
 ## Nginx reverse proxy
 

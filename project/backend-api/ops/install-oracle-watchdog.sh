@@ -72,6 +72,28 @@ set_journal_setting() {
   fi
 }
 
+ensure_swap() {
+  local swapfile="${KINGMAKER_SWAPFILE:-/swapfile}"
+  local swap_mb="${KINGMAKER_SWAP_MB:-1536}"
+
+  case "$swap_mb" in ''|*[!0-9]*) swap_mb=1536 ;; esac
+
+  if swapon --show=NAME --noheadings | grep -q .; then
+    return 0
+  fi
+
+  if [ ! -f "$swapfile" ]; then
+    fallocate -l "${swap_mb}M" "$swapfile" || dd if=/dev/zero of="$swapfile" bs=1M count="$swap_mb" status=progress
+    chmod 0600 "$swapfile"
+    mkswap "$swapfile"
+  fi
+
+  if ! grep -Eq "^[^#].*[[:space:]]swap[[:space:]]" /etc/fstab; then
+    printf '%s none swap sw 0 0\n' "$swapfile" >>/etc/fstab
+  fi
+
+  swapon "$swapfile" || true
+}
 mkdir -p /var/log/journal
 set_journal_setting Storage persistent
 set_journal_setting SystemMaxUse 100M
@@ -79,6 +101,27 @@ set_journal_setting RuntimeMaxUse 50M
 set_journal_setting MaxRetentionSec 14day
 systemctl restart systemd-journald || true
 journalctl --flush || true
+
+ensure_swap
+
+cat >/etc/sysctl.d/99-kingmaker-tiny-vm.conf <<'SYSCTL'
+vm.swappiness=20
+vm.vfs_cache_pressure=50
+vm.min_free_kbytes=65536
+net.ipv4.tcp_fin_timeout=30
+net.ipv4.tcp_keepalive_time=300
+net.core.somaxconn=256
+SYSCTL
+sysctl --system >/dev/null || true
+
+# The 1 GB Oracle micro VM can freeze when background maintenance jobs spike memory.
+# Keep package/search/kernel patch refresh manual and intentional.
+systemctl disable --now dnf-makecache.timer >/dev/null 2>&1 || true
+systemctl stop dnf-makecache.service >/dev/null 2>&1 || true
+systemctl disable --now mlocate-updatedb.timer >/dev/null 2>&1 || true
+systemctl stop mlocate-updatedb.service >/dev/null 2>&1 || true
+systemctl disable --now ksplice-agent.timer ksplice-agent.service ksplice-prefetch.service ksplice.service >/dev/null 2>&1 || true
+systemctl stop ksplice-agent.service ksplice-prefetch.service ksplice.service >/dev/null 2>&1 || true
 
 mkdir -p /etc/systemd/system/kingmaker-backend.service.d
 cat >/etc/systemd/system/kingmaker-backend.service.d/override.conf <<'UNIT'
@@ -95,8 +138,9 @@ MemoryHigh=380M
 MemoryMax=430M
 TasksMax=160
 LimitNOFILE=4096
+OOMScoreAdjust=500
 Environment=MALLOC_ARENA_MAX=2
-Environment=JAVA_TOOL_OPTIONS=-XX:MaxRAMPercentage=55 -XX:InitialRAMPercentage=20 -XX:MaxMetaspaceSize=128m -XX:+UseSerialGC -XX:ActiveProcessorCount=1 -Djava.security.egd=file:/dev/urandom
+Environment="JAVA_TOOL_OPTIONS=-XX:MaxRAMPercentage=55 -XX:InitialRAMPercentage=20 -XX:MaxMetaspaceSize=128m -XX:MaxDirectMemorySize=32m -XX:ReservedCodeCacheSize=48m -Xss512k -XX:+UseSerialGC -XX:+ExitOnOutOfMemoryError -XX:ActiveProcessorCount=1 -Djava.security.egd=file:/dev/urandom -Djava.awt.headless=true"
 UNIT
 
 cat >/etc/systemd/system/kingmaker-backend-watchdog.service <<'UNIT'
@@ -128,5 +172,7 @@ systemctl daemon-reload
 systemctl enable --now kingmaker-backend.service
 systemctl enable --now kingmaker-backend-watchdog.timer
 systemctl restart kingmaker-backend.service
+swapon --show
+free -m
 systemctl status kingmaker-backend.service --no-pager -l | sed -n '1,25p'
 systemctl list-timers kingmaker-backend-watchdog.timer --no-pager
