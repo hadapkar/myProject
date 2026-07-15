@@ -1,18 +1,20 @@
 # Oracle VM deployment: `backend-api`
 
-The Spring Boot backend lives under `project/backend-api` and currently runs on the Oracle Always Free VM.
+The Spring Boot backend lives under `project/backend-api` and currently runs on the Oracle Always Free VM behind nginx.
 
 ## Current production endpoint
 
-- `http://80.225.236.170`
-- Liveness check: `http://80.225.236.170/healthz`
-- Readiness check: `http://80.225.236.170/readyz`
-- systemd service: `kingmaker-backend`
-- env file: `/etc/kingmaker-backend.env`
+- Public endpoint: `http://80.225.236.170`
+- Public liveness check: `http://80.225.236.170/healthz`
+- Public readiness check: `http://80.225.236.170/readyz`
+- Public reverse proxy: `nginx` on port `80`
+- Backend service: `kingmaker-backend` on `127.0.0.1:8080`
+- Backend env file: `/etc/kingmaker-backend.env`
 
 ## Required environment variables
 
-- `PORT=80`
+- `PORT=8080`
+- `SERVER_ADDRESS=127.0.0.1`
 - `SUPABASE_URL`
 - `SUPABASE_ANON_KEY`
 - `SUPABASE_SERVICE_ROLE_KEY`
@@ -27,9 +29,17 @@ After changing the env file or backend jar:
 ```bash
 sudo systemctl restart kingmaker-backend
 sudo systemctl status kingmaker-backend
+curl http://127.0.0.1:8080/healthz
 curl http://80.225.236.170/healthz
 ```
 
+After changing nginx config:
+
+```bash
+sudo nginx -t
+sudo systemctl restart nginx
+curl http://80.225.236.170/healthz
+```
 
 ## Backend watchdog
 
@@ -43,12 +53,32 @@ sudo bash ops/install-oracle-watchdog.sh
 What it does:
 
 - Keeps `kingmaker-backend` under `Restart=always`.
-- Runs a local `http://127.0.0.1/healthz` check every 30 seconds.
-- Restarts `kingmaker-backend` after a failed local health check.
+- Runs a local `http://127.0.0.1:8080/healthz` check every 30 seconds.
+- Gives Spring Boot 120 seconds of startup grace before health failures count.
+- Restarts `kingmaker-backend` after 3 failed local health checks.
 - Applies systemd memory/task limits so the backend restarts before it can starve the tiny VM.
 - Applies low-memory JVM defaults for heap/metaspace/GC on the Always Free VM.
+- Enables bounded persistent journald logs for future RCA.
 
 This fixes a hung Java/backend process. If the whole Oracle VM or SSH daemon freezes, use Oracle Console auto-recovery/hard reboot; no in-VM watchdog can recover an OS-level freeze.
+
+## Nginx reverse proxy
+
+Install or reapply nginx hardening on the Oracle VM:
+
+```bash
+cd /opt/kingmaker/backend-api
+sudo bash ops/install-oracle-nginx-proxy.sh
+```
+
+What it does:
+
+- Installs nginx if missing.
+- Moves Spring Boot to `127.0.0.1:8080`.
+- Keeps public traffic on nginx port `80`.
+- Adds per-IP connection and request limits.
+- Adds proxy timeouts so slow clients do not pin backend threads.
+- Keeps Android APK downloads as redirects to GitHub instead of serving large files from Oracle.
 
 ## Notes
 

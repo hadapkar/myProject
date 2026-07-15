@@ -11,12 +11,31 @@ cat >/usr/local/bin/kingmaker-backend-watchdog <<'SCRIPT'
 set -euo pipefail
 
 SERVICE="kingmaker-backend"
-HEALTH_URL="http://127.0.0.1/healthz"
+HEALTH_URL="${KINGMAKER_BACKEND_HEALTH_URL:-http://127.0.0.1:8080/healthz}"
 STATE_DIR="/run/kingmaker-backend-watchdog"
 FAIL_FILE="$STATE_DIR/failures"
-MAX_FAILURES=1
+MAX_FAILURES="${KINGMAKER_BACKEND_WATCHDOG_MAX_FAILURES:-3}"
+STARTUP_GRACE_SECONDS="${KINGMAKER_BACKEND_STARTUP_GRACE_SECONDS:-120}"
+
+case "$MAX_FAILURES" in ''|*[!0-9]*) MAX_FAILURES=3 ;; esac
+case "$STARTUP_GRACE_SECONDS" in ''|*[!0-9]*) STARTUP_GRACE_SECONDS=120 ;; esac
 
 mkdir -p "$STATE_DIR"
+
+if ! systemctl is-active --quiet "$SERVICE"; then
+  echo 0 >"$FAIL_FILE"
+  exit 0
+fi
+
+main_pid="$(systemctl show -p MainPID --value "$SERVICE" 2>/dev/null || echo 0)"
+if [[ "$main_pid" =~ ^[0-9]+$ ]] && [ "$main_pid" -gt 1 ] && [ -d "/proc/$main_pid" ]; then
+  elapsed="$(ps -o etimes= -p "$main_pid" 2>/dev/null | tr -d ' ' || echo 0)"
+  case "$elapsed" in ''|*[!0-9]*) elapsed=0 ;; esac
+  if [ "$elapsed" -lt "$STARTUP_GRACE_SECONDS" ]; then
+    echo 0 >"$FAIL_FILE"
+    exit 0
+  fi
+fi
 
 if curl --max-time 5 --connect-timeout 2 -fsS "$HEALTH_URL" >/dev/null; then
   echo 0 >"$FAIL_FILE"
@@ -27,9 +46,7 @@ failures=0
 if [ -f "$FAIL_FILE" ]; then
   failures="$(cat "$FAIL_FILE" 2>/dev/null || echo 0)"
 fi
-case "$failures" in
-  ''|*[!0-9]*) failures=0 ;;
-esac
+case "$failures" in ''|*[!0-9]*) failures=0 ;; esac
 failures=$((failures + 1))
 echo "$failures" >"$FAIL_FILE"
 
@@ -43,13 +60,33 @@ fi
 SCRIPT
 chmod 0755 /usr/local/bin/kingmaker-backend-watchdog
 
+set_journal_setting() {
+  local key="$1"
+  local value="$2"
+  local file="/etc/systemd/journald.conf"
+
+  if grep -Eq "^[#[:space:]]*${key}=" "$file"; then
+    sed -i -E "s|^[#[:space:]]*${key}=.*|${key}=${value}|" "$file"
+  else
+    printf '%s=%s\n' "$key" "$value" >>"$file"
+  fi
+}
+
+mkdir -p /var/log/journal
+set_journal_setting Storage persistent
+set_journal_setting SystemMaxUse 100M
+set_journal_setting RuntimeMaxUse 50M
+set_journal_setting MaxRetentionSec 14day
+systemctl restart systemd-journald || true
+journalctl --flush || true
+
 mkdir -p /etc/systemd/system/kingmaker-backend.service.d
 cat >/etc/systemd/system/kingmaker-backend.service.d/override.conf <<'UNIT'
 [Service]
 Restart=always
 RestartSec=5s
-TimeoutStartSec=60s
-TimeoutStopSec=20s
+TimeoutStartSec=90s
+TimeoutStopSec=45s
 KillMode=mixed
 StartLimitIntervalSec=300
 StartLimitBurst=10
@@ -78,7 +115,7 @@ cat >/etc/systemd/system/kingmaker-backend-watchdog.timer <<'UNIT'
 Description=Run Kingmaker backend health watchdog every 30 seconds
 
 [Timer]
-OnBootSec=90s
+OnBootSec=120s
 OnUnitActiveSec=30s
 AccuracySec=10s
 Unit=kingmaker-backend-watchdog.service
