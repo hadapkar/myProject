@@ -298,7 +298,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 Padding(
                   padding: const EdgeInsets.only(bottom: 12),
                   child: Text(
-                    "Version ${AndroidUpdateService.currentVersion}",
+                    "Version ${AndroidUpdateService.currentDisplayVersion}",
                     style: const TextStyle(color: Colors.white54, fontSize: 12),
                     textAlign: TextAlign.center,
                   ),

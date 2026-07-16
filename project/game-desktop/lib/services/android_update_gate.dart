@@ -127,7 +127,7 @@ class _AndroidUpdateDialogState extends State<_AndroidUpdateDialog> {
                   : "A newer Android version is available.",
             ),
             const SizedBox(height: 12),
-            Text("Current: ${AndroidUpdateService.currentVersion}"),
+            Text("Current: ${AndroidUpdateService.currentDisplayVersion}"),
             Text("Available: ${widget.info.displayVersion}"),
             if (_busy || _progressText != null) ...[
               const SizedBox(height: 16),

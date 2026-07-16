@@ -200,10 +200,11 @@ jobs:
           fi
           APP_PUBSPEC_VERSION="$(grep '^version:' pubspec.yaml | awk '{print $2}')"
           APP_VERSION_NAME="${APP_PUBSPEC_VERSION%%+*}"
-          APP_BUILD_NUMBER="${APP_PUBSPEC_VERSION##*+}"
-          if [ "$APP_VERSION_NAME" = "$APP_BUILD_NUMBER" ]; then
-            APP_BUILD_NUMBER="$GITHUB_RUN_NUMBER"
+          APP_BASE_BUILD="${APP_PUBSPEC_VERSION##*+}"
+          if [ "$APP_VERSION_NAME" = "$APP_BASE_BUILD" ] || ! [[ "$APP_BASE_BUILD" =~ ^[0-9]+$ ]]; then
+            APP_BASE_BUILD=0
           fi
+          APP_BUILD_NUMBER=$((APP_BASE_BUILD + GITHUB_RUN_NUMBER))
           flutter build apk --release \
             --build-name="$APP_VERSION_NAME" \
             --build-number="$APP_BUILD_NUMBER" \
@@ -252,10 +253,11 @@ jobs:
           ASSET="KingMaker.apk"
           APP_PUBSPEC_VERSION="$(grep '^version:' pubspec.yaml | awk '{print $2}')"
           APP_VERSION_NAME="${APP_PUBSPEC_VERSION%%+*}"
-          APP_BUILD_NUMBER="${APP_PUBSPEC_VERSION##*+}"
-          if [ "$APP_VERSION_NAME" = "$APP_BUILD_NUMBER" ]; then
-            APP_BUILD_NUMBER="$GITHUB_RUN_NUMBER"
+          APP_BASE_BUILD="${APP_PUBSPEC_VERSION##*+}"
+          if [ "$APP_VERSION_NAME" = "$APP_BASE_BUILD" ] || ! [[ "$APP_BASE_BUILD" =~ ^[0-9]+$ ]]; then
+            APP_BASE_BUILD=0
           fi
+          APP_BUILD_NUMBER=$((APP_BASE_BUILD + GITHUB_RUN_NUMBER))
           APK_SHA256="$(tr -d '[:space:]' < "$ASSET.sha256")"
           APK_SIZE_BYTES="$(tr -d '[:space:]' < "$ASSET.size")"
           SOURCE_APK_URL="https://github.com/${GITHUB_REPOSITORY}/releases/download/android-latest/${ASSET}"

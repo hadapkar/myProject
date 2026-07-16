@@ -40,7 +40,8 @@ class AndroidUpdateInfo {
     );
   }
 
-  String get displayVersion => version.isEmpty ? "build $build" : version;
+  String get displayVersion =>
+      version.isEmpty ? "build $build" : "$version+$build";
 
   static int _intValue(Object? value) {
     if (value is int) return value;
@@ -54,6 +55,10 @@ class AndroidUpdateService {
       String.fromEnvironment("APP_VERSION", defaultValue: "0.0.0");
   static const int currentBuildNumber =
       int.fromEnvironment("APP_BUILD_NUMBER", defaultValue: 0);
+
+  static String get currentDisplayVersion => currentBuildNumber > 0
+      ? "$currentVersion+$currentBuildNumber"
+      : currentVersion;
 
   static bool get isSupported =>
       !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
