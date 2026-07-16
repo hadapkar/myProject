@@ -244,86 +244,119 @@ class _LoginScreenState extends State<LoginScreen> {
     final profileAccount = showProfile ? _savedAccounts.first : null;
     final initials = profileAccount == null ? "" : _initialsFor(profileAccount.username);
     return Scaffold(
-      body: SafeArea(
-        child: Stack(
-          children: [
-            Column(
-              children: [
-                Expanded(
-                  child: Center(
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 520),
-                      child: Padding(
-                        padding: const EdgeInsets.all(24),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            Text(
-                              widget.addAccount ? "Add Account" : "King Maker",
-                              style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold),
-                              textAlign: TextAlign.center,
-                            ),
-                            const SizedBox(height: 24),
-                            TextField(
-                              controller: _usernameController,
-                              decoration: const InputDecoration(labelText: "Username"),
-                              keyboardType: TextInputType.text,
-                              autofillHints: const [AutofillHints.username],
-                            ),
-                            const SizedBox(height: 12),
-                            TextField(
-                              controller: _passwordController,
-                              decoration: InputDecoration(
-                                labelText: "Password",
-                                suffixIcon: IconButton(
-                                  tooltip: _showPassword ? "Hide password" : "Show password",
-                                  onPressed: () => setState(() => _showPassword = !_showPassword),
-                                  icon: Icon(_showPassword ? Icons.visibility_off : Icons.visibility),
+      body: DecoratedBox(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              Color(0xFF071314),
+              Color(0xFF100D14),
+              Color(0xFF050607),
+            ],
+            stops: [0.0, 0.48, 1.0],
+          ),
+        ),
+        child: SafeArea(
+          child: Stack(
+            children: [
+              Column(
+                children: [
+                  Expanded(
+                    child: SingleChildScrollView(
+                      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+                      padding: const EdgeInsets.symmetric(vertical: 24),
+                      child: Center(
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 520),
+                          child: Padding(
+                            padding: const EdgeInsets.all(24),
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                if (!widget.addAccount) ...[
+                                  const Center(child: _LoginLogo()),
+                                  const SizedBox(height: 14),
+                                ],
+                                Text(
+                                  widget.addAccount ? "Add Account" : "King Maker",
+                                  style: const TextStyle(
+                                    fontSize: 34,
+                                    fontWeight: FontWeight.w800,
+                                    color: Color(0xFFEAF7F4),
+                                    shadows: [
+                                      Shadow(
+                                        color: Color.fromRGBO(0, 0, 0, 0.55),
+                                        blurRadius: 18,
+                                        offset: Offset(0, 4),
+                                      ),
+                                    ],
+                                  ),
+                                  textAlign: TextAlign.center,
                                 ),
-                              ),
-                              obscureText: !_showPassword,
-                              autofillHints: const [AutofillHints.password],
+                                const SizedBox(height: 24),
+                                TextField(
+                                  controller: _usernameController,
+                                  decoration: _loginInputDecoration("Username"),
+                                  keyboardType: TextInputType.text,
+                                  autofillHints: const [AutofillHints.username],
+                                ),
+                                const SizedBox(height: 12),
+                                TextField(
+                                  controller: _passwordController,
+                                  decoration: _loginInputDecoration(
+                                    "Password",
+                                    suffixIcon: IconButton(
+                                      tooltip: _showPassword ? "Hide password" : "Show password",
+                                      onPressed: () => setState(() => _showPassword = !_showPassword),
+                                      icon: Icon(_showPassword ? Icons.visibility_off : Icons.visibility),
+                                    ),
+                                  ),
+                                  obscureText: !_showPassword,
+                                  autofillHints: const [AutofillHints.password],
+                                ),
+                                const SizedBox(height: 18),
+                                FilledButton(
+                                  onPressed: _busy ? null : _signIn,
+                                  child: Text(_busy ? "Working..." : "Sign in"),
+                                ),
+                                if (_message != null) ...[
+                                  const SizedBox(height: 12),
+                                  _LoginMessageBanner(
+                                    message: _message!,
+                                    onRetry: _busy || !_canRetryMessage(_message!) ? null : _signIn,
+                                  ),
+                                ],
+                              ],
                             ),
-                            const SizedBox(height: 18),
-                            FilledButton(
-                              onPressed: _busy ? null : _signIn,
-                              child: Text(_busy ? "Working..." : "Sign in"),
-                            ),
-                            if (_message != null) ...[
-                              const SizedBox(height: 12),
-                              _LoginMessageBanner(
-                                message: _message!,
-                                onRetry: _busy || !_canRetryMessage(_message!) ? null : _signIn,
-                              ),
-                            ],
-                          ],
+                          ),
                         ),
                       ),
                     ),
                   ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
-                  child: Text(
-                    "Version ${AndroidUpdateService.currentDisplayVersion}",
-                    style: const TextStyle(color: Colors.white54, fontSize: 12),
-                    textAlign: TextAlign.center,
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: Text(
+                      "Version ${AndroidUpdateService.currentDisplayVersion}",
+                      style: const TextStyle(color: Colors.white54, fontSize: 12),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                ],
+              ),
+              if (showProfile)
+                Positioned(
+                  top: 8,
+                  left: 12,
+                  child: _LoginProfileButton(
+                    initials: initials,
+                    colorSeed: profileAccount?.email ?? initials,
+                    onPressed: _openAccountMenu,
                   ),
                 ),
-              ],
-            ),
-            if (showProfile)
-              Positioned(
-                top: 8,
-                left: 12,
-                child: _LoginProfileButton(
-                  initials: initials,
-                  colorSeed: profileAccount?.email ?? initials,
-                  onPressed: _openAccountMenu,
-                ),
-              ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -334,6 +367,74 @@ bool _canRetryMessage(String message) {
   return message.contains("Backend") ||
       message.contains("timed out") ||
       message.contains("retry");
+}
+
+class _LoginLogo extends StatelessWidget {
+  const _LoginLogo();
+
+  @override
+  Widget build(BuildContext context) {
+    const radius = BorderRadius.all(Radius.circular(26));
+    return Container(
+      width: 132,
+      height: 132,
+      decoration: const BoxDecoration(
+        borderRadius: radius,
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFF6FD1BF), Color(0xFF1E4B4D), Color(0xFF0A1012)],
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Color.fromRGBO(84, 214, 187, 0.26),
+            blurRadius: 34,
+            spreadRadius: 4,
+            offset: Offset(0, 10),
+          ),
+          BoxShadow(
+            color: Color.fromRGBO(0, 0, 0, 0.55),
+            blurRadius: 28,
+            offset: Offset(0, 16),
+          ),
+        ],
+      ),
+      padding: const EdgeInsets.all(5),
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: radius,
+          border: Border.all(color: const Color.fromRGBO(255, 255, 255, 0.24), width: 1.4),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: Image.asset(
+          "assets/app/app_icon.jpg",
+          fit: BoxFit.cover,
+          filterQuality: FilterQuality.high,
+          errorBuilder: (context, error, stackTrace) => const Icon(Icons.casino, size: 52),
+        ),
+      ),
+    );
+  }
+}
+InputDecoration _loginInputDecoration(String label, {Widget? suffixIcon}) {
+  return InputDecoration(
+    labelText: label,
+    suffixIcon: suffixIcon,
+    filled: true,
+    fillColor: const Color.fromRGBO(255, 255, 255, 0.055),
+    border: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(10),
+      borderSide: const BorderSide(color: Color.fromRGBO(255, 255, 255, 0.14)),
+    ),
+    enabledBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(10),
+      borderSide: const BorderSide(color: Color.fromRGBO(255, 255, 255, 0.12)),
+    ),
+    focusedBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(10),
+      borderSide: const BorderSide(color: Color(0xFF75D7C6), width: 1.4),
+    ),
+  );
 }
 
 class _LoginMessageBanner extends StatelessWidget {

@@ -5,6 +5,76 @@ param(
 
 $appBinaryName = "KingMaker"
 
+function Set-KingMakerWindowsIcon {
+  param(
+    [Parameter(Mandatory = $true)]
+    [string]$ProjectDir
+  )
+
+  $logoPath = Join-Path $ProjectDir "assets\app\app_icon.jpg"
+  $iconPath = Join-Path $ProjectDir "windows\runner\resources\app_icon.ico"
+  if (-not (Test-Path $logoPath)) {
+    Write-Warning "Logo asset not found for Windows icon: $logoPath"
+    return
+  }
+
+  $iconDir = Split-Path -Parent $iconPath
+  if (-not (Test-Path $iconDir)) {
+    New-Item -ItemType Directory -Path $iconDir -Force | Out-Null
+  }
+
+  Add-Type -AssemblyName System.Drawing
+  $src = $null
+  $bmp = $null
+  $graphics = $null
+  $pngStream = $null
+  $fileStream = $null
+  $writer = $null
+  try {
+    $src = [System.Drawing.Image]::FromFile($logoPath)
+    $bmp = New-Object System.Drawing.Bitmap 256, 256, ([System.Drawing.Imaging.PixelFormat]::Format32bppArgb)
+    $graphics = [System.Drawing.Graphics]::FromImage($bmp)
+    $graphics.Clear([System.Drawing.Color]::Transparent)
+    $graphics.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
+    $graphics.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::HighQuality
+    $graphics.PixelOffsetMode = [System.Drawing.Drawing2D.PixelOffsetMode]::HighQuality
+
+    $side = [Math]::Min($src.Width, $src.Height)
+    $srcX = [int](($src.Width - $side) / 2)
+    $srcY = [int](($src.Height - $side) / 2)
+    $srcRect = New-Object System.Drawing.Rectangle $srcX, $srcY, $side, $side
+    $destRect = New-Object System.Drawing.Rectangle 0, 0, 256, 256
+    $graphics.DrawImage($src, $destRect, $srcRect, [System.Drawing.GraphicsUnit]::Pixel)
+
+    $pngStream = New-Object System.IO.MemoryStream
+    $bmp.Save($pngStream, [System.Drawing.Imaging.ImageFormat]::Png)
+    $pngBytes = $pngStream.ToArray()
+
+    $fileStream = [System.IO.File]::Open($iconPath, [System.IO.FileMode]::Create, [System.IO.FileAccess]::Write)
+    $writer = New-Object System.IO.BinaryWriter $fileStream
+    $writer.Write([UInt16]0)       # reserved
+    $writer.Write([UInt16]1)       # icon type
+    $writer.Write([UInt16]1)       # image count
+    $writer.Write([Byte]0)         # width 256
+    $writer.Write([Byte]0)         # height 256
+    $writer.Write([Byte]0)         # color count
+    $writer.Write([Byte]0)         # reserved
+    $writer.Write([UInt16]1)       # planes
+    $writer.Write([UInt16]32)      # bit count
+    $writer.Write([UInt32]($pngBytes.Length))
+    $writer.Write([UInt32]22)      # image data offset
+    $writer.Write($pngBytes)
+    Write-Host "Generated Windows app icon: $iconPath"
+  } finally {
+    if ($writer -ne $null) { $writer.Dispose() }
+    if ($fileStream -ne $null) { $fileStream.Dispose() }
+    if ($pngStream -ne $null) { $pngStream.Dispose() }
+    if ($graphics -ne $null) { $graphics.Dispose() }
+    if ($bmp -ne $null) { $bmp.Dispose() }
+    if ($src -ne $null) { $src.Dispose() }
+  }
+}
+
 $mainCpp = Join-Path $ProjectDir "windows\runner\main.cpp"
 if (-not (Test-Path $mainCpp)) {
   Write-Error "windows runner main.cpp not found at: $mainCpp"
@@ -115,6 +185,8 @@ foreach ($cmakePath in $cmakeCandidates) {
 if (-not $patchedAny) {
   Write-Warning "Could not patch BINARY_NAME in any CMakeLists.txt under windows/. The output exe may keep the default name."
 }
+
+Set-KingMakerWindowsIcon -ProjectDir $ProjectDir
 
 #
 # 3) Patch Windows version resource strings (cosmetic)

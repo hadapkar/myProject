@@ -8,6 +8,7 @@ GAME_DISPLAY_CHANNEL = "kingmaker/game_display"
 ROOT = Path.cwd()
 ANDROID = ROOT / "android"
 MANIFEST = ANDROID / "app/src/main/AndroidManifest.xml"
+LOGO = ROOT / "assets/app/app_icon.jpg"
 
 
 def read(path: Path) -> str:
@@ -53,6 +54,19 @@ def patch_manifest() -> None:
         if count != 1:
             raise SystemExit("Failed to add usesCleartextTraffic: <application> not found")
 
+    if LOGO.exists():
+        app_match = re.search(r"<application\b[^>]*>", text)
+        if not app_match:
+            raise SystemExit("Failed to set launcher icon: <application> not found")
+        app_tag = app_match.group(0)
+        patched_tag = app_tag
+        for attr in ("android:icon", "android:roundIcon"):
+            if attr in patched_tag:
+                patched_tag = re.sub(rf'{attr}="[^"]*"', f'{attr}="@drawable/kingmaker_logo"', patched_tag, count=1)
+            else:
+                patched_tag = patched_tag[:-1] + f' {attr}="@drawable/kingmaker_logo">'
+        text = text[:app_match.start()] + patched_tag + text[app_match.end():]
+
     if "androidx.core.content.FileProvider" not in text:
         provider = '''
         <provider
@@ -80,6 +94,14 @@ def patch_manifest() -> None:
         text = text.replace("    </application>", receiver + "    </application>")
     write(MANIFEST, text)
 
+
+
+def patch_launcher_logo() -> None:
+    if not LOGO.exists():
+        raise SystemExit(f"Logo asset not found: {LOGO}")
+    target = ANDROID / "app/src/main/res/drawable/kingmaker_logo.jpg"
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_bytes(LOGO.read_bytes())
 
 def patch_file_paths() -> None:
     write(
@@ -261,6 +283,7 @@ def patch_gradle_dependency() -> None:
     raise SystemExit("No Android app Gradle file found")
 
 
+patch_launcher_logo()
 patch_manifest()
 patch_file_paths()
 patch_main_activity()
