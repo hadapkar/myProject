@@ -275,7 +275,30 @@ jobs:
           sudo install -m 600 -o root -g root "$TMP" /etc/kingmaker-backend.env
           rm -f "$TMP"
           sudo systemctl restart kingmaker-backend
-          sleep 10
-          curl -fsS --max-time 10 http://127.0.0.1/readyz >/dev/null || curl -fsS --max-time 10 http://127.0.0.1:8080/readyz >/dev/null
-          curl -fsS --max-time 10 http://127.0.0.1/public/android/latest >/dev/null || curl -fsS --max-time 10 http://127.0.0.1:8080/public/android/latest >/dev/null
+
+          ready=0
+          for _ in $(seq 1 40); do
+            if curl -fsS --max-time 4 http://127.0.0.1/readyz >/dev/null || curl -fsS --max-time 4 http://127.0.0.1:8080/readyz >/dev/null; then
+              ready=1
+              break
+            fi
+            sleep 3
+          done
+          if [ "$ready" != "1" ]; then
+            sudo systemctl status kingmaker-backend --no-pager -l || true
+            exit 1
+          fi
+
+          latest=0
+          for _ in $(seq 1 20); do
+            if curl -fsS --max-time 4 http://127.0.0.1/public/android/latest >/dev/null || curl -fsS --max-time 4 http://127.0.0.1:8080/public/android/latest >/dev/null; then
+              latest=1
+              break
+            fi
+            sleep 2
+          done
+          if [ "$latest" != "1" ]; then
+            sudo systemctl status kingmaker-backend --no-pager -l || true
+            exit 1
+          fi
           REMOTE
