@@ -56,8 +56,27 @@ public class PublicLoginCheckController {
       // the authenticated API gate will still protect /api/**.
       return Map.of("allowed", true, "reason", "check_unavailable");
     }
+    SupabaseUser aliasUser = null;
     if (access == null) {
-      return Map.of("allowed", false, "reason", "unknown_user");
+      try {
+        aliasUser = supabaseAdmin.findUserByEmailLocalPart(normalized);
+        if (aliasUser != null && aliasUser.id() != null && !aliasUser.id().isBlank()) {
+          access = supabaseRest.getUserAccessByUserIdServiceRole(aliasUser.id());
+        }
+      } catch (Exception ignored) {
+      }
+      if (access == null && aliasUser != null && aliasUser.email() != null && !aliasUser.email().isBlank()) {
+        return Map.of(
+            "allowed", true,
+            "reason", "email_alias",
+            "email", aliasUser.email().trim().toLowerCase(),
+            "username", normalized,
+            "role", "PLAYER",
+            "endsAt", "");
+      }
+      if (access == null) {
+        return Map.of("allowed", false, "reason", "unknown_user");
+      }
     }
 
     String role = SupabaseRestService.normalizeUserRole(access.get("role"));
@@ -106,6 +125,13 @@ public class PublicLoginCheckController {
       SupabaseUser user = supabaseAdmin.findUserById(userId);
       if (user != null && user.email() != null && !user.email().isBlank()) {
         return user.email().trim().toLowerCase();
+      }
+    } catch (Exception ignored) {
+    }
+    try {
+      SupabaseUser aliasUser = supabaseAdmin.findUserByEmailLocalPart(username);
+      if (aliasUser != null && aliasUser.email() != null && !aliasUser.email().isBlank()) {
+        return aliasUser.email().trim().toLowerCase();
       }
     } catch (Exception ignored) {
     }

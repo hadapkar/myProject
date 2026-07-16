@@ -6,10 +6,12 @@ import "package:go_router/go_router.dart";
 import "package:supabase_flutter/supabase_flutter.dart";
 
 import "../../services/android_update_gate.dart";
+import "../../services/android_update_service.dart";
 import "../../services/update_service.dart";
 import "../../services/funtarget_api.dart";
 import "../../storage/account_store.dart";
 import "../../storage/session_store.dart";
+import "../../widgets/profile_avatar.dart";
 
 const _funTargetLogo = "assets/app/logo.jpg";
 
@@ -166,12 +168,10 @@ class _HomeScreenState extends State<HomeScreen> {
     final session = auth.currentSession;
     final email = auth.currentUser?.email ?? session?.user.email ?? "";
     final refreshToken = session?.refreshToken ?? "";
-    if (email.trim().isNotEmpty) {
-      await AccountStore.removeAccount(email);
-    }
-    if (refreshToken.trim().isNotEmpty) {
-      await AccountStore.removeAccountByRefreshToken(refreshToken);
-    }
+    await AccountStore.removeCurrentAccount(
+      email: email,
+      refreshToken: refreshToken,
+    );
   }
 
   Future<void> _signOut() async {
@@ -337,72 +337,84 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     final user = Supabase.instance.client.auth.currentUser;
     final email = user?.email ?? "-";
+    final username = _usernameFromEmail(email);
     final compactActions = MediaQuery.sizeOf(context).width < 720;
     return Scaffold(
       backgroundColor: const Color(0xFF0B1220),
       appBar: AppBar(
         leadingWidth: 72,
         leading: _ProfileAccountButton(
-          initials: _initialsFor(_usernameFromEmail(email)),
+          initials: _initialsFor(username),
+          colorSeed: email == "-" ? username : email,
           onPressed: _openAccountMenu,
           onSwipeUp: () => unawaited(_switchRelativeAccount(-1)),
           onSwipeDown: () => unawaited(_switchRelativeAccount(1)),
         ),
         actions: compactActions ? _compactActions() : _wideActions(email),
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            if (!_roleLoaded) ...[
-              const LinearProgressIndicator(minHeight: 2),
-              const SizedBox(height: 12),
-            ],
-            if (_homeError != null) ...[
-              _HomeErrorBanner(
-                message: _homeError!,
-                onRetry: () => unawaited(_refreshUserState(force: true)),
-              ),
-              const SizedBox(height: 12),
-            ],
-            Expanded(
-              child: LayoutBuilder(
-                builder: (context, constraints) {
-                  final width = constraints.maxWidth;
-                  final crossAxisCount = width >= 1100
-                      ? 4
-                      : width >= 820
-                          ? 3
-                          : width >= 520
-                              ? 2
-                              : 1;
-                  return GridView.count(
-                    crossAxisCount: crossAxisCount,
-                    crossAxisSpacing: 16,
-                    mainAxisSpacing: 16,
-                    childAspectRatio: 1.4,
-                    children: [
-                      _GameTile(
-                        title: "FunTarget",
-                        subtitle: "Wheel / Bet game",
-                        imageAsset: _funTargetLogo,
-                        onTap: () => context.push("/game"),
-                      ),
-                      if (_roleLoaded && _canManageFunTarget && _mobileApp)
+      body: RefreshIndicator(
+        onRefresh: () => _refreshUserState(force: true),
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (!_roleLoaded) ...[
+                const LinearProgressIndicator(minHeight: 2),
+                const SizedBox(height: 12),
+              ],
+              if (_homeError != null) ...[
+                _HomeErrorBanner(
+                  message: _homeError!,
+                  onRetry: () => unawaited(_refreshUserState(force: true)),
+                ),
+                const SizedBox(height: 12),
+              ],
+              Expanded(
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final width = constraints.maxWidth;
+                    final crossAxisCount = width >= 1100
+                        ? 4
+                        : width >= 820
+                            ? 3
+                            : width >= 520
+                                ? 2
+                                : 1;
+                    return GridView.count(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      crossAxisCount: crossAxisCount,
+                      crossAxisSpacing: 16,
+                      mainAxisSpacing: 16,
+                      childAspectRatio: 1.4,
+                      children: [
                         _GameTile(
-                          title: "FunTarget Admin",
-                          subtitle: "Manage live users and wheel results",
+                          title: "FunTarget",
+                          subtitle: "Wheel / Bet game",
                           imageAsset: _funTargetLogo,
-                          actionLabel: "Open",
-                          onTap: () => context.push("/admin/funtarget"),
+                          onTap: () => context.push("/game"),
                         ),
-                    ],
-                  );
-                },
+                        if (_roleLoaded && _canManageFunTarget && _mobileApp)
+                          _GameTile(
+                            title: "FunTarget Admin",
+                            subtitle: "Manage live users and wheel results",
+                            imageAsset: _funTargetLogo,
+                            actionLabel: "Open",
+                            onTap: () => context.push("/admin/funtarget"),
+                          ),
+                      ],
+                    );
+                  },
+                ),
               ),
-            ),
-          ],
+              const SizedBox(height: 10),
+              Text(
+                "Version ${AndroidUpdateService.currentDisplayVersion}",
+                style: const TextStyle(color: Colors.white54, fontSize: 12),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -517,12 +529,14 @@ class _HomeErrorBanner extends StatelessWidget {
 
 class _ProfileAccountButton extends StatelessWidget {
   final String initials;
+  final String colorSeed;
   final VoidCallback onPressed;
   final VoidCallback onSwipeUp;
   final VoidCallback onSwipeDown;
 
   const _ProfileAccountButton({
     required this.initials,
+    required this.colorSeed,
     required this.onPressed,
     required this.onSwipeUp,
     required this.onSwipeDown,
@@ -544,11 +558,7 @@ class _ProfileAccountButton extends StatelessWidget {
         child: InkWell(
           onTap: onPressed,
           customBorder: const CircleBorder(),
-          child: CircleAvatar(
-            backgroundColor: const Color(0xFFC8B5FF),
-            foregroundColor: const Color(0xFF191225),
-            child: Text(initials, style: const TextStyle(fontWeight: FontWeight.w800)),
-          ),
+          child: ProfileAvatar(initials: initials, seed: colorSeed),
         ),
       ),
     );
@@ -580,7 +590,7 @@ class _AccountSheet extends StatelessWidget {
           children: [
             for (final account in accounts)
               ListTile(
-                leading: CircleAvatar(child: Text(_initialsFor(account.username))),
+                leading: ProfileAvatar(initials: _initialsFor(account.username), seed: account.email),
                 title: Text(account.username, maxLines: 1, overflow: TextOverflow.ellipsis),
                 trailing: account.email.toLowerCase() == currentEmail
                     ? const Icon(Icons.check, color: Colors.greenAccent)

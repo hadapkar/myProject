@@ -125,12 +125,10 @@ class _GameScreenState extends State<GameScreen> {
     final session = auth.currentSession;
     final email = auth.currentUser?.email ?? session?.user.email ?? "";
     final refreshToken = session?.refreshToken ?? "";
-    if (email.trim().isNotEmpty) {
-      await AccountStore.removeAccount(email);
-    }
-    if (refreshToken.trim().isNotEmpty) {
-      await AccountStore.removeAccountByRefreshToken(refreshToken);
-    }
+    await AccountStore.removeCurrentAccount(
+      email: email,
+      refreshToken: refreshToken,
+    );
   }
 
   @override

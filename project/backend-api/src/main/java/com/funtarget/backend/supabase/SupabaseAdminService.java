@@ -117,6 +117,45 @@ public class SupabaseAdminService {
     String normalized = userId.trim();
 
     try {
+      var request =
+          HttpRequest.newBuilder()
+              .uri(URI.create(normalizeUrl(props.url()) + "/auth/v1/admin/users/" + normalized))
+              .timeout(Duration.ofSeconds(20))
+              .header("apikey", props.serviceRoleKey())
+              .header("Authorization", "Bearer " + props.serviceRoleKey())
+              .GET()
+              .build();
+
+      var response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+      if (response.statusCode() == 404) return null;
+      if (response.statusCode() < 200 || response.statusCode() >= 300) {
+        String resp = response.body() == null ? "" : response.body().trim();
+        String preview = resp.length() > 220 ? resp.substring(0, 220) + "..." : resp;
+        throw new IllegalStateException(
+            "Supabase get user failed (status "
+                + response.statusCode()
+                + (preview.isBlank() ? "" : (", body=" + preview))
+                + ")");
+      }
+
+      String resp = response.body() == null ? "" : response.body();
+      String id = extractJsonStringField(resp, "id");
+      String email = extractJsonStringField(resp, "email");
+      if (id == null || id.isBlank() || email == null || email.isBlank()) return null;
+      return new SupabaseUser(id, email);
+    } catch (RuntimeException e) {
+      throw e;
+    } catch (Exception e) {
+      throw new RuntimeException("Supabase admin error", e);
+    }
+  }
+
+  public SupabaseUser findUserByEmailLocalPart(String username) {
+    if (username == null || username.isBlank()) return null;
+    requireConfigured();
+    String normalized = username.trim().toLowerCase();
+
+    try {
       for (int page = 1; page <= 10; page++) {
         var request =
             HttpRequest.newBuilder()
@@ -140,9 +179,9 @@ public class SupabaseAdminService {
 
         String resp = response.body() == null ? "" : response.body();
         if (!resp.contains("\"users\"")) return null;
-        SupabaseUser user = extractUserById(resp, normalized);
+        SupabaseUser user = extractUserByEmailLocalPart(resp, normalized);
         if (user != null) return user;
-        if (!resp.contains("\"id\"")) return null;
+        if (!resp.contains("\"email\"")) return null;
       }
       return null;
     } catch (RuntimeException e) {
@@ -250,17 +289,27 @@ public class SupabaseAdminService {
     return trimmed;
   }
 
-  private static SupabaseUser extractUserById(String json, String userId) {
-    if (json == null || userId == null || userId.isBlank()) return null;
-    Pattern idPattern = Pattern.compile("\"id\"\\s*:\\s*\"" + Pattern.quote(userId) + "\"");
-    Matcher idMatcher = idPattern.matcher(json);
-    if (!idMatcher.find()) return null;
+  private static SupabaseUser extractUserByEmailLocalPart(String json, String localPart) {
+    if (json == null || localPart == null || localPart.isBlank()) return null;
+    Pattern emailPattern = Pattern.compile("\"email\"\\s*:\\s*\"([^\"]*)\"", Pattern.CASE_INSENSITIVE);
+    Matcher emailMatcher = emailPattern.matcher(json);
+    while (emailMatcher.find()) {
+      String email = emailMatcher.group(1);
+      int atIndex = email == null ? -1 : email.indexOf("@");
+      String candidate = atIndex > 0 ? email.substring(0, atIndex) : email;
+      if (candidate == null || !candidate.equalsIgnoreCase(localPart)) continue;
 
-    int to = Math.min(json.length(), idMatcher.end() + 2500);
-    String suffix = json.substring(idMatcher.end(), to);
-    String email = extractJsonStringField(suffix, "email");
-    if (email == null || email.isBlank()) return null;
-    return new SupabaseUser(userId, email);
+      int from = Math.max(0, emailMatcher.start() - 2500);
+      String prefix = json.substring(from, emailMatcher.start());
+      Pattern idPattern = Pattern.compile("\"id\"\\s*:\\s*\"([^\"]*)\"");
+      Matcher idMatcher = idPattern.matcher(prefix);
+      String id = null;
+      while (idMatcher.find()) {
+        id = idMatcher.group(1);
+      }
+      if (id != null && !id.isBlank()) return new SupabaseUser(id, email);
+    }
+    return null;
   }
 
   private static SupabaseUser extractUserByEmail(String json, String email) {

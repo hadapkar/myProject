@@ -258,35 +258,39 @@ class _FunTargetAdminScreenState extends State<FunTargetAdminScreen> {
           const SizedBox(width: 8),
         ],
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (_loading && _rows.isEmpty) ...[
-              const LinearProgressIndicator(minHeight: 2),
-              const SizedBox(height: 12),
-            ],
-            if (_error != null)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: _AdminErrorBanner(
-                  message: _error!,
-                  onRetry: _isRefreshDisabled ? null : _load,
+      body: RefreshIndicator(
+        onRefresh: _isRefreshDisabled ? () async {} : _load,
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (_loading && _rows.isEmpty) ...[
+                const LinearProgressIndicator(minHeight: 2),
+                const SizedBox(height: 12),
+              ],
+              if (_error != null)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: _AdminErrorBanner(
+                    message: _error!,
+                    onRetry: _isRefreshDisabled ? null : _load,
+                  ),
                 ),
-              ),
-            if (showUserPicker) ...[
-              const Padding(
-                padding: EdgeInsets.only(bottom: 10),
-                child: Text("Select a user.", style: TextStyle(color: Colors.white70)),
-              ),
-              _buildUserPicker(selected),
+              if (showUserPicker) ...[
+                const Padding(
+                  padding: EdgeInsets.only(bottom: 10),
+                  child: Text("Select a user.", style: TextStyle(color: Colors.white70)),
+                ),
+                _buildUserPicker(selected),
+                const SizedBox(height: 12),
+              ],
+              _buildWheelPanel(selected),
               const SizedBox(height: 12),
+              _buildScorePanel(selected),
             ],
-            _buildWheelPanel(selected),
-            const SizedBox(height: 12),
-            _buildScorePanel(selected),
-          ],
+          ),
         ),
       ),
     );

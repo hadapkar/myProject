@@ -266,94 +266,98 @@ class _UserAccessScreenState extends State<UserAccessScreen> {
           const SizedBox(width: 8),
         ],
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (_error != null)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: _AccessErrorBanner(
-                  message: _error!,
-                  onRetry: _loading ? null : () => _load(keepSelectedUserId: _selectedUserId),
+      body: RefreshIndicator(
+        onRefresh: () => _load(keepSelectedUserId: _selectedUserId),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (_error != null)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: _AccessErrorBanner(
+                    message: _error!,
+                    onRetry: _loading ? null : () => _load(keepSelectedUserId: _selectedUserId),
+                  ),
                 ),
-              ),
-            if (_saving) ...[
-              const LinearProgressIndicator(minHeight: 2),
-              const SizedBox(height: 12),
-            ],
-            if (_loading)
-              const Expanded(child: Center(child: CircularProgressIndicator()))
-            else if (_rows.isEmpty)
-              const Expanded(child: Center(child: Text("No users found.")))
-            else
-              Expanded(
-                child: SingleChildScrollView(
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 720),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        TextField(
-                          controller: _search,
-                          decoration: InputDecoration(
-                            labelText: "Search user",
-                            prefixIcon: const Icon(Icons.search),
-                            suffixIcon: _search.text.isEmpty
-                                ? null
-                                : IconButton(
-                                    tooltip: "Clear search",
-                                    onPressed: () => setState(() => _search.clear()),
-                                    icon: const Icon(Icons.close),
-                                  ),
+              if (_saving) ...[
+                const LinearProgressIndicator(minHeight: 2),
+                const SizedBox(height: 12),
+              ],
+              if (_loading)
+                const Expanded(child: Center(child: CircularProgressIndicator()))
+              else if (_rows.isEmpty)
+                const Expanded(child: Center(child: Text("No users found.")))
+              else
+                Expanded(
+                  child: SingleChildScrollView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 720),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          TextField(
+                            controller: _search,
+                            decoration: InputDecoration(
+                              labelText: "Search user",
+                              prefixIcon: const Icon(Icons.search),
+                              suffixIcon: _search.text.isEmpty
+                                  ? null
+                                  : IconButton(
+                                      tooltip: "Clear search",
+                                      onPressed: () => setState(() => _search.clear()),
+                                      icon: const Icon(Icons.close),
+                                    ),
+                            ),
+                            onChanged: (_) => setState(() {}),
                           ),
-                          onChanged: (_) => setState(() {}),
-                        ),
-                        const SizedBox(height: 12),
-                        DropdownButtonFormField<String>(
-                          value: selectedVisible ? _selectedUserId : null,
-                          decoration: const InputDecoration(labelText: "User name"),
-                          hint: const Text("Select user"),
-                          dropdownColor: const Color(0xFF111827),
-                          items: filteredRows.map((row) {
-                            final userId = (row["user_id"] ?? "").toString();
-                            final username = (row["username"] ?? "").toString();
-                            return DropdownMenuItem<String>(
-                              value: userId,
-                              child: Text(username, maxLines: 1, overflow: TextOverflow.ellipsis),
-                            );
-                          }).toList(growable: false),
-                          onChanged: _saving ? null : (value) => setState(() => _selectedUserId = value),
-                        ),
-                        const SizedBox(height: 16),
-                        if (selected == null)
-                          const Text("Select a user to view and update subscription details.")
-                        else
-                          _SelectedUserPanel(
-                            row: selected,
-                            role: _roleValue(selected),
-                            status: _statusValue(selected),
-                            endsAt: _formatEndsAt(selected),
-                            disabled: _saving,
-                            onRoleChanged: (role) => _updateRow((selected["user_id"] ?? "").toString(), role: role),
-                            onSetEndDate: () => _setEndDateDialog(selected),
-                            onClearEndDate: () => _updateRow((selected["user_id"] ?? "").toString(), endsAtIso: ""),
-                            onToggleStatus: () {
-                              final userId = (selected["user_id"] ?? "").toString();
-                              final status = _statusValue(selected);
-                              unawaited(_updateRow(userId, status: status == "active" ? "blocked" : "active"));
-                            },
-                            onEditUser: () => _editUserDialog(selected),
-                            canDelete: _roleValue(selected) != "ADMIN",
-                            onDeleteUser: () => _deleteUserDialog(selected),
+                          const SizedBox(height: 12),
+                          DropdownButtonFormField<String>(
+                            value: selectedVisible ? _selectedUserId : null,
+                            decoration: const InputDecoration(labelText: "User name"),
+                            hint: const Text("Select user"),
+                            dropdownColor: const Color(0xFF111827),
+                            items: filteredRows.map((row) {
+                              final userId = (row["user_id"] ?? "").toString();
+                              final username = (row["username"] ?? "").toString();
+                              return DropdownMenuItem<String>(
+                                value: userId,
+                                child: Text(username, maxLines: 1, overflow: TextOverflow.ellipsis),
+                              );
+                            }).toList(growable: false),
+                            onChanged: _saving ? null : (value) => setState(() => _selectedUserId = value),
                           ),
-                      ],
+                          const SizedBox(height: 16),
+                          if (selected == null)
+                            const Text("Select a user to view and update subscription details.")
+                          else
+                            _SelectedUserPanel(
+                              row: selected,
+                              role: _roleValue(selected),
+                              status: _statusValue(selected),
+                              endsAt: _formatEndsAt(selected),
+                              disabled: _saving,
+                              onRoleChanged: (role) => _updateRow((selected["user_id"] ?? "").toString(), role: role),
+                              onSetEndDate: () => _setEndDateDialog(selected),
+                              onClearEndDate: () => _updateRow((selected["user_id"] ?? "").toString(), endsAtIso: ""),
+                              onToggleStatus: () {
+                                final userId = (selected["user_id"] ?? "").toString();
+                                final status = _statusValue(selected);
+                                unawaited(_updateRow(userId, status: status == "active" ? "blocked" : "active"));
+                              },
+                              onEditUser: () => _editUserDialog(selected),
+                              canDelete: _roleValue(selected) != "ADMIN",
+                              onDeleteUser: () => _deleteUserDialog(selected),
+                            ),
+                        ],
+                      ),
                     ),
                   ),
                 ),
-              ),
-          ],
+            ],
+          ),
         ),
       ),
     );

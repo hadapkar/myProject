@@ -11,6 +11,7 @@ import "../../services/android_update_gate.dart";
 import "../../services/android_update_service.dart";
 import "../../storage/account_store.dart";
 import "../../storage/session_store.dart";
+import "../../widgets/profile_avatar.dart";
 
 class LoginScreen extends StatefulWidget {
   final bool addAccount;
@@ -240,7 +241,8 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     final showProfile = _savedAccounts.isNotEmpty;
-    final initials = showProfile ? _initialsFor(_savedAccounts.first.username) : "";
+    final profileAccount = showProfile ? _savedAccounts.first : null;
+    final initials = profileAccount == null ? "" : _initialsFor(profileAccount.username);
     return Scaffold(
       body: SafeArea(
         child: Stack(
@@ -317,6 +319,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 left: 12,
                 child: _LoginProfileButton(
                   initials: initials,
+                  colorSeed: profileAccount?.email ?? initials,
                   onPressed: _openAccountMenu,
                 ),
               ),
@@ -379,20 +382,21 @@ String _initialsFor(String value) {
 
 class _LoginProfileButton extends StatelessWidget {
   final String initials;
+  final String colorSeed;
   final VoidCallback onPressed;
 
-  const _LoginProfileButton({required this.initials, required this.onPressed});
+  const _LoginProfileButton({
+    required this.initials,
+    required this.colorSeed,
+    required this.onPressed,
+  });
 
   @override
   Widget build(BuildContext context) {
     return InkWell(
       onTap: onPressed,
       customBorder: const CircleBorder(),
-      child: CircleAvatar(
-        backgroundColor: const Color(0xFFC8B5FF),
-        foregroundColor: const Color(0xFF191225),
-        child: Text(initials, style: const TextStyle(fontWeight: FontWeight.w800)),
-      ),
+      child: ProfileAvatar(initials: initials, seed: colorSeed),
     );
   }
 }
@@ -421,7 +425,7 @@ class _LoginAccountSheet extends StatelessWidget {
           children: [
             for (final account in accounts)
               ListTile(
-                leading: CircleAvatar(child: Text(_initialsFor(account.username))),
+                leading: ProfileAvatar(initials: _initialsFor(account.username), seed: account.email),
                 title: Text(account.username, maxLines: 1, overflow: TextOverflow.ellipsis),
                 onTap: () => Navigator.of(context).pop(_LoginAccountAction.switchTo(account)),
               ),
