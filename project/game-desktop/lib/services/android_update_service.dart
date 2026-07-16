@@ -93,6 +93,7 @@ class AndroidUpdateService {
       uri,
       fileName: "KingMaker-${info.build}.apk",
       expectedSha256: info.sha256,
+      expectedBytes: info.sizeBytes,
       onProgress: (received, total) {
         onProgress?.call(received, total ?? (info.sizeBytes > 0 ? info.sizeBytes : null));
       },

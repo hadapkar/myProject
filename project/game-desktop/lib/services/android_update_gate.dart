@@ -94,9 +94,20 @@ class _AndroidUpdateDialogState extends State<_AndroidUpdateDialog> {
       if (!mounted) return;
       setState(() {
         _busy = false;
-        _error = e.toString();
+        _error = _friendlyUpdateError(e);
       });
     }
+  }
+
+  String _friendlyUpdateError(Object error) {
+    final text = error.toString().replaceFirst("Bad state: ", "");
+    if (text.contains("Network connection interrupted") ||
+        text.contains("Connection closed") ||
+        text.contains("timed out") ||
+        text.contains("incomplete")) {
+      return "Download interrupted. Tap retry to continue.";
+    }
+    return text;
   }
 
   @override

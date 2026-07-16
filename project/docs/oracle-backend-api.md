@@ -41,6 +41,45 @@ sudo systemctl restart nginx
 curl http://80.225.236.170/healthz
 ```
 
+
+## CI-built backend deploy with rollback
+
+The backend jar should be built by GitHub Actions, not on the 1 GB Oracle VM. The workflow is `.github/workflows/backend-api-deploy.yml`.
+
+What it does:
+
+- Builds and tests `project/backend-api` on GitHub using Java 21.
+- Uploads `backend-api-0.0.1-SNAPSHOT.jar` as a workflow artifact.
+- Copies the jar to Oracle only when `ORACLE_SSH_PRIVATE_KEY` is configured as a GitHub Actions secret.
+- Runs `ops/deploy-oracle-backend-jar.sh` on the VM.
+- Keeps the previous jar as `backend-api-0.0.1-SNAPSHOT.jar.previous`.
+- Restarts only `kingmaker-backend`, waits for `/readyz`, and automatically restores the previous jar if readiness fails.
+
+Required GitHub Actions secrets for automatic deploy:
+
+- `ORACLE_SSH_PRIVATE_KEY`: private key that can SSH to the VM as `opc`.
+- `ORACLE_HOST`: optional, defaults to `80.225.236.170`.
+- `ORACLE_USER`: optional, defaults to `opc`.
+
+If `ORACLE_SSH_PRIVATE_KEY` is missing, the workflow still builds/tests the jar but skips deployment.
+
+Manual VM-side rollback deploy command:
+
+```bash
+sudo bash /tmp/deploy-oracle-backend-jar.sh /tmp/backend-api-0.0.1-SNAPSHOT.jar
+```
+
+## Android update metadata sync
+
+Android APK build/release is separate from backend deployment. The Android workflow publishes the APK, SHA256, and size to the GitHub `android-latest` release, but Oracle `/public/android/latest` reads version metadata from `/etc/kingmaker-backend.env`.
+
+Current behavior: Oracle Android version metadata does **not** auto-sync unless a deploy/update script writes these env vars and restarts `kingmaker-backend`:
+
+- `APP_ANDROID_UPDATE_LATEST_VERSION`
+- `APP_ANDROID_UPDATE_LATEST_BUILD`
+- `APP_ANDROID_UPDATE_APK_SHA256`
+- `APP_ANDROID_UPDATE_APK_SIZE_BYTES`
+
 ## Backend watchdog
 
 Install the watchdog on the Oracle VM after deployment or after a VM rebuild:

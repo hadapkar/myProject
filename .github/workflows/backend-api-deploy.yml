@@ -1,0 +1,85 @@
+name: Backend API CI Deploy
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "project/backend-api/**"
+      - ".github/workflows/backend-api-deploy.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build backend jar
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: gradle
+          cache-dependency-path: project/backend-api/**/*.gradle*
+
+      - name: Build and test
+        working-directory: project/backend-api
+        run: |
+          chmod +x ./gradlew
+          ./gradlew --no-daemon --max-workers=1 test bootJar
+
+      - name: Upload backend jar
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-api-jar
+          path: project/backend-api/build/libs/backend-api-0.0.1-SNAPSHOT.jar
+          if-no-files-found: error
+          retention-days: 14
+
+  deploy:
+    name: Deploy to Oracle VM
+    runs-on: ubuntu-latest
+    needs: build
+    env:
+      ORACLE_HOST: ${{ secrets.ORACLE_HOST || '80.225.236.170' }}
+      ORACLE_USER: ${{ secrets.ORACLE_USER || 'opc' }}
+      ORACLE_SSH_PRIVATE_KEY: ${{ secrets.ORACLE_SSH_PRIVATE_KEY }}
+    steps:
+      - name: Checkout deploy script
+        uses: actions/checkout@v4
+
+      - name: Download backend jar
+        uses: actions/download-artifact@v4
+        with:
+          name: backend-api-jar
+          path: /tmp/backend-api-artifact
+
+      - name: Skip deploy when SSH key secret is missing
+        if: env.ORACLE_SSH_PRIVATE_KEY == ''
+        run: |
+          echo "Backend jar was built, but deployment was skipped."
+          echo "Add ORACLE_SSH_PRIVATE_KEY to GitHub Actions secrets to enable Oracle deployment."
+
+      - name: Configure SSH
+        if: env.ORACLE_SSH_PRIVATE_KEY != ''
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "$ORACLE_SSH_PRIVATE_KEY" > ~/.ssh/oracle.key
+          chmod 600 ~/.ssh/oracle.key
+          ssh-keyscan -H "$ORACLE_HOST" >> ~/.ssh/known_hosts
+
+      - name: Copy jar and deploy script
+        if: env.ORACLE_SSH_PRIVATE_KEY != ''
+        run: |
+          scp -i ~/.ssh/oracle.key /tmp/backend-api-artifact/backend-api-0.0.1-SNAPSHOT.jar "$ORACLE_USER@$ORACLE_HOST:/tmp/backend-api-0.0.1-SNAPSHOT.jar"
+          scp -i ~/.ssh/oracle.key project/backend-api/ops/deploy-oracle-backend-jar.sh "$ORACLE_USER@$ORACLE_HOST:/tmp/deploy-oracle-backend-jar.sh"
+
+      - name: Deploy with rollback
+        if: env.ORACLE_SSH_PRIVATE_KEY != ''
+        run: |
+          ssh -i ~/.ssh/oracle.key "$ORACLE_USER@$ORACLE_HOST" "chmod +x /tmp/deploy-oracle-backend-jar.sh && sudo bash /tmp/deploy-oracle-backend-jar.sh /tmp/backend-api-0.0.1-SNAPSHOT.jar"

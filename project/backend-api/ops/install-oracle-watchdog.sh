@@ -11,7 +11,7 @@ cat >/usr/local/bin/kingmaker-backend-watchdog <<'SCRIPT'
 set -euo pipefail
 
 SERVICE="kingmaker-backend"
-HEALTH_URL="${KINGMAKER_BACKEND_HEALTH_URL:-http://127.0.0.1/healthz}"
+HEALTH_URL="${KINGMAKER_BACKEND_HEALTH_URL:-http://127.0.0.1:8080/healthz}"
 STATE_DIR="/run/kingmaker-backend-watchdog"
 FAIL_FILE="$STATE_DIR/failures"
 MAX_FAILURES="${KINGMAKER_BACKEND_WATCHDOG_MAX_FAILURES:-3}"
