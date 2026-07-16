@@ -71,15 +71,26 @@ sudo bash /tmp/deploy-oracle-backend-jar.sh /tmp/backend-api-0.0.1-SNAPSHOT.jar
 
 ## Android update metadata sync
 
-Android APK build/release is separate from backend deployment. The Android workflow publishes the APK, SHA256, and size to the GitHub `android-latest` release, but Oracle `/public/android/latest` reads version metadata from `/etc/kingmaker-backend.env`.
+Android APK publishing and Oracle update metadata are automated when the Android
+workflow has Oracle SSH access:
 
-Current behavior: Oracle Android version metadata does **not** auto-sync unless a deploy/update script writes these env vars and restarts `kingmaker-backend`:
+- The APK workflow publishes `KingMaker.apk`, `KingMaker.apk.sha256`, and
+  `KingMaker.apk.size` to the `android-latest` GitHub Release.
+- After publishing, the workflow updates `/etc/kingmaker-backend.env` on Oracle
+  and restarts only `kingmaker-backend`.
+- If `ORACLE_SSH_PRIVATE_KEY` is missing, APK publishing still succeeds but
+  Oracle metadata sync is skipped.
 
-- `APP_ANDROID_UPDATE_LATEST_VERSION`
-- `APP_ANDROID_UPDATE_LATEST_BUILD`
-- `APP_ANDROID_UPDATE_APK_SHA256`
-- `APP_ANDROID_UPDATE_APK_SIZE_BYTES`
+The env values used by the backend are:
 
+- `ANDROID_LATEST_VERSION`
+- `ANDROID_LATEST_BUILD`
+- `ANDROID_SOURCE_APK_URL`
+- `ANDROID_APK_SHA256`
+- `ANDROID_APK_SIZE_BYTES`
+
+Keep these aligned with the APK release, or the mobile app will not see the
+intended update.
 ## Backend watchdog
 
 Install the watchdog on the Oracle VM after deployment or after a VM rebuild:

@@ -102,8 +102,10 @@ Configure these backend environment variables to enable it:
 - `ANDROID_LATEST_VERSION` example: `0.1.5`
 - `ANDROID_LATEST_BUILD` example: `6`
 - `ANDROID_APK_URL` direct APK download URL
+- `ANDROID_SOURCE_APK_URL` source APK URL used by `/public/android/download`
 - `ANDROID_FORCE_UPDATE` set `true` to block login/home until update is opened
 - `ANDROID_RELEASE_NOTES` optional text shown in the dialog
 - `ANDROID_APK_SHA256` optional metadata for the APK checksum
+- `ANDROID_APK_SIZE_BYTES` optional APK size shown in the progress dialog
 
-If `ANDROID_APK_URL` is empty or `ANDROID_LATEST_BUILD` is not greater than the installed build number, no update prompt is shown.
+If both `ANDROID_APK_URL` and `ANDROID_SOURCE_APK_URL` are empty, or `ANDROID_LATEST_BUILD` is not greater than the installed build number, no update prompt is shown.
