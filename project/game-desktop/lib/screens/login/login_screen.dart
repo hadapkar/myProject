@@ -93,11 +93,7 @@ class _LoginScreenState extends State<LoginScreen> {
     }
     final account = action.account;
     if (account != null) {
-      setState(() {
-        _message = null;
-        _usernameController.text = account.username;
-        _passwordController.clear();
-      });
+      await _signInWithSavedAccount(account);
     }
   }
 
@@ -124,6 +120,11 @@ class _LoginScreenState extends State<LoginScreen> {
     } on TimeoutException {
       setState(() => _message = "Sign in timed out. Check your internet and retry.");
     } catch (_) {
+      await AccountStore.removeAccount(account.email);
+      if (!mounted) return;
+      _usernameController.clear();
+      await _loadSavedAccounts();
+      if (!mounted) return;
       setState(() => _message = "Please sign in again for this account.");
     } finally {
       if (mounted) setState(() => _busy = false);

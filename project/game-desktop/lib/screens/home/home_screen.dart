@@ -162,7 +162,8 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _removeCurrentAccountProfile() async {
-    final email = Supabase.instance.client.auth.currentUser?.email ?? "";
+    final auth = Supabase.instance.client.auth;
+    final email = auth.currentUser?.email ?? auth.currentSession?.user.email ?? "";
     if (email.trim().isNotEmpty) {
       await AccountStore.removeAccount(email);
     }

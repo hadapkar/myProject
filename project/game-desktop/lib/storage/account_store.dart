@@ -89,12 +89,18 @@ class AccountStore {
     await _save(updated.take(10).toList(growable: false));
   }
 
-  static Future<void> removeAccount(String email) async {
-    final normalizedEmail = email.trim().toLowerCase();
+  static Future<void> removeAccount(String emailOrUsername) async {
+    final normalized = emailOrUsername.trim().toLowerCase();
+    if (normalized.isEmpty) return;
     final accounts = await loadAccounts();
     await _save(
       accounts
-          .where((account) => account.email.toLowerCase() != normalizedEmail)
+          .where((account) {
+            final email = account.email.toLowerCase();
+            final username = account.username.toLowerCase();
+            final localPart = email.split("@").first;
+            return email != normalized && username != normalized && localPart != normalized;
+          })
           .toList(growable: false),
     );
   }
