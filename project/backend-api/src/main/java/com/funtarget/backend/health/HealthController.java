@@ -1,6 +1,7 @@
 package com.funtarget.backend.health;
 
 import com.funtarget.backend.supabase.SupabaseProperties;
+import java.io.File;
 import java.lang.management.ManagementFactory;
 import java.lang.management.MemoryMXBean;
 import java.lang.management.MemoryUsage;
@@ -27,12 +28,17 @@ public class HealthController {
     this.supabase = supabase;
   }
 
-  @GetMapping("/healthz")
-  public Map<String, Object> healthz() {
+  @GetMapping("/livez")
+  public Map<String, Object> livez() {
     return Map.of(
         "status", "ok",
         "time", Instant.now().toString(),
         "uptimeSeconds", Duration.between(startedAt, Instant.now()).toSeconds());
+  }
+
+  @GetMapping("/healthz")
+  public Map<String, Object> healthz() {
+    return livez();
   }
 
   @GetMapping("/readyz")
@@ -80,6 +86,7 @@ public class HealthController {
     body.put("daemonThreadCount", threads.getDaemonThreadCount());
     body.put("availableProcessors", runtime.availableProcessors());
     addOsMemory(body);
+    addDisk(body);
     return body;
   }
 
@@ -96,7 +103,21 @@ public class HealthController {
     if (os instanceof com.sun.management.OperatingSystemMXBean sunOs) {
       body.put("osFreeMemoryMb", bytesToMb(sunOs.getFreeMemorySize()));
       body.put("osTotalMemoryMb", bytesToMb(sunOs.getTotalMemorySize()));
+      body.put("processCpuLoadPercent", percent(sunOs.getProcessCpuLoad()));
+      body.put("systemCpuLoadPercent", percent(sunOs.getSystemCpuLoad()));
+      body.put("committedVirtualMemoryMb", bytesToMb(sunOs.getCommittedVirtualMemorySize()));
     }
+  }
+
+  private static void addDisk(Map<String, Object> body) {
+    File root = new File("/");
+    body.put("rootDiskFreeMb", bytesToMb(root.getUsableSpace()));
+    body.put("rootDiskTotalMb", bytesToMb(root.getTotalSpace()));
+  }
+
+  private static long percent(double value) {
+    if (Double.isNaN(value) || value < 0) return -1;
+    return Math.round(value * 100);
   }
 
   private static boolean hasText(String value) {

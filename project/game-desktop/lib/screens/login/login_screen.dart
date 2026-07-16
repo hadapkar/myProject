@@ -246,10 +246,9 @@ class _LoginScreenState extends State<LoginScreen> {
                             ),
                             if (_message != null) ...[
                               const SizedBox(height: 12),
-                              Text(
-                                _message!,
-                                style: const TextStyle(color: Colors.white70),
-                                textAlign: TextAlign.center,
+                              _LoginMessageBanner(
+                                message: _message!,
+                                onRetry: _busy || !_canRetryMessage(_message!) ? null : _signIn,
                               ),
                             ],
                           ],
@@ -284,6 +283,44 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 }
 
+bool _canRetryMessage(String message) {
+  return message.contains("Backend") ||
+      message.contains("timed out") ||
+      message.contains("retry");
+}
+
+class _LoginMessageBanner extends StatelessWidget {
+  final String message;
+  final VoidCallback? onRetry;
+
+  const _LoginMessageBanner({required this.message, required this.onRetry});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: const Color.fromRGBO(255, 255, 255, 0.06),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: const Color.fromRGBO(255, 255, 255, 0.12)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.info_outline, color: Colors.white70),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              message,
+              style: const TextStyle(color: Colors.white70),
+              textAlign: TextAlign.left,
+            ),
+          ),
+          if (onRetry != null) TextButton(onPressed: onRetry, child: const Text("Retry")),
+        ],
+      ),
+    );
+  }
+}
 String _initialsFor(String value) {
   final cleaned = value.trim();
   if (cleaned.isEmpty || cleaned == "-") return "U";

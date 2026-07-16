@@ -12,6 +12,7 @@ class AndroidUpdateInfo {
   final int build;
   final String apkUrl;
   final String sha256;
+  final int sizeBytes;
   final bool force;
   final String notes;
 
@@ -21,6 +22,7 @@ class AndroidUpdateInfo {
     required this.build,
     required this.apkUrl,
     required this.sha256,
+    required this.sizeBytes,
     required this.force,
     required this.notes,
   });
@@ -32,6 +34,7 @@ class AndroidUpdateInfo {
       build: _intValue(json["build"]),
       apkUrl: (json["apkUrl"] ?? "").toString(),
       sha256: (json["sha256"] ?? "").toString(),
+      sizeBytes: _intValue(json["sizeBytes"]),
       force: json["force"] == true,
       notes: (json["notes"] ?? "").toString(),
     );
@@ -89,7 +92,10 @@ class AndroidUpdateService {
     await downloadAndInstallApk(
       uri,
       fileName: "KingMaker-${info.build}.apk",
-      onProgress: onProgress,
+      expectedSha256: info.sha256,
+      onProgress: (received, total) {
+        onProgress?.call(received, total ?? (info.sizeBytes > 0 ? info.sizeBytes : null));
+      },
     );
   }
 

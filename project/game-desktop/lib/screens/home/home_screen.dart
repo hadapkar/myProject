@@ -85,7 +85,7 @@ class _HomeScreenState extends State<HomeScreen> {
     return "Unable to load account details. Please retry.";
   }
 
-  Future<void> _refreshUserState() async {
+  Future<void> _refreshUserState({bool force = false}) async {
     if (!mounted) return;
     setState(() {
       _roleLoaded = false;
@@ -93,7 +93,7 @@ class _HomeScreenState extends State<HomeScreen> {
     });
 
     try {
-      final me = await _api.getMe();
+      final me = await _api.getMe(forceRefresh: force);
       if (!mounted) return;
       final role = (me["role"] ?? "PLAYER").toString().trim().toUpperCase();
       setState(() {
@@ -216,7 +216,7 @@ class _HomeScreenState extends State<HomeScreen> {
         _canManageFunTarget = false;
         _roleLoaded = false;
       });
-      await _refreshUserState();
+      await _refreshUserState(force: true);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text("Switched to ${selected.username}")),
@@ -347,7 +347,7 @@ class _HomeScreenState extends State<HomeScreen> {
             if (_homeError != null) ...[
               _HomeErrorBanner(
                 message: _homeError!,
-                onRetry: () => unawaited(_refreshUserState()),
+                onRetry: () => unawaited(_refreshUserState(force: true)),
               ),
               const SizedBox(height: 12),
             ],

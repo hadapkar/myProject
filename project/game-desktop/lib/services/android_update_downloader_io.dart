@@ -1,5 +1,6 @@
 import "dart:io";
 
+import "package:crypto/crypto.dart";
 import "package:flutter/services.dart";
 import "package:http/http.dart" as http;
 
@@ -8,6 +9,7 @@ const _channel = MethodChannel("kingmaker/android_update");
 Future<void> downloadAndInstallApk(
   Uri uri, {
   required String fileName,
+  String expectedSha256 = "",
   void Function(int receivedBytes, int? totalBytes)? onProgress,
 }) async {
   final apkPath = await _channel.invokeMethod<String>(
@@ -19,11 +21,15 @@ Future<void> downloadAndInstallApk(
   }
 
   final file = File(apkPath);
+  final normalizedSha = expectedSha256.trim().toLowerCase();
   final existingBytes = await _existingFileLength(file);
   if (existingBytes > 0) {
-    onProgress?.call(existingBytes, existingBytes);
-    await _openInstaller(file);
-    return;
+    if (await _sha256Matches(file, normalizedSha)) {
+      onProgress?.call(existingBytes, existingBytes);
+      await _openInstaller(file);
+      return;
+    }
+    await _deleteQuietly(file);
   }
 
   final client = http.Client();
@@ -56,6 +62,11 @@ Future<void> downloadAndInstallApk(
       throw StateError("Update download incomplete. Please retry.");
     }
 
+    if (!await _sha256Matches(tempFile, normalizedSha)) {
+      await _deleteQuietly(tempFile);
+      throw StateError("Downloaded update could not be verified. Please retry.");
+    }
+
     if (await file.exists()) await file.delete();
     final downloadedFile = await tempFile.rename(apkPath);
     await _openInstaller(downloadedFile);
@@ -74,6 +85,19 @@ Future<int> _existingFileLength(File file) async {
     return await file.length();
   } catch (_) {
     return 0;
+  }
+}
+
+Future<bool> _sha256Matches(File file, String expectedSha256) async {
+  if (expectedSha256.isEmpty) return true;
+  if (!RegExp(r"^[a-f0-9]{64}$").hasMatch(expectedSha256)) {
+    throw StateError("Update verification is misconfigured. Please contact admin.");
+  }
+  try {
+    final digest = await sha256.bind(file.openRead()).first;
+    return digest.toString().toLowerCase() == expectedSha256;
+  } catch (_) {
+    return false;
   }
 }
 

@@ -12,7 +12,7 @@ public class HomeController {
     return Map.of(
         "service", "backend-api",
         "status", "ok",
-        "endpoints", Map.of("health", "/healthz", "ready", "/readyz", "me", "/api/me"));
+        "endpoints", Map.of("live", "/livez", "health", "/healthz", "ready", "/readyz", "me", "/api/me"));
   }
 }
 

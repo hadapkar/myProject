@@ -67,6 +67,17 @@ def patch_manifest() -> None:
 '''
         text = text.replace("    </application>", provider + "    </application>")
 
+    if "UpdateCompletedReceiver" not in text:
+        receiver = '''
+        <receiver
+            android:name=".UpdateCompletedReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
+'''
+        text = text.replace("    </application>", receiver + "    </application>")
     write(MANIFEST, text)
 
 
@@ -194,6 +205,35 @@ class MainActivity : FlutterActivity() {{
 ''',
     )
 
+def patch_update_completed_receiver() -> None:
+    write(
+        ANDROID / "app/src/main/kotlin/com/kingmaker/admin/UpdateCompletedReceiver.kt",
+        f'''package {APP_ID}
+
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.util.Log
+
+class UpdateCompletedReceiver : BroadcastReceiver() {{
+    override fun onReceive(context: Context, intent: Intent?) {{
+        if (intent?.action != Intent.ACTION_MY_PACKAGE_REPLACED) return
+        val launchIntent = context.packageManager.getLaunchIntentForPackage(context.packageName) ?: return
+        launchIntent.addFlags(
+            Intent.FLAG_ACTIVITY_NEW_TASK or
+                Intent.FLAG_ACTIVITY_CLEAR_TOP or
+                Intent.FLAG_ACTIVITY_SINGLE_TOP
+        )
+        launchIntent.putExtra("kingmaker_update_completed", true)
+        try {{
+            context.startActivity(launchIntent)
+        }} catch (ex: Exception) {{
+            Log.w("KingMakerUpdate", "Unable to reopen app after update", ex)
+        }}
+    }}
+}}
+''',
+    )
 
 def patch_gradle_dependency() -> None:
     groovy = ANDROID / "app/build.gradle"
@@ -224,5 +264,6 @@ def patch_gradle_dependency() -> None:
 patch_manifest()
 patch_file_paths()
 patch_main_activity()
+patch_update_completed_receiver()
 patch_gradle_dependency()
 print("Android in-app APK installer and game display patched")

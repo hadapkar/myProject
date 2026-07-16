@@ -11,7 +11,7 @@ cat >/usr/local/bin/kingmaker-backend-watchdog <<'SCRIPT'
 set -euo pipefail
 
 SERVICE="kingmaker-backend"
-HEALTH_URL="${KINGMAKER_BACKEND_HEALTH_URL:-http://127.0.0.1:8080/healthz}"
+HEALTH_URL="${KINGMAKER_BACKEND_HEALTH_URL:-http://127.0.0.1/healthz}"
 STATE_DIR="/run/kingmaker-backend-watchdog"
 FAIL_FILE="$STATE_DIR/failures"
 MAX_FAILURES="${KINGMAKER_BACKEND_WATCHDOG_MAX_FAILURES:-3}"
@@ -59,6 +59,50 @@ if [ "$failures" -ge "$MAX_FAILURES" ]; then
 fi
 SCRIPT
 chmod 0755 /usr/local/bin/kingmaker-backend-watchdog
+
+cat >/usr/local/bin/kingmaker-backend-report <<'SCRIPT'
+#!/usr/bin/env bash
+set -u
+
+SERVICE="kingmaker-backend"
+echo "== time =="
+date -Is
+echo
+
+echo "== service =="
+systemctl status "$SERVICE" --no-pager -l | sed -n '1,35p'
+echo
+
+echo "== readiness =="
+curl -fsS --max-time 5 http://127.0.0.1/livez || true
+echo
+curl -fsS --max-time 8 http://127.0.0.1/readyz || true
+echo
+
+echo "== memory =="
+free -m
+echo
+
+echo "== disk =="
+df -h /
+echo
+
+echo "== listeners =="
+ss -ltnp | egrep ':80|:8080|:22' || true
+echo
+
+echo "== timers =="
+systemctl list-timers --no-pager | egrep 'kingmaker|dnf|mlocate|ksplice' || true
+echo
+
+echo "== recent warnings =="
+journalctl -p warning -n 40 --no-pager || true
+echo
+
+echo "== backend logs =="
+journalctl -u "$SERVICE" -n 80 --no-pager || true
+SCRIPT
+chmod 0755 /usr/local/bin/kingmaker-backend-report
 
 set_journal_setting() {
   local key="$1"
@@ -174,5 +218,5 @@ systemctl enable --now kingmaker-backend-watchdog.timer
 systemctl restart kingmaker-backend.service
 swapon --show
 free -m
-systemctl status kingmaker-backend.service --no-pager -l | sed -n '1,25p'
+/usr/local/bin/kingmaker-backend-report | sed -n '1,120p'
 systemctl list-timers kingmaker-backend-watchdog.timer --no-pager

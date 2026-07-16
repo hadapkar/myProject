@@ -12,6 +12,10 @@ import "../storage/session_store.dart";
 
 class FunTargetApi {
   static const Duration _timeout = Duration(seconds: 25);
+  static const Duration _meCacheTtl = Duration(seconds: 20);
+  static String? _cachedMeUserId;
+  static DateTime? _cachedMeAt;
+  static Map<String, dynamic>? _cachedMe;
 
   final http.Client _client = http.Client();
 
@@ -20,6 +24,13 @@ class FunTargetApi {
 
   void clearSessionCache() {
     _cachedSessionId = null;
+    clearUserCache();
+  }
+
+  static void clearUserCache() {
+    _cachedMeUserId = null;
+    _cachedMeAt = null;
+    _cachedMe = null;
   }
 
   bool _isHostLookupError(Object e) =>
@@ -367,12 +378,27 @@ class FunTargetApi {
     return FunTargetState.fromJson(jsonMap);
   }
 
-  Future<Map<String, dynamic>> getMe() async {
+  Future<Map<String, dynamic>> getMe({bool forceRefresh = false}) async {
+    final userId = Supabase.instance.client.auth.currentUser?.id ?? "";
+    final cachedAt = _cachedMeAt;
+    final cached = _cachedMe;
+    if (!forceRefresh &&
+        userId.isNotEmpty &&
+        cached != null &&
+        _cachedMeUserId == userId &&
+        cachedAt != null &&
+        DateTime.now().difference(cachedAt) < _meCacheTtl) {
+      return Map<String, dynamic>.from(cached);
+    }
+
     final res = await _get("/api/me");
     if (res.statusCode < 200 || res.statusCode >= 300) {
       throw _apiError(res);
     }
     final jsonMap = jsonDecode(res.body) as Map<String, dynamic>;
+    _cachedMeUserId = userId;
+    _cachedMeAt = DateTime.now();
+    _cachedMe = Map<String, dynamic>.from(jsonMap);
     return jsonMap;
   }
 
@@ -395,6 +421,7 @@ class FunTargetApi {
       throw _apiError(res);
     }
     final jsonMap = jsonDecode(res.body) as Map<String, dynamic>;
+    clearUserCache();
     return jsonMap;
   }
 
@@ -408,8 +435,10 @@ class FunTargetApi {
     if (password.trim().isNotEmpty) payload["password"] = password;
     final res = await _patch("/api/admin/users/$userId", payload);
     if (res.statusCode < 200 || res.statusCode >= 300) throw _apiError(res);
+    clearUserCache();
     return jsonDecode(res.body) as Map<String, dynamic>;
   }
+
   Future<Map<String, dynamic>> listUserAccess() async {
     final res = await _get("/api/admin/user-access");
     if (res.statusCode < 200 || res.statusCode >= 300) throw _apiError(res);
@@ -419,6 +448,7 @@ class FunTargetApi {
   Future<Map<String, dynamic>> patchUserAccess(String userId, Map<String, dynamic> patch) async {
     final res = await _patch("/api/admin/user-access/$userId", patch);
     if (res.statusCode < 200 || res.statusCode >= 300) throw _apiError(res);
+    clearUserCache();
     return jsonDecode(res.body) as Map<String, dynamic>;
   }
 

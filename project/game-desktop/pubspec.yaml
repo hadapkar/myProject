@@ -1,7 +1,7 @@
 name: kingmaker
 description: FunTarget game client (Flutter web + desktop).
 publish_to: "none"
-version: 0.1.15+16
+version: 0.1.16+17
 environment:
   sdk: ">=3.4.0 <4.0.0"
 
@@ -9,6 +9,7 @@ dependencies:
   flutter:
     sdk: flutter
   cupertino_icons: ^1.0.8
+  crypto: ^3.0.6
   go_router: ^14.2.0
   http: ^1.2.2
   supabase_flutter: ^2.8.0

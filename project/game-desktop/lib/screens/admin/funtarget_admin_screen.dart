@@ -47,6 +47,7 @@ class _FunTargetAdminScreenState extends State<FunTargetAdminScreen> {
 
   Map<String, dynamic>? _selected;
   final TextEditingController _amount = TextEditingController(text: "0");
+  final TextEditingController _search = TextEditingController();
   bool _isSaving = false;
   bool _isWheelSaving = false;
 
@@ -95,6 +96,7 @@ class _FunTargetAdminScreenState extends State<FunTargetAdminScreen> {
   @override
   void dispose() {
     _amount.dispose();
+    _search.dispose();
     _reloadDebounce?.cancel();
     _channel?.unsubscribe();
     super.dispose();
@@ -144,6 +146,16 @@ class _FunTargetAdminScreenState extends State<FunTargetAdminScreen> {
     return null;
   }
 
+  List<Map<String, dynamic>> get _filteredRows {
+    final query = _search.text.trim().toLowerCase();
+    if (query.isEmpty) return _rows;
+    return _rows.where((row) {
+      final username = _username(row).toLowerCase();
+      final userId = (row["user_id"] ?? "").toString().toLowerCase();
+      return username.contains(query) || userId.contains(query);
+    }).toList(growable: false);
+  }
+
   String _username(Map<String, dynamic> row) {
     final username = (row["username"] ?? "").toString().trim();
     if (username.isNotEmpty) return username;
@@ -188,6 +200,10 @@ class _FunTargetAdminScreenState extends State<FunTargetAdminScreen> {
     try {
       await _api.patchAdminFunTargetState(userId, payload);
       await _load();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Saved.")),
+      );
     } catch (e) {
       if (!mounted) return;
       setState(() => _error = e.toString());
@@ -255,33 +271,57 @@ class _FunTargetAdminScreenState extends State<FunTargetAdminScreen> {
   }
 
   Widget _buildUserPicker(Map<String, dynamic>? selected) {
+    final filteredRows = _filteredRows;
     final selectedId = selected == null ? null : (selected["user_id"] ?? "").toString();
-    final value = selectedId != null && _findById(selectedId) != null ? selectedId : null;
+    final selectedVisible = selectedId != null &&
+        filteredRows.any((row) => (row["user_id"] ?? "").toString() == selectedId);
+    final value = selectedVisible ? selectedId : null;
     return _card(
-      child: DropdownButtonFormField<String>(
-        value: value,
-        isExpanded: true,
-        decoration: const InputDecoration(labelText: "Username"),
-        hint: Text(_loading ? "Loading users..." : "Select user"),
-        items: _rows
-            .map(
-              (row) => DropdownMenuItem<String>(
-                value: (row["user_id"] ?? "").toString(),
-                child: Text(
-                  _username(row),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-            )
-            .where((item) => item.value != null && item.value!.isNotEmpty)
-            .toList(growable: false),
-        onChanged: _isRefreshDisabled
-            ? null
-            : (userId) {
-                if (userId == null) return;
-                setState(() => _selected = _findById(userId));
-              },
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          TextField(
+            controller: _search,
+            decoration: InputDecoration(
+              labelText: "Search user",
+              prefixIcon: const Icon(Icons.search),
+              suffixIcon: _search.text.isEmpty
+                  ? null
+                  : IconButton(
+                      tooltip: "Clear search",
+                      onPressed: () => setState(() => _search.clear()),
+                      icon: const Icon(Icons.close),
+                    ),
+            ),
+            onChanged: (_) => setState(() {}),
+          ),
+          const SizedBox(height: 12),
+          DropdownButtonFormField<String>(
+            value: value,
+            isExpanded: true,
+            decoration: const InputDecoration(labelText: "Username"),
+            hint: Text(_loading ? "Loading users..." : "Select user"),
+            items: filteredRows
+                .map(
+                  (row) => DropdownMenuItem<String>(
+                    value: (row["user_id"] ?? "").toString(),
+                    child: Text(
+                      _username(row),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                )
+                .where((item) => item.value != null && item.value!.isNotEmpty)
+                .toList(growable: false),
+            onChanged: _isRefreshDisabled
+                ? null
+                : (userId) {
+                    if (userId == null) return;
+                    setState(() => _selected = _findById(userId));
+                  },
+          ),
+        ],
       ),
     );
   }

@@ -12,16 +12,34 @@ class UserAccessScreen extends StatefulWidget {
 
 class _UserAccessScreenState extends State<UserAccessScreen> {
   final _api = FunTargetApi();
+  final TextEditingController _search = TextEditingController();
   bool _loading = true;
   String? _error;
   List<Map<String, dynamic>> _rows = const [];
   bool _allowed = false;
+  bool _saving = false;
   String? _selectedUserId;
+
+  @override
+  void dispose() {
+    _search.dispose();
+    super.dispose();
+  }
 
   @override
   void initState() {
     super.initState();
     unawaited(_guardAdmin());
+  }
+
+  List<Map<String, dynamic>> get _filteredRows {
+    final query = _search.text.trim().toLowerCase();
+    if (query.isEmpty) return _rows;
+    return _rows.where((row) {
+      final username = (row["username"] ?? "").toString().toLowerCase();
+      final userId = (row["user_id"] ?? "").toString().toLowerCase();
+      return username.contains(query) || userId.contains(query);
+    }).toList(growable: false);
   }
 
   Map<String, dynamic>? get _selectedRow {
@@ -97,17 +115,27 @@ class _UserAccessScreenState extends State<UserAccessScreen> {
   }
 
   Future<void> _updateRow(String userId, {String? status, String? role, String? endsAtIso}) async {
+    if (_saving) return;
     final payload = <String, dynamic>{};
     if (status != null) payload["status"] = status;
     if (role != null) payload["role"] = role;
     if (endsAtIso != null) payload["ends_at"] = endsAtIso.isEmpty ? null : endsAtIso;
-    setState(() => _error = null);
+    setState(() {
+      _saving = true;
+      _error = null;
+    });
     try {
       await _api.patchUserAccess(userId, payload);
       await _load(keepSelectedUserId: userId);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Saved.")),
+      );
     } catch (e) {
       if (!mounted) return;
       setState(() => _error = e.toString());
+    } finally {
+      if (mounted) setState(() => _saving = false);
     }
   }
 
@@ -144,7 +172,10 @@ class _UserAccessScreenState extends State<UserAccessScreen> {
     );
     if (result == null) return;
 
-    setState(() => _error = null);
+    setState(() {
+      _saving = true;
+      _error = null;
+    });
     try {
       await _api.updateAdminUser(
         userId: userId,
@@ -159,6 +190,8 @@ class _UserAccessScreenState extends State<UserAccessScreen> {
     } catch (e) {
       if (!mounted) return;
       setState(() => _error = e.toString());
+    } finally {
+      if (mounted) setState(() => _saving = false);
     }
   }
 
@@ -186,6 +219,9 @@ class _UserAccessScreenState extends State<UserAccessScreen> {
   @override
   Widget build(BuildContext context) {
     final selected = _selectedRow;
+    final filteredRows = _filteredRows;
+    final selectedVisible = _selectedUserId != null &&
+        filteredRows.any((row) => (row["user_id"] ?? "").toString() == _selectedUserId);
     return Scaffold(
       backgroundColor: const Color(0xFF0B1220),
       appBar: AppBar(
@@ -212,6 +248,10 @@ class _UserAccessScreenState extends State<UserAccessScreen> {
                   onRetry: _loading ? null : () => _load(keepSelectedUserId: _selectedUserId),
                 ),
               ),
+            if (_saving) ...[
+              const LinearProgressIndicator(minHeight: 2),
+              const SizedBox(height: 12),
+            ],
             if (_loading)
               const Expanded(child: Center(child: CircularProgressIndicator()))
             else if (_rows.isEmpty)
@@ -224,12 +264,28 @@ class _UserAccessScreenState extends State<UserAccessScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
+                        TextField(
+                          controller: _search,
+                          decoration: InputDecoration(
+                            labelText: "Search user",
+                            prefixIcon: const Icon(Icons.search),
+                            suffixIcon: _search.text.isEmpty
+                                ? null
+                                : IconButton(
+                                    tooltip: "Clear search",
+                                    onPressed: () => setState(() => _search.clear()),
+                                    icon: const Icon(Icons.close),
+                                  ),
+                          ),
+                          onChanged: (_) => setState(() {}),
+                        ),
+                        const SizedBox(height: 12),
                         DropdownButtonFormField<String>(
-                          value: _selectedUserId,
+                          value: selectedVisible ? _selectedUserId : null,
                           decoration: const InputDecoration(labelText: "User name"),
                           hint: const Text("Select user"),
                           dropdownColor: const Color(0xFF111827),
-                          items: _rows.map((row) {
+                          items: filteredRows.map((row) {
                             final userId = (row["user_id"] ?? "").toString();
                             final username = (row["username"] ?? "").toString();
                             return DropdownMenuItem<String>(
@@ -237,7 +293,7 @@ class _UserAccessScreenState extends State<UserAccessScreen> {
                               child: Text(username, maxLines: 1, overflow: TextOverflow.ellipsis),
                             );
                           }).toList(growable: false),
-                          onChanged: (value) => setState(() => _selectedUserId = value),
+                          onChanged: _saving ? null : (value) => setState(() => _selectedUserId = value),
                         ),
                         const SizedBox(height: 16),
                         if (selected == null)
@@ -248,6 +304,7 @@ class _UserAccessScreenState extends State<UserAccessScreen> {
                             role: _roleValue(selected),
                             status: _statusValue(selected),
                             endsAt: _formatEndsAt(selected),
+                            disabled: _saving,
                             onRoleChanged: (role) => _updateRow((selected["user_id"] ?? "").toString(), role: role),
                             onSetEndDate: () => _setEndDateDialog(selected),
                             onClearEndDate: () => _updateRow((selected["user_id"] ?? "").toString(), endsAtIso: ""),
@@ -296,6 +353,7 @@ class _AccessErrorBanner extends StatelessWidget {
     );
   }
 }
+
 class _SelectedUserPanel extends StatelessWidget {
   final Map<String, dynamic> row;
   final String role;
@@ -306,6 +364,7 @@ class _SelectedUserPanel extends StatelessWidget {
   final VoidCallback onClearEndDate;
   final VoidCallback onToggleStatus;
   final VoidCallback onEditUser;
+  final bool disabled;
 
   const _SelectedUserPanel({
     required this.row,
@@ -317,6 +376,7 @@ class _SelectedUserPanel extends StatelessWidget {
     required this.onClearEndDate,
     required this.onToggleStatus,
     required this.onEditUser,
+    required this.disabled,
   });
 
   @override
@@ -339,20 +399,20 @@ class _SelectedUserPanel extends StatelessWidget {
                 child: Text(username, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
               ),
               OutlinedButton.icon(
-                onPressed: userId.isEmpty ? null : onEditUser,
+                onPressed: disabled || userId.isEmpty ? null : onEditUser,
                 icon: const Icon(Icons.edit),
                 label: const Text("Edit user"),
               ),
             ],
           ),
           const SizedBox(height: 14),
-          _RoleDropdown(value: role, onChanged: userId.isEmpty ? null : onRoleChanged),
+          _RoleDropdown(value: role, onChanged: disabled || userId.isEmpty ? null : onRoleChanged),
           const SizedBox(height: 12),
           Row(
             children: [
               Expanded(child: Text("Status: $status")),
               OutlinedButton(
-                onPressed: userId.isEmpty ? null : onToggleStatus,
+                onPressed: disabled || userId.isEmpty ? null : onToggleStatus,
                 child: Text(status == "active" ? "Block" : "Unblock"),
               ),
             ],
@@ -364,8 +424,8 @@ class _SelectedUserPanel extends StatelessWidget {
             crossAxisAlignment: WrapCrossAlignment.center,
             children: [
               Text("End date: $endsAt"),
-              OutlinedButton(onPressed: userId.isEmpty ? null : onSetEndDate, child: const Text("Set")),
-              OutlinedButton(onPressed: userId.isEmpty ? null : onClearEndDate, child: const Text("Clear")),
+              OutlinedButton(onPressed: disabled || userId.isEmpty ? null : onSetEndDate, child: const Text("Set")),
+              OutlinedButton(onPressed: disabled || userId.isEmpty ? null : onClearEndDate, child: const Text("Clear")),
             ],
           ),
         ],

@@ -28,6 +28,7 @@ public class AndroidUpdateController {
     String apkUrl = get("app.android-update.apk-url");
     String sourceApkUrl = get("app.android-update.source-apk-url");
     String sha256 = get("app.android-update.apk-sha256");
+    int sizeBytes = parseInt(get("app.android-update.apk-size-bytes"));
     boolean force = parseBool(get("app.android-update.force"));
     String notes = get("app.android-update.release-notes");
     if (apkUrl.isBlank() && isHttpUrl(sourceApkUrl)) {
@@ -44,6 +45,7 @@ public class AndroidUpdateController {
     response.put("build", build);
     response.put("apkUrl", apkUrl);
     response.put("sha256", sha256);
+    response.put("sizeBytes", sizeBytes);
     response.put("force", force);
     response.put("notes", notes);
     return response;
