@@ -169,14 +169,16 @@ systemctl stop ksplice-agent.service ksplice-prefetch.service ksplice.service >/
 
 mkdir -p /etc/systemd/system/kingmaker-backend.service.d
 cat >/etc/systemd/system/kingmaker-backend.service.d/override.conf <<'UNIT'
+[Unit]
+StartLimitIntervalSec=300
+StartLimitBurst=10
+
 [Service]
 Restart=always
 RestartSec=5s
 TimeoutStartSec=90s
 TimeoutStopSec=45s
 KillMode=mixed
-StartLimitIntervalSec=300
-StartLimitBurst=10
 MemoryAccounting=true
 MemoryHigh=380M
 MemoryMax=430M
