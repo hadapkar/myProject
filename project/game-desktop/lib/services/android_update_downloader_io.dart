@@ -7,6 +7,7 @@ import "package:http/http.dart" as http;
 
 const _channel = MethodChannel("kingmaker/android_update");
 const _maxDownloadAttempts = 4;
+const _maxRedirects = 5;
 const _connectTimeout = Duration(seconds: 20);
 const _idleTimeout = Duration(seconds: 30);
 
@@ -78,12 +79,8 @@ Future<File> _downloadWithResume(
         await _deleteQuietly(tempFile);
         startingBytes = 0;
       }
-      final request = http.Request("GET", uri);
-      if (startingBytes > 0) {
-        request.headers[HttpHeaders.rangeHeader] = "bytes=$startingBytes-";
-      }
 
-      final response = await client.send(request).timeout(_connectTimeout);
+      final response = await _sendDownloadRequest(client, uri, startingBytes);
       if (response.statusCode == HttpStatus.requestedRangeNotSatisfiable &&
           startingBytes > 0 &&
           _sizeMatches(startingBytes, expectedBytes)) {
@@ -146,6 +143,42 @@ Future<File> _downloadWithResume(
   }
 
   throw StateError("$lastError Tap retry to continue.");
+}
+
+Future<http.StreamedResponse> _sendDownloadRequest(
+  http.Client client,
+  Uri uri,
+  int startingBytes,
+) async {
+  var currentUri = uri;
+  for (var redirect = 0; redirect <= _maxRedirects; redirect++) {
+    final request = http.Request("GET", currentUri)
+      ..followRedirects = false
+      ..headers[HttpHeaders.acceptHeader] = "application/vnd.android.package-archive,*/*"
+      ..headers[HttpHeaders.userAgentHeader] = "KingMaker Android Updater";
+    if (startingBytes > 0) {
+      request.headers[HttpHeaders.rangeHeader] = "bytes=$startingBytes-";
+    }
+
+    final response = await client.send(request).timeout(_connectTimeout);
+    if (!_isRedirect(response.statusCode)) return response;
+
+    final location = response.headers[HttpHeaders.locationHeader.toLowerCase()];
+    await response.stream.drain();
+    if (location == null || location.trim().isEmpty) {
+      throw StateError("Update download redirect failed.");
+    }
+    currentUri = currentUri.resolve(location);
+  }
+  throw StateError("Update download redirected too many times.");
+}
+
+bool _isRedirect(int statusCode) {
+  return statusCode == HttpStatus.movedPermanently ||
+      statusCode == HttpStatus.found ||
+      statusCode == HttpStatus.seeOther ||
+      statusCode == HttpStatus.temporaryRedirect ||
+      statusCode == HttpStatus.permanentRedirect;
 }
 
 int? _totalBytes(http.StreamedResponse response, int startingBytes, int expectedBytes) {

@@ -222,7 +222,7 @@ jobs:
           echo "APP_VERSION_NAME=$APP_VERSION_NAME" >> "$GITHUB_ENV"
           echo "APP_BUILD_NUMBER=$APP_BUILD_NUMBER" >> "$GITHUB_ENV"
           echo "Android version: $APP_VERSION_NAME (build $APP_BUILD_NUMBER)"
-      - name: Build APK (release)
+      - name: Build APK (ARM64 release)
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
@@ -236,7 +236,7 @@ jobs:
             echo "Android version was not resolved" >&2
             exit 1
           fi
-          flutter build apk --release \
+          flutter build apk --release --target-platform=android-arm64 --split-per-abi \
             --build-name="$APP_VERSION_NAME" \
             --build-number="$APP_BUILD_NUMBER" \
             --dart-define=SUPABASE_URL="$SUPABASE_URL" \
@@ -249,7 +249,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: kingmaker-android-apk
-          path: project/game-desktop/build/app/outputs/flutter-apk/app-release.apk
+          path: project/game-desktop/build/app/outputs/flutter-apk/app-arm64-v8a-release.apk
 
       - name: Publish Android latest release
         env:
@@ -258,7 +258,7 @@ jobs:
           set -euo pipefail
           TAG="android-latest"
           ASSET="KingMaker.apk"
-          APK="build/app/outputs/flutter-apk/app-release.apk"
+          APK="build/app/outputs/flutter-apk/app-arm64-v8a-release.apk"
           cp "$APK" "$ASSET"
           sha256sum "$ASSET" | awk '{print $1}' > "$ASSET.sha256"
           stat -c%s "$ASSET" > "$ASSET.size"

@@ -54,6 +54,11 @@ class _AndroidUpdateDialogState extends State<_AndroidUpdateDialog> {
   String? _error;
   String? _status;
   bool _downloadReady = false;
+  DateTime? _lastProgressPaint;
+  int _lastProgressBytes = 0;
+
+  static const _progressPaintInterval = Duration(milliseconds: 250);
+  static const _progressByteStep = 512 * 1024;
 
   Future<void> _downloadAndInstall() async {
     setState(() {
@@ -62,6 +67,8 @@ class _AndroidUpdateDialogState extends State<_AndroidUpdateDialog> {
       _progressText = _downloadReady ? "Download complete" : "Starting download...";
       _error = null;
       _status = null;
+      _lastProgressPaint = null;
+      _lastProgressBytes = 0;
     });
 
     try {
@@ -69,6 +76,16 @@ class _AndroidUpdateDialogState extends State<_AndroidUpdateDialog> {
         widget.info,
         onProgress: (received, total) {
           if (!mounted) return;
+          final now = DateTime.now();
+          final complete = total != null && total > 0 && received >= total;
+          final shouldPaint = _lastProgressPaint == null ||
+              now.difference(_lastProgressPaint!) >= _progressPaintInterval ||
+              (received - _lastProgressBytes).abs() >= _progressByteStep ||
+              complete;
+          if (!shouldPaint) return;
+
+          _lastProgressPaint = now;
+          _lastProgressBytes = received;
           final hasTotal = total != null && total > 0;
           setState(() {
             _progress = hasTotal ? (received / total).clamp(0, 1).toDouble() : null;

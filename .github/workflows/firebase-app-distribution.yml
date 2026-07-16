@@ -59,11 +59,18 @@ jobs:
             fs.writeFileSync('kingmaker-android-apk.zip', Buffer.from(download.data));
 
       - name: Extract APK
+        shell: bash
         run: |
+          set -euo pipefail
           mkdir -p dist
           unzip -o kingmaker-android-apk.zip -d dist
-          find dist -name '*.apk' -print
-          test -f dist/app-release.apk
+          APK_PATH="$(find dist -name '*.apk' -print -quit)"
+          if [ -z "$APK_PATH" ]; then
+            echo "No APK found in artifact" >&2
+            exit 1
+          fi
+          echo "APK_PATH=$APK_PATH" >> "$GITHUB_ENV"
+          ls -lh "$APK_PATH"
 
       - name: Install firebase-tools
         run: npm i -g firebase-tools
@@ -93,7 +100,7 @@ jobs:
           fi
           if [ -n "$FIREBASE_TESTERS" ]; then
             echo "Distributing to testers: $FIREBASE_TESTERS"
-            firebase appdistribution:distribute dist/app-release.apk \
+            firebase appdistribution:distribute "$APK_PATH" \
               --app "$FIREBASE_APP_ID" \
               --testers "$FIREBASE_TESTERS" \
               --release-notes "Commit ${GITHUB_SHA}"
@@ -101,7 +108,7 @@ jobs:
           fi
           if [ -n "$FIREBASE_GROUPS" ]; then
             echo "Distributing to groups: $FIREBASE_GROUPS"
-            firebase appdistribution:distribute dist/app-release.apk \
+            firebase appdistribution:distribute "$APK_PATH" \
               --app "$FIREBASE_APP_ID" \
               --groups "$FIREBASE_GROUPS" \
               --release-notes "Commit ${GITHUB_SHA}"
