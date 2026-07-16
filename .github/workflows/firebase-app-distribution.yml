@@ -1,197 +1,69 @@
 name: Firebase App Distribution (Android)
 
 on:
-  workflow_dispatch: {}
-  push:
-    branches: [main]
-    paths:
-      - "project/game-desktop/**"
-      - ".github/workflows/firebase-app-distribution.yml"
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: "Flutter Android APK workflow run id to distribute"
+        required: true
+  workflow_run:
+    workflows: ["Flutter Android APK"]
+    types: [completed]
+
+permissions:
+  actions: read
+  contents: read
 
 concurrency:
-  group: firebase-android-${{ github.ref }}
+  group: firebase-android-${{ github.event.workflow_run.head_branch || github.ref }}
   cancel-in-progress: true
 
 jobs:
   distribute:
+    if: >-
+      ${{
+        github.event_name == 'workflow_dispatch' ||
+        (
+          github.event.workflow_run.conclusion == 'success' &&
+          github.event.workflow_run.head_branch == 'main'
+        )
+      }}
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: project/game-desktop
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Set up Java
-        uses: actions/setup-java@v4
+      - name: Download APK artifact from Android workflow
+        uses: actions/github-script@v7
         with:
-          distribution: temurin
-          java-version: "17"
-          cache: gradle
+          script: |
+            const fs = require('fs');
+            const runId = context.eventName === 'workflow_run'
+              ? context.payload.workflow_run.id
+              : Number(context.payload.inputs?.run_id || 0);
+            if (!runId) {
+              throw new Error('RUN_ID is required when manually dispatching this workflow. Prefer rerunning Flutter Android APK.');
+            }
+            const artifacts = await github.paginate(github.rest.actions.listWorkflowRunArtifacts, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              run_id: runId,
+            });
+            const artifact = artifacts.find((item) => item.name === 'kingmaker-android-apk');
+            if (!artifact) {
+              throw new Error(`kingmaker-android-apk artifact not found on run ${runId}`);
+            }
+            const download = await github.rest.actions.downloadArtifact({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              artifact_id: artifact.id,
+              archive_format: 'zip',
+            });
+            fs.writeFileSync('kingmaker-android-apk.zip', Buffer.from(download.data));
 
-      - name: Set up Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          channel: "stable"
-          cache: true
-
-      - name: Cache Dart pub packages
-        uses: actions/cache@v4
-        with:
-          path: ~/.pub-cache
-          key: pub-${{ runner.os }}-${{ hashFiles('project/game-desktop/pubspec.lock') }}
-          restore-keys: |
-            pub-${{ runner.os }}-
-
-      - name: Flutter pub get
-        run: flutter pub get
-
-      - name: Ensure Android platform files exist
-        shell: bash
+      - name: Extract APK
         run: |
-          if [ ! -d "android" ]; then
-            flutter create --platforms=android .
-          fi
-
-      - name: Ensure Android network access
-        shell: bash
-        run: |
-          python3 - <<'PY'
-          from pathlib import Path
-          import re
-
-          p = Path("android/app/src/main/AndroidManifest.xml")
-          if not p.exists():
-              raise SystemExit("AndroidManifest.xml not found")
-
-          text = p.read_text(encoding="utf-8")
-          changed = False
-
-          missing_permissions = []
-          if "android.permission.INTERNET" not in text:
-              missing_permissions.append('    <uses-permission android:name="android.permission.INTERNET"/>\n')
-          if "android.permission.ACCESS_NETWORK_STATE" not in text:
-              missing_permissions.append('    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>\n')
-
-          if missing_permissions:
-              lines = text.splitlines(True)
-              out = []
-              inserted = False
-              for line in lines:
-                  out.append(line)
-                  if (not inserted) and ("<manifest" in line):
-                      out.extend(missing_permissions)
-                      inserted = True
-              if not inserted:
-                  raise SystemExit("Failed to insert permissions: <manifest> not found")
-              text = "".join(out)
-              changed = True
-
-          # The production backend currently uses an Oracle public IP over HTTP.
-          # Android release builds block cleartext by default unless explicitly allowed.
-          if "android:usesCleartextTraffic" not in text:
-              text, count = re.subn(
-                  r"(<application\b)",
-                  r'\1 android:usesCleartextTraffic="true"',
-                  text,
-                  count=1,
-              )
-              if count != 1:
-                  raise SystemExit("Failed to add usesCleartextTraffic: <application> not found")
-              changed = True
-
-          if changed:
-              p.write_text(text, encoding="utf-8")
-              print("Updated Android network permissions/cleartext access")
-          else:
-              print("Android network access already configured")
-          PY
-
-      - name: Set Android package name (com.kingmaker.admin)
-        shell: bash
-        run: |
-          APP_ID="com.kingmaker.admin"
-          OLD_ID="com.example.kingmaker"
-          for f in android/app/build.gradle android/app/build.gradle.kts android/app/src/main/AndroidManifest.xml; do
-            if [ -f "$f" ]; then
-              sed -i "s/${OLD_ID//./\\.}/${APP_ID//./\\.}/g" "$f" || true
-            fi
-          done
-          OLD_PATH="android/app/src/main/kotlin/com/example/kingmaker/MainActivity.kt"
-          if [ -f "$OLD_PATH" ]; then
-            NEW_DIR="android/app/src/main/kotlin/com/kingmaker/admin"
-            mkdir -p "$NEW_DIR"
-            sed -i "s/^package .*/package $APP_ID/" "$OLD_PATH" || true
-            mv "$OLD_PATH" "$NEW_DIR/MainActivity.kt"
-          fi
-          if command -v grep >/dev/null 2>&1; then
-            grep -RIl "$OLD_ID" android | while read -r file; do
-              sed -i "s/${OLD_ID//./\\.}/${APP_ID//./\\.}/g" "$file" || true
-            done || true
-          fi
-
-      - name: Patch Android in-app APK installer
-        run: python3 tools/patch_android_installer.py
-
-      - name: Configure Android release signing
-        shell: bash
-        env:
-          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
-          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
-          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
-        run: |
-          if [ -z "$ANDROID_KEYSTORE_BASE64" ] || [ -z "$ANDROID_KEYSTORE_PASSWORD" ] || [ -z "$ANDROID_KEY_ALIAS" ] || [ -z "$ANDROID_KEY_PASSWORD" ]; then
-            echo "Missing Android release signing secrets." >&2
-            exit 1
-          fi
-          mkdir -p android/app
-          echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > android/app/kingmaker-release.jks
-          cat > android/key.properties <<EOF
-          storePassword=$ANDROID_KEYSTORE_PASSWORD
-          keyPassword=$ANDROID_KEY_PASSWORD
-          keyAlias=$ANDROID_KEY_ALIAS
-          storeFile=kingmaker-release.jks
-          EOF
-          sed -i 's/^[[:space:]]*//' android/key.properties
-          python3 tools/patch_android_signing.py
-
-      - name: Set Android app name (King Maker)
-        shell: bash
-        run: |
-          STRINGS="android/app/src/main/res/values/strings.xml"
-          MANIFEST="android/app/src/main/AndroidManifest.xml"
-          if [ -f "$STRINGS" ]; then
-            sed -i 's#<string name="app_name">[^<]*</string>#<string name="app_name">King Maker</string>#' "$STRINGS" || true
-          fi
-          if [ -f "$MANIFEST" ]; then
-            sed -i 's/android:label="[^"]*"/android:label="@string\\/app_name"/' "$MANIFEST" || true
-          fi
-
-      - name: Build APK (release)
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
-        run: |
-          API_BASE_URL="http://80.225.236.170"
-          if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_ANON_KEY" ]; then
-            echo "Missing required secrets SUPABASE_URL / SUPABASE_ANON_KEY" >&2
-            exit 1
-          fi
-          APP_PUBSPEC_VERSION="$(grep '^version:' pubspec.yaml | awk '{print $2}')"
-          APP_VERSION_NAME="${APP_PUBSPEC_VERSION%%+*}"
-          APP_BUILD_NUMBER="${APP_PUBSPEC_VERSION##*+}"
-          if [ "$APP_VERSION_NAME" = "$APP_BUILD_NUMBER" ]; then
-            APP_BUILD_NUMBER="$GITHUB_RUN_NUMBER"
-          fi
-          flutter build apk --release \
-            --build-name="$APP_VERSION_NAME" \
-            --build-number="$APP_BUILD_NUMBER" \
-            --dart-define=SUPABASE_URL="$SUPABASE_URL" \
-            --dart-define=SUPABASE_ANON_KEY="$SUPABASE_ANON_KEY" \
-            --dart-define=API_BASE_URL="$API_BASE_URL" \
-            --dart-define=APP_VERSION="$APP_VERSION_NAME" \
-            --dart-define=APP_BUILD_NUMBER="$APP_BUILD_NUMBER"
+          mkdir -p dist
+          unzip -o kingmaker-android-apk.zip -d dist
+          find dist -name '*.apk' -print
+          test -f dist/app-release.apk
 
       - name: Install firebase-tools
         run: npm i -g firebase-tools
@@ -221,7 +93,7 @@ jobs:
           fi
           if [ -n "$FIREBASE_TESTERS" ]; then
             echo "Distributing to testers: $FIREBASE_TESTERS"
-            firebase appdistribution:distribute build/app/outputs/flutter-apk/app-release.apk \
+            firebase appdistribution:distribute dist/app-release.apk \
               --app "$FIREBASE_APP_ID" \
               --testers "$FIREBASE_TESTERS" \
               --release-notes "Commit ${GITHUB_SHA}"
@@ -229,7 +101,7 @@ jobs:
           fi
           if [ -n "$FIREBASE_GROUPS" ]; then
             echo "Distributing to groups: $FIREBASE_GROUPS"
-            firebase appdistribution:distribute build/app/outputs/flutter-apk/app-release.apk \
+            firebase appdistribution:distribute dist/app-release.apk \
               --app "$FIREBASE_APP_ID" \
               --groups "$FIREBASE_GROUPS" \
               --release-notes "Commit ${GITHUB_SHA}"
