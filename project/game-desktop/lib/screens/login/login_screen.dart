@@ -10,6 +10,7 @@ import "../../config/app_config.dart";
 import "../../services/android_update_gate.dart";
 import "../../services/android_update_service.dart";
 import "../../storage/account_store.dart";
+import "../../storage/session_store.dart";
 
 class LoginScreen extends StatefulWidget {
   final bool addAccount;
@@ -26,12 +27,14 @@ class _LoginScreenState extends State<LoginScreen> {
 
   final _usernameController = TextEditingController();
   final _passwordController = TextEditingController();
+  List<SavedAccount> _savedAccounts = const [];
   bool _busy = false;
   String? _message;
 
   @override
   void initState() {
     super.initState();
+    unawaited(_loadSavedAccounts());
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       unawaited(AndroidUpdateGate.maybeShow(context));
@@ -43,6 +46,63 @@ class _LoginScreenState extends State<LoginScreen> {
     _usernameController.dispose();
     _passwordController.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadSavedAccounts() async {
+    final accounts = await AccountStore.loadAccounts();
+    if (!mounted) return;
+    setState(() => _savedAccounts = accounts);
+  }
+
+  Future<void> _openAccountMenu() async {
+    if (_savedAccounts.isEmpty || _busy) return;
+    final action = await showModalBottomSheet<_LoginAccountAction>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) => _LoginAccountSheet(accounts: _savedAccounts),
+    );
+    if (action == null || !mounted) return;
+    if (action.addAccount) {
+      setState(() {
+        _message = null;
+        _usernameController.clear();
+        _passwordController.clear();
+      });
+      return;
+    }
+    final account = action.account;
+    if (account != null) {
+      await _signInWithSavedAccount(account);
+    }
+  }
+
+  Future<void> _signInWithSavedAccount(SavedAccount account) async {
+    setState(() {
+      _busy = true;
+      _message = null;
+    });
+    try {
+      await SessionStore.clearSessionId();
+      final response = await Supabase.instance.client.auth
+          .setSession(account.refreshToken)
+          .timeout(_signInTimeout);
+      final session = response.session ?? Supabase.instance.client.auth.currentSession;
+      if (session == null) throw StateError("Please sign in again");
+      await AccountStore.upsertAccount(
+        username: account.username,
+        email: session.user.email ?? account.email,
+        refreshToken: session.refreshToken ?? account.refreshToken,
+      );
+      await _loadSavedAccounts();
+      if (!mounted) return;
+      context.go("/home");
+    } on TimeoutException {
+      setState(() => _message = "Sign in timed out. Check your internet and retry.");
+    } catch (_) {
+      setState(() => _message = "Please sign in again for this account.");
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
   }
 
   Future<void> _signIn() async {
@@ -90,6 +150,7 @@ class _LoginScreenState extends State<LoginScreen> {
           email: savedEmail,
           refreshToken: refreshToken,
         );
+        await _loadSavedAccounts();
       }
       context.go("/home");
     } on AuthException catch (e) {
@@ -141,65 +202,153 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final showProfile = _savedAccounts.isNotEmpty;
+    final initials = showProfile ? _initialsFor(_savedAccounts.first.username) : "";
     return Scaffold(
       body: SafeArea(
-        child: Column(
+        child: Stack(
           children: [
-            Expanded(
-              child: Center(
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 520),
-                  child: Padding(
-                    padding: const EdgeInsets.all(24),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Text(
-                          widget.addAccount ? "Add Account" : "King Maker",
-                          style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold),
-                          textAlign: TextAlign.center,
+            Column(
+              children: [
+                Expanded(
+                  child: Center(
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 520),
+                      child: Padding(
+                        padding: const EdgeInsets.all(24),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Text(
+                              widget.addAccount ? "Add Account" : "King Maker",
+                              style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold),
+                              textAlign: TextAlign.center,
+                            ),
+                            const SizedBox(height: 24),
+                            TextField(
+                              controller: _usernameController,
+                              decoration: const InputDecoration(labelText: "Username"),
+                              keyboardType: TextInputType.text,
+                              autofillHints: const [AutofillHints.username],
+                            ),
+                            const SizedBox(height: 12),
+                            TextField(
+                              controller: _passwordController,
+                              decoration: const InputDecoration(labelText: "Password"),
+                              obscureText: true,
+                              autofillHints: const [AutofillHints.password],
+                            ),
+                            const SizedBox(height: 18),
+                            FilledButton(
+                              onPressed: _busy ? null : _signIn,
+                              child: Text(_busy ? "Working..." : "Sign in"),
+                            ),
+                            if (_message != null) ...[
+                              const SizedBox(height: 12),
+                              Text(
+                                _message!,
+                                style: const TextStyle(color: Colors.white70),
+                                textAlign: TextAlign.center,
+                              ),
+                            ],
+                          ],
                         ),
-                        const SizedBox(height: 24),
-                        TextField(
-                          controller: _usernameController,
-                          decoration: const InputDecoration(labelText: "Username"),
-                          keyboardType: TextInputType.text,
-                          autofillHints: const [AutofillHints.username],
-                        ),
-                        const SizedBox(height: 12),
-                        TextField(
-                          controller: _passwordController,
-                          decoration: const InputDecoration(labelText: "Password"),
-                          obscureText: true,
-                          autofillHints: const [AutofillHints.password],
-                        ),
-                        const SizedBox(height: 18),
-                        FilledButton(
-                          onPressed: _busy ? null : _signIn,
-                          child: Text(_busy ? "Working..." : "Sign in"),
-                        ),
-                        if (_message != null) ...[
-                          const SizedBox(height: 12),
-                          Text(
-                            _message!,
-                            style: const TextStyle(color: Colors.white70),
-                            textAlign: TextAlign.center,
-                          ),
-                        ],
-                      ],
+                      ),
                     ),
                   ),
                 ),
-              ),
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: Text(
+                    "Version ${AndroidUpdateService.currentVersion}",
+                    style: const TextStyle(color: Colors.white54, fontSize: 12),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              ],
             ),
-            Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: Text(
-                "Version ${AndroidUpdateService.currentVersion}",
-                style: const TextStyle(color: Colors.white54, fontSize: 12),
-                textAlign: TextAlign.center,
+            if (showProfile)
+              Positioned(
+                top: 8,
+                left: 12,
+                child: _LoginProfileButton(
+                  initials: initials,
+                  onPressed: _openAccountMenu,
+                ),
               ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+String _initialsFor(String value) {
+  final cleaned = value.trim();
+  if (cleaned.isEmpty || cleaned == "-") return "U";
+  final parts = cleaned
+      .split(RegExp(r"[^A-Za-z0-9]+"))
+      .where((part) => part.isNotEmpty)
+      .toList(growable: false);
+  if (parts.isEmpty) return cleaned.substring(0, 1).toUpperCase();
+  if (parts.length == 1) return parts.first.substring(0, 1).toUpperCase();
+  return (parts[0].substring(0, 1) + parts[1].substring(0, 1)).toUpperCase();
+}
+
+class _LoginProfileButton extends StatelessWidget {
+  final String initials;
+  final VoidCallback onPressed;
+
+  const _LoginProfileButton({required this.initials, required this.onPressed});
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onPressed,
+      customBorder: const CircleBorder(),
+      child: CircleAvatar(
+        backgroundColor: const Color(0xFFC8B5FF),
+        foregroundColor: const Color(0xFF191225),
+        child: Text(initials, style: const TextStyle(fontWeight: FontWeight.w800)),
+      ),
+    );
+  }
+}
+
+class _LoginAccountAction {
+  final SavedAccount? account;
+  final bool addAccount;
+
+  const _LoginAccountAction.switchTo(this.account) : addAccount = false;
+  const _LoginAccountAction.add() : account = null, addAccount = true;
+}
+
+class _LoginAccountSheet extends StatelessWidget {
+  final List<SavedAccount> accounts;
+
+  const _LoginAccountSheet({required this.accounts});
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            for (final account in accounts)
+              ListTile(
+                leading: CircleAvatar(child: Text(_initialsFor(account.username))),
+                title: Text(account.username, maxLines: 1, overflow: TextOverflow.ellipsis),
+                onTap: () => Navigator.of(context).pop(_LoginAccountAction.switchTo(account)),
+              ),
+            const Divider(),
+            ListTile(
+              leading: const Icon(Icons.person_add_alt_1),
+              title: const Text("Login to new account"),
+              onTap: () => Navigator.of(context).pop(const _LoginAccountAction.add()),
             ),
           ],
         ),

@@ -52,6 +52,7 @@ class AccountStore {
           }
         }
       }
+      accounts.sort((a, b) => b.lastUsedAt.compareTo(a.lastUsedAt));
       return accounts;
     } catch (_) {
       return const [];

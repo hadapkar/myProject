@@ -17,6 +17,7 @@ class _FunTargetAdminScreenState extends State<FunTargetAdminScreen> {
   bool _loading = true;
   String? _error;
   List<Map<String, dynamic>> _rows = const [];
+  String? _currentUserId;
 
   Map<String, dynamic>? _selected;
   final TextEditingController _amount = TextEditingController(text: "0");
@@ -35,6 +36,7 @@ class _FunTargetAdminScreenState extends State<FunTargetAdminScreen> {
   Future<void> _guardAdmin() async {
     try {
       final me = await _api.getMe();
+      _currentUserId = (me["id"] ?? "").toString();
       final canManageFunTarget = me["canManageFunTarget"] == true || me["isAdmin"] == true;
       if (!canManageFunTarget) {
         if (!mounted) return;
@@ -86,9 +88,12 @@ class _FunTargetAdminScreenState extends State<FunTargetAdminScreen> {
           if (item is Map) rows.add(Map<String, dynamic>.from(item));
         }
       }
+      final selectedId = (_selected == null ? "" : (_selected!["user_id"] ?? "").toString());
+      final defaultId = selectedId.isNotEmpty ? selectedId : (_currentUserId ?? "");
+      final selectedRow = _findByIdIn(rows, defaultId);
       setState(() {
         _rows = rows;
-        if (_selected != null) _selected = _findById((_selected!["user_id"] ?? "").toString());
+        _selected = selectedRow;
       });
     } catch (e) {
       setState(() => _error = e.toString());
@@ -105,6 +110,13 @@ class _FunTargetAdminScreenState extends State<FunTargetAdminScreen> {
     return null;
   }
 
+  Map<String, dynamic>? _findByIdIn(List<Map<String, dynamic>> rows, String userId) {
+    if (userId.isEmpty) return null;
+    for (final r in rows) {
+      if ((r["user_id"] ?? "").toString() == userId) return r;
+    }
+    return null;
+  }
   String _username(Map<String, dynamic> row) {
     final username = (row["username"] ?? "").toString().trim();
     if (username.isNotEmpty) return username;

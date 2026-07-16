@@ -43,7 +43,8 @@ public class AdminFunTargetController {
       throw new AccessDeniedException("Forbidden");
     }
     List<Map<String, Object>> rows =
-        buildVisibleRows(callerRole, supabaseRest.listFunTargetStatesServiceRole(limit), limit);
+        buildVisibleRows(
+            callerRole, caller.id(), caller.email(), supabaseRest.listFunTargetStatesServiceRole(limit), limit);
     return Map.of("count", rows.size(), "rows", rows);
   }
 
@@ -60,7 +61,7 @@ public class AdminFunTargetController {
       throw new AccessDeniedException("Forbidden");
     }
     if (userId == null || userId.isBlank()) throw new IllegalArgumentException("userId is required");
-    requireTargetVisibleToCaller(callerRole, userId);
+    requireTargetVisibleToCaller(callerRole, caller.id(), userId);
 
     Map<String, Object> patch = new HashMap<>();
     if (payload != null) {
@@ -103,7 +104,11 @@ public class AdminFunTargetController {
   }
 
   private List<Map<String, Object>> buildVisibleRows(
-      String callerRole, List<Map<String, Object>> stateRows, int limit) {
+      String callerRole,
+      String callerUserId,
+      String callerEmail,
+      List<Map<String, Object>> stateRows,
+      int limit) {
     int safeLimit = Math.max(1, Math.min(500, limit));
 
     Map<String, Map<String, Object>> stateByUserId = new HashMap<>();
@@ -140,12 +145,24 @@ public class AdminFunTargetController {
         String userId = String.valueOf(access.getOrDefault("user_id", ""));
         if (userId.isBlank()) continue;
         String role = SupabaseRestService.normalizeUserRole(access.get("role"));
-        if ("MANAGER".equals(callerRole) && (adminUserIds.contains(userId) || !"PLAYER".equals(role))) {
+        boolean isCaller = userId.equals(callerUserId);
+        if ("MANAGER".equals(callerRole)
+            && !isCaller
+            && (adminUserIds.contains(userId) || !"PLAYER".equals(role))) {
           continue;
         }
         visible.add(withUserAccess(stateByUserId.get(userId), userId, access));
         emitted.add(userId);
       }
+    }
+
+    if (!callerUserId.isBlank() && !emitted.contains(callerUserId) && visible.size() < safeLimit) {
+      visible.add(
+          withUserAccess(
+              stateByUserId.get(callerUserId),
+              callerUserId,
+              callerAccess(callerUserId, callerEmail, callerRole)));
+      emitted.add(callerUserId);
     }
 
     if ("ADMIN".equals(callerRole) && stateRows != null) {
@@ -157,6 +174,20 @@ public class AdminFunTargetController {
       }
     }
     return visible;
+  }
+
+  private Map<String, Object> callerAccess(String callerUserId, String callerEmail, String callerRole) {
+    String username = callerEmail == null ? "" : callerEmail.trim();
+    int atIndex = username.indexOf("@");
+    if (atIndex > 0) username = username.substring(0, atIndex);
+    if (username.isBlank()) username = callerUserId;
+    Map<String, Object> access = new LinkedHashMap<>();
+    access.put("user_id", callerUserId);
+    access.put("username", username);
+    access.put("role", callerRole);
+    access.put("status", "active");
+    access.put("ends_at", "");
+    return access;
   }
 
   private Map<String, Object> withUserAccess(
@@ -185,8 +216,10 @@ public class AdminFunTargetController {
     return row;
   }
 
-  private void requireTargetVisibleToCaller(String callerRole, String targetUserId) {
+  private void requireTargetVisibleToCaller(
+      String callerRole, String callerUserId, String targetUserId) {
     if ("ADMIN".equals(callerRole)) return;
+    if (targetUserId != null && targetUserId.equals(callerUserId)) return;
     if (supabaseRest.isAdminServiceRole(targetUserId)) {
       throw new AccessDeniedException("Forbidden");
     }
