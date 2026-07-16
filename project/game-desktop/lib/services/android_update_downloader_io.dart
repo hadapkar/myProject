@@ -10,6 +10,8 @@ const _maxDownloadAttempts = 4;
 const _maxRedirects = 5;
 const _connectTimeout = Duration(seconds: 20);
 const _idleTimeout = Duration(seconds: 30);
+const _nativePollInterval = Duration(milliseconds: 500);
+const _nativeDownloadTimeout = Duration(minutes: 30);
 
 Future<void> downloadAndInstallApk(
   Uri uri, {
@@ -39,12 +41,19 @@ Future<void> downloadAndInstallApk(
     await _deleteQuietly(file);
   }
 
-  final downloadedFile = await _downloadWithResume(
-    uri,
-    tempFile,
-    expectedBytes: expectedBytes,
-    onProgress: onProgress,
-  );
+  final downloadedFile = await _downloadWithNativeManager(
+        uri,
+        file,
+        fileName: fileName,
+        expectedBytes: expectedBytes,
+        onProgress: onProgress,
+      ) ??
+      await _downloadWithResume(
+        uri,
+        tempFile,
+        expectedBytes: expectedBytes,
+        onProgress: onProgress,
+      );
 
   final downloadedBytes = await downloadedFile.length();
   if (!_sizeMatches(downloadedBytes, expectedBytes)) {
@@ -56,9 +65,78 @@ Future<void> downloadAndInstallApk(
     throw StateError("Downloaded update could not be verified. Please retry.");
   }
 
-  if (await file.exists()) await file.delete();
-  final readyFile = await downloadedFile.rename(apkPath);
+  final File readyFile;
+  if (downloadedFile.path == file.path) {
+    readyFile = downloadedFile;
+  } else {
+    if (await file.exists()) await file.delete();
+    readyFile = await downloadedFile.rename(apkPath);
+  }
   await _openInstaller(readyFile);
+}
+
+Future<File?> _downloadWithNativeManager(
+  Uri uri,
+  File targetFile, {
+  required String fileName,
+  required int expectedBytes,
+  void Function(int receivedBytes, int? totalBytes)? onProgress,
+}) async {
+  Map<dynamic, dynamic>? started;
+  try {
+    started = await _channel.invokeMethod<Map<dynamic, dynamic>>(
+      "startApkDownload",
+      {"url": uri.toString(), "fileName": fileName},
+    );
+  } on MissingPluginException {
+    return null;
+  } on PlatformException catch (e) {
+    if (e.code == "not_implemented" || e.code == "missing_plugin") return null;
+    throw StateError(e.message ?? "Update download could not start.");
+  }
+
+  final downloadId = _intValue(started?["id"]);
+  final path = (started?["path"] ?? targetFile.path).toString();
+  if (downloadId <= 0 || path.isEmpty) {
+    return null;
+  }
+
+  final deadline = DateTime.now().add(_nativeDownloadTimeout);
+  while (DateTime.now().isBefore(deadline)) {
+    await Future<void>.delayed(_nativePollInterval);
+    final state = await _channel.invokeMethod<Map<dynamic, dynamic>>(
+      "queryApkDownload",
+      {"id": downloadId},
+    );
+    final status = (state?["status"] ?? "").toString();
+    final received = _intValue(state?["receivedBytes"]);
+    final total = _intValue(state?["totalBytes"]);
+    final totalBytes = total > 0 ? total : (expectedBytes > 0 ? expectedBytes : null);
+    if (received > 0) {
+      onProgress?.call(received, totalBytes);
+    }
+
+    if (status == "successful") {
+      final file = File(path);
+      final length = await _existingFileLength(file);
+      onProgress?.call(length, _knownTotal(length, expectedBytes) ?? totalBytes);
+      return file;
+    }
+    if (status == "failed" || status == "missing") {
+      throw StateError("Download interrupted. Tap retry to continue.");
+    }
+  }
+
+  try {
+    await _channel.invokeMethod<bool>("cancelApkDownload", {"id": downloadId});
+  } catch (_) {}
+  throw StateError("Update download timed out. Tap retry to continue.");
+}
+
+int _intValue(Object? value) {
+  if (value is int) return value;
+  if (value is num) return value.toInt();
+  return int.tryParse((value ?? "").toString()) ?? 0;
 }
 
 Future<File> _downloadWithResume(

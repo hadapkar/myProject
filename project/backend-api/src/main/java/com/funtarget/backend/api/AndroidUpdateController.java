@@ -32,7 +32,7 @@ public class AndroidUpdateController {
     boolean force = parseBool(get("app.android-update.force"));
     String notes = get("app.android-update.release-notes");
     if (apkUrl.isBlank() && isHttpUrl(sourceApkUrl)) {
-      apkUrl = publicDownloadUrl(request);
+      apkUrl = sourceApkUrl;
     }
     boolean enabled =
         build > 0

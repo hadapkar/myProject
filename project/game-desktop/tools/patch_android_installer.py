@@ -109,6 +109,7 @@ def patch_file_paths() -> None:
         '''<?xml version="1.0" encoding="utf-8"?>
 <paths xmlns:android="http://schemas.android.com/apk/res/android">
     <cache-path name="updates" path="updates/" />
+    <external-files-path name="external_updates" path="Download/" />
 </paths>
 ''',
     )
@@ -125,9 +126,13 @@ def patch_main_activity() -> None:
         target,
         f'''package {APP_ID}
 
+import android.app.DownloadManager
+import android.content.Context
 import android.content.Intent
 import android.content.pm.ActivityInfo
+import android.net.Uri
 import android.os.Build
+import android.os.Environment
 import android.view.View
 import android.view.WindowInsets
 import android.view.WindowInsetsController
@@ -144,11 +149,16 @@ class MainActivity : FlutterActivity() {{
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "{UPDATE_CHANNEL}").setMethodCallHandler {{ call, result ->
             when (call.method) {{
                 "getApkPath" -> {{
-                    val updateDir = File(cacheDir, "updates")
-                    updateDir.mkdirs()
-                    val requestedName = call.argument<String>("fileName") ?: "KingMaker.apk"
-                    val safeName = requestedName.replace(Regex("[^A-Za-z0-9._-]"), "_")
-                    result.success(File(updateDir, safeName).absolutePath)
+                    result.success(apkFileFor(call.argument<String>("fileName")).absolutePath)
+                }}
+                "startApkDownload" -> {{
+                    startApkDownload(call.argument<String>("url"), call.argument<String>("fileName"), result)
+                }}
+                "queryApkDownload" -> {{
+                    queryApkDownload(call.argument<Any>("id"), result)
+                }}
+                "cancelApkDownload" -> {{
+                    cancelApkDownload(call.argument<Any>("id"), result)
                 }}
                 "installApk" -> {{
                     val path = call.argument<String>("path")
@@ -188,6 +198,109 @@ class MainActivity : FlutterActivity() {{
         }}
     }}
 
+    private fun safeFileName(requestedName: String?): String {{
+        val fallback = if (requestedName.isNullOrBlank()) "KingMaker.apk" else requestedName
+        return fallback.replace(Regex("[^A-Za-z0-9._-]"), "_")
+    }}
+
+    private fun updateDir(): File {{
+        val dir = getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS) ?: File(cacheDir, "updates")
+        dir.mkdirs()
+        return dir
+    }}
+
+    private fun apkFileFor(requestedName: String?): File {{
+        return File(updateDir(), safeFileName(requestedName))
+    }}
+
+    private fun downloadManager(): DownloadManager {{
+        return getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
+    }}
+
+    private fun numericId(value: Any?): Long? {{
+        return when (value) {{
+            is Number -> value.toLong()
+            is String -> value.toLongOrNull()
+            else -> null
+        }}
+    }}
+
+    private fun startApkDownload(url: String?, fileName: String?, result: MethodChannel.Result) {{
+        if (url.isNullOrBlank()) {{
+            result.error("missing_url", "APK URL is required", null)
+            return
+        }}
+        val apkFile = apkFileFor(fileName)
+        if (apkFile.exists()) apkFile.delete()
+        val request = DownloadManager.Request(Uri.parse(url)).apply {{
+            setTitle("King Maker update")
+            setDescription("Downloading latest version")
+            setMimeType("application/vnd.android.package-archive")
+            setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE)
+            setAllowedOverMetered(true)
+            setAllowedOverRoaming(true)
+            addRequestHeader("Accept", "application/vnd.android.package-archive,*/*")
+            addRequestHeader("User-Agent", "KingMaker Android Updater")
+            setDestinationUri(Uri.fromFile(apkFile))
+        }}
+        try {{
+            val id = downloadManager().enqueue(request)
+            result.success(mapOf("id" to id, "path" to apkFile.absolutePath))
+        }} catch (ex: Exception) {{
+            result.error("download_start_failed", ex.message ?: "Download could not start", null)
+        }}
+    }}
+
+    private fun queryApkDownload(rawId: Any?, result: MethodChannel.Result) {{
+        val id = numericId(rawId)
+        if (id == null || id <= 0L) {{
+            result.error("missing_download_id", "Download id is required", null)
+            return
+        }}
+        val cursor = downloadManager().query(DownloadManager.Query().setFilterById(id))
+        if (cursor == null) {{
+            result.success(mapOf("status" to "missing"))
+            return
+        }}
+        cursor.use {{ c ->
+            if (!c.moveToFirst()) {{
+                result.success(mapOf("status" to "missing"))
+                return
+            }}
+            fun intColumn(name: String): Int {{
+                val index = c.getColumnIndex(name)
+                return if (index >= 0) c.getInt(index) else -1
+            }}
+            val statusCode = intColumn(DownloadManager.COLUMN_STATUS)
+            val received = intColumn(DownloadManager.COLUMN_BYTES_DOWNLOADED_SO_FAR)
+            val total = intColumn(DownloadManager.COLUMN_TOTAL_SIZE_BYTES)
+            val reason = intColumn(DownloadManager.COLUMN_REASON)
+            val status = when (statusCode) {{
+                DownloadManager.STATUS_SUCCESSFUL -> "successful"
+                DownloadManager.STATUS_FAILED -> "failed"
+                DownloadManager.STATUS_PAUSED -> "paused"
+                DownloadManager.STATUS_PENDING -> "pending"
+                DownloadManager.STATUS_RUNNING -> "running"
+                else -> "unknown"
+            }}
+            result.success(
+                mapOf(
+                    "status" to status,
+                    "receivedBytes" to received,
+                    "totalBytes" to total,
+                    "reason" to reason
+                )
+            )
+        }}
+    }}
+
+    private fun cancelApkDownload(rawId: Any?, result: MethodChannel.Result) {{
+        val id = numericId(rawId)
+        if (id != null && id > 0L) {{
+            downloadManager().remove(id)
+        }}
+        result.success(true)
+    }}
     private fun enterGameDisplay() {{
         requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {{
