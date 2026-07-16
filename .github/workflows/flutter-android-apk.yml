@@ -220,6 +220,7 @@ jobs:
           gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 || \
             gh release create "$TAG" --target "$GITHUB_SHA" --title "Android Latest" --notes "Latest Android APK for in-app updater." --repo "$GITHUB_REPOSITORY"
           gh release upload "$TAG" "$ASSET" "$ASSET.sha256" "$ASSET.size" --clobber --repo "$GITHUB_REPOSITORY"
+      # Keep Oracle update metadata aligned with the published APK.
       - name: Sync Android update metadata to Oracle
         shell: bash
         env:
