@@ -18,6 +18,10 @@ class FunTargetApi {
   String? _cachedSessionId;
   String? _cachedDeviceId;
 
+  void clearSessionCache() {
+    _cachedSessionId = null;
+  }
+
   bool _isHostLookupError(Object e) =>
       e is http.ClientException && e.message.contains("Failed host lookup");
 
@@ -314,6 +318,31 @@ class FunTargetApi {
     return sessionId;
   }
 
+
+  Future<void> endSession() async {
+    try {
+      final token = await _accessToken(allowRefresh: false);
+      final headers = {
+        "Authorization": "Bearer $token",
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+      };
+      final body = jsonEncode({"platform": _platform()});
+      try {
+        await _postUri(AppConfig.apiUri("/api/session/end"), headers, body);
+      } on http.ClientException catch (e) {
+        if (_isHostLookupError(e)) {
+          await _postUri(AppConfig.apiUriWithFallback("/api/session/end"), headers, body);
+        } else {
+          rethrow;
+        }
+      }
+    } finally {
+      clearSessionCache();
+      await SessionStore.clearSessionId();
+    }
+  }
+
   String _generateDeviceId() {
     final rnd = Random.secure();
     final bytes = List<int>.generate(16, (_) => rnd.nextInt(256));
@@ -369,6 +398,18 @@ class FunTargetApi {
     return jsonMap;
   }
 
+  Future<Map<String, dynamic>> updateAdminUser({
+    required String userId,
+    String username = "",
+    String password = "",
+  }) async {
+    final payload = <String, dynamic>{};
+    if (username.trim().isNotEmpty) payload["username"] = username.trim();
+    if (password.trim().isNotEmpty) payload["password"] = password;
+    final res = await _patch("/api/admin/users/$userId", payload);
+    if (res.statusCode < 200 || res.statusCode >= 300) throw _apiError(res);
+    return jsonDecode(res.body) as Map<String, dynamic>;
+  }
   Future<Map<String, dynamic>> listUserAccess() async {
     final res = await _get("/api/admin/user-access");
     if (res.statusCode < 200 || res.statusCode >= 300) throw _apiError(res);

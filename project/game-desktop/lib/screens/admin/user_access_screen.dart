@@ -16,11 +16,21 @@ class _UserAccessScreenState extends State<UserAccessScreen> {
   String? _error;
   List<Map<String, dynamic>> _rows = const [];
   bool _allowed = false;
+  String? _selectedUserId;
 
   @override
   void initState() {
     super.initState();
     unawaited(_guardAdmin());
+  }
+
+  Map<String, dynamic>? get _selectedRow {
+    final selected = _selectedUserId;
+    if (selected == null || selected.isEmpty) return null;
+    for (final row in _rows) {
+      if ((row["user_id"] ?? "").toString() == selected) return row;
+    }
+    return null;
   }
 
   Future<void> _guardAdmin() async {
@@ -54,7 +64,7 @@ class _UserAccessScreenState extends State<UserAccessScreen> {
     await _load();
   }
 
-  Future<void> _load() async {
+  Future<void> _load({String? keepSelectedUserId}) async {
     setState(() {
       _loading = true;
       _error = null;
@@ -69,8 +79,15 @@ class _UserAccessScreenState extends State<UserAccessScreen> {
           if (item is Map) rows.add(Map<String, dynamic>.from(item));
         }
       }
+      rows.sort((a, b) => (a["username"] ?? "").toString().compareTo((b["username"] ?? "").toString()));
       if (!mounted) return;
-      setState(() => _rows = rows);
+      final wanted = keepSelectedUserId ?? _selectedUserId;
+      final selectedStillExists = wanted != null &&
+          rows.any((row) => (row["user_id"] ?? "").toString() == wanted);
+      setState(() {
+        _rows = rows;
+        _selectedUserId = selectedStillExists ? wanted : null;
+      });
     } catch (e) {
       if (!mounted) return;
       setState(() => _error = e.toString());
@@ -87,7 +104,7 @@ class _UserAccessScreenState extends State<UserAccessScreen> {
     setState(() => _error = null);
     try {
       await _api.patchUserAccess(userId, payload);
-      await _load();
+      await _load(keepSelectedUserId: userId);
     } catch (e) {
       if (!mounted) return;
       setState(() => _error = e.toString());
@@ -112,9 +129,37 @@ class _UserAccessScreenState extends State<UserAccessScreen> {
     );
     if (picked == null) return;
 
-    // Date-based rule: if "today" matches the end date, block login.
     final localStart = DateTime(picked.year, picked.month, picked.day);
     await _updateRow(userId, endsAtIso: localStart.toUtc().toIso8601String());
+  }
+
+  Future<void> _editUserDialog(Map<String, dynamic> row) async {
+    final userId = (row["user_id"] ?? "").toString();
+    final username = (row["username"] ?? "").toString();
+    if (userId.isEmpty) return;
+
+    final result = await showDialog<_UserEditResult>(
+      context: context,
+      builder: (context) => _EditUserDialog(initialUsername: username),
+    );
+    if (result == null) return;
+
+    setState(() => _error = null);
+    try {
+      await _api.updateAdminUser(
+        userId: userId,
+        username: result.username,
+        password: result.password,
+      );
+      await _load(keepSelectedUserId: userId);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("User updated.")),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _error = e.toString());
+    }
   }
 
   String _roleValue(Map<String, dynamic> row) {
@@ -140,6 +185,7 @@ class _UserAccessScreenState extends State<UserAccessScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final selected = _selectedRow;
     return Scaffold(
       backgroundColor: const Color(0xFF0B1220),
       appBar: AppBar(
@@ -147,7 +193,7 @@ class _UserAccessScreenState extends State<UserAccessScreen> {
         actions: [
           IconButton(
             tooltip: "Refresh",
-            onPressed: _loading ? null : _load,
+            onPressed: _loading ? null : () => _load(keepSelectedUserId: _selectedUserId),
             icon: const Icon(Icons.refresh),
           ),
           const SizedBox(width: 8),
@@ -163,112 +209,65 @@ class _UserAccessScreenState extends State<UserAccessScreen> {
                 padding: const EdgeInsets.only(bottom: 12),
                 child: Text(_error!, style: const TextStyle(color: Colors.redAccent)),
               ),
-            Expanded(
-              child: _loading
-                  ? const Center(child: CircularProgressIndicator())
-                  : LayoutBuilder(
-                      builder: (context, constraints) {
-                        if (constraints.maxWidth < 720) return _mobileList();
-                        return _desktopTable(constraints.maxWidth);
-                      },
+            if (_loading)
+              const Expanded(child: Center(child: CircularProgressIndicator()))
+            else if (_rows.isEmpty)
+              const Expanded(child: Center(child: Text("No users found.")))
+            else
+              Expanded(
+                child: SingleChildScrollView(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 720),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        DropdownButtonFormField<String>(
+                          value: _selectedUserId,
+                          decoration: const InputDecoration(labelText: "User name"),
+                          hint: const Text("Select user"),
+                          dropdownColor: const Color(0xFF111827),
+                          items: _rows.map((row) {
+                            final userId = (row["user_id"] ?? "").toString();
+                            final username = (row["username"] ?? "").toString();
+                            return DropdownMenuItem<String>(
+                              value: userId,
+                              child: Text(username, maxLines: 1, overflow: TextOverflow.ellipsis),
+                            );
+                          }).toList(growable: false),
+                          onChanged: (value) => setState(() => _selectedUserId = value),
+                        ),
+                        const SizedBox(height: 16),
+                        if (selected == null)
+                          const Text("Select a user to view and update subscription details.")
+                        else
+                          _SelectedUserPanel(
+                            row: selected,
+                            role: _roleValue(selected),
+                            status: _statusValue(selected),
+                            endsAt: _formatEndsAt(selected),
+                            onRoleChanged: (role) => _updateRow((selected["user_id"] ?? "").toString(), role: role),
+                            onSetEndDate: () => _setEndDateDialog(selected),
+                            onClearEndDate: () => _updateRow((selected["user_id"] ?? "").toString(), endsAtIso: ""),
+                            onToggleStatus: () {
+                              final userId = (selected["user_id"] ?? "").toString();
+                              final status = _statusValue(selected);
+                              unawaited(_updateRow(userId, status: status == "active" ? "blocked" : "active"));
+                            },
+                            onEditUser: () => _editUserDialog(selected),
+                          ),
+                      ],
                     ),
-            ),
+                  ),
+                ),
+              ),
           ],
-        ),
-      ),
-    );
-  }
-
-  Widget _mobileList() {
-    if (_rows.isEmpty) return const Center(child: Text("No users found."));
-    return ListView.separated(
-      itemCount: _rows.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 12),
-      itemBuilder: (context, index) => _UserAccessCard(
-        row: _rows[index],
-        role: _roleValue(_rows[index]),
-        status: _statusValue(_rows[index]),
-        endsAt: _formatEndsAt(_rows[index]),
-        onRoleChanged: (role) => _updateRow((_rows[index]["user_id"] ?? "").toString(), role: role),
-        onSetEndDate: () => _setEndDateDialog(_rows[index]),
-        onClearEndDate: () => _updateRow((_rows[index]["user_id"] ?? "").toString(), endsAtIso: ""),
-        onToggleStatus: () {
-          final userId = (_rows[index]["user_id"] ?? "").toString();
-          final status = _statusValue(_rows[index]);
-          unawaited(_updateRow(userId, status: status == "active" ? "blocked" : "active"));
-        },
-      ),
-    );
-  }
-
-  Widget _desktopTable(double minWidth) {
-    if (_rows.isEmpty) return const Center(child: Text("No users found."));
-    return Scrollbar(
-      thumbVisibility: true,
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: ConstrainedBox(
-          constraints: BoxConstraints(minWidth: minWidth),
-          child: SingleChildScrollView(
-            child: DataTable(
-              columns: const [
-                DataColumn(label: Text("Username")),
-                DataColumn(label: Text("Role")),
-                DataColumn(label: Text("Status")),
-                DataColumn(label: Text("Ends at")),
-                DataColumn(label: Text("Actions")),
-              ],
-              rows: _rows.map((row) {
-                final userId = (row["user_id"] ?? "").toString();
-                final username = (row["username"] ?? "").toString();
-                final role = _roleValue(row);
-                final status = _statusValue(row);
-                final endsAt = _formatEndsAt(row);
-                return DataRow(
-                  cells: [
-                    DataCell(Text(username)),
-                    DataCell(_RoleDropdown(
-                      value: role,
-                      onChanged: userId.isEmpty ? null : (value) => _updateRow(userId, role: value),
-                    )),
-                    DataCell(Text(status)),
-                    DataCell(Text(endsAt)),
-                    DataCell(
-                      Wrap(
-                        spacing: 8,
-                        children: [
-                          OutlinedButton(
-                            onPressed: userId.isEmpty ? null : () => _setEndDateDialog(row),
-                            child: const Text("Set end date"),
-                          ),
-                          OutlinedButton(
-                            onPressed: userId.isEmpty ? null : () => _updateRow(userId, endsAtIso: ""),
-                            child: const Text("Clear end date"),
-                          ),
-                          OutlinedButton(
-                            onPressed: userId.isEmpty
-                                ? null
-                                : () => _updateRow(
-                                      userId,
-                                      status: status == "active" ? "blocked" : "active",
-                                    ),
-                            child: Text(status == "active" ? "Block" : "Unblock"),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                );
-              }).toList(growable: false),
-            ),
-          ),
         ),
       ),
     );
   }
 }
 
-class _UserAccessCard extends StatelessWidget {
+class _SelectedUserPanel extends StatelessWidget {
   final Map<String, dynamic> row;
   final String role;
   final String status;
@@ -277,8 +276,9 @@ class _UserAccessCard extends StatelessWidget {
   final VoidCallback onSetEndDate;
   final VoidCallback onClearEndDate;
   final VoidCallback onToggleStatus;
+  final VoidCallback onEditUser;
 
-  const _UserAccessCard({
+  const _SelectedUserPanel({
     required this.row,
     required this.role,
     required this.status,
@@ -287,6 +287,7 @@ class _UserAccessCard extends StatelessWidget {
     required this.onSetEndDate,
     required this.onClearEndDate,
     required this.onToggleStatus,
+    required this.onEditUser,
   });
 
   @override
@@ -303,10 +304,19 @@ class _UserAccessCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(username, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
-          const SizedBox(height: 4),
-          Text(userId, style: const TextStyle(color: Colors.white54, fontSize: 11), maxLines: 1, overflow: TextOverflow.ellipsis),
-          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: Text(username, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+              ),
+              OutlinedButton.icon(
+                onPressed: userId.isEmpty ? null : onEditUser,
+                icon: const Icon(Icons.edit),
+                label: const Text("Edit user"),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
           _RoleDropdown(value: role, onChanged: userId.isEmpty ? null : onRoleChanged),
           const SizedBox(height: 12),
           Row(
@@ -319,16 +329,107 @@ class _UserAccessCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 8),
-          Row(
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            crossAxisAlignment: WrapCrossAlignment.center,
             children: [
-              Expanded(child: Text("End date: $endsAt")),
+              Text("End date: $endsAt"),
               OutlinedButton(onPressed: userId.isEmpty ? null : onSetEndDate, child: const Text("Set")),
-              const SizedBox(width: 8),
               OutlinedButton(onPressed: userId.isEmpty ? null : onClearEndDate, child: const Text("Clear")),
             ],
           ),
         ],
       ),
+    );
+  }
+}
+
+class _UserEditResult {
+  final String username;
+  final String password;
+
+  const _UserEditResult({required this.username, required this.password});
+}
+
+class _EditUserDialog extends StatefulWidget {
+  final String initialUsername;
+
+  const _EditUserDialog({required this.initialUsername});
+
+  @override
+  State<_EditUserDialog> createState() => _EditUserDialogState();
+}
+
+class _EditUserDialogState extends State<_EditUserDialog> {
+  late final TextEditingController _username;
+  final _password = TextEditingController();
+  String? _message;
+
+  @override
+  void initState() {
+    super.initState();
+    _username = TextEditingController(text: widget.initialUsername);
+  }
+
+  @override
+  void dispose() {
+    _username.dispose();
+    _password.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    final username = _username.text.trim();
+    final password = _password.text;
+    if (username.isEmpty) {
+      setState(() => _message = "Username is required");
+      return;
+    }
+    if (username == widget.initialUsername && password.trim().isEmpty) {
+      setState(() => _message = "Change username or enter a new password");
+      return;
+    }
+    Navigator.of(context).pop(_UserEditResult(username: username, password: password));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text("Edit user"),
+      content: SizedBox(
+        width: 420,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: _username,
+              decoration: const InputDecoration(labelText: "Username"),
+              keyboardType: TextInputType.text,
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: _password,
+              decoration: const InputDecoration(labelText: "New password (optional)"),
+              obscureText: true,
+            ),
+            if (_message != null) ...[
+              const SizedBox(height: 10),
+              Text(_message!, style: const TextStyle(color: Colors.redAccent)),
+            ],
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text("Cancel"),
+        ),
+        FilledButton(
+          onPressed: _submit,
+          child: const Text("Save"),
+        ),
+      ],
     );
   }
 }

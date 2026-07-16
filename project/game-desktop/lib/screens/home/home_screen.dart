@@ -8,6 +8,7 @@ import "package:supabase_flutter/supabase_flutter.dart";
 import "../../services/android_update_gate.dart";
 import "../../services/update_service.dart";
 import "../../services/funtarget_api.dart";
+import "../../storage/account_store.dart";
 import "../../storage/session_store.dart";
 
 const _funTargetLogo = "assets/app/logo.jpg";
@@ -19,6 +20,22 @@ bool get _mobileApp =>
     !kIsWeb &&
     (defaultTargetPlatform == TargetPlatform.android ||
         defaultTargetPlatform == TargetPlatform.iOS);
+String _usernameFromEmail(String email) {
+  if (email.trim().isEmpty || email == "-") return "User";
+  return email.split("@").first;
+}
+
+String _initialsFor(String value) {
+  final cleaned = value.trim();
+  if (cleaned.isEmpty || cleaned == "-") return "U";
+  final parts = cleaned
+      .split(RegExp(r"[^A-Za-z0-9]+"))
+      .where((part) => part.isNotEmpty)
+      .toList(growable: false);
+  if (parts.isEmpty) return cleaned.substring(0, 1).toUpperCase();
+  if (parts.length == 1) return parts.first.substring(0, 1).toUpperCase();
+  return (parts[0].substring(0, 1) + parts[1].substring(0, 1)).toUpperCase();
+}
 
 enum _HomeMenuAction { createUser, subscriptions, updates, signOut }
 
@@ -116,11 +133,102 @@ class _HomeScreenState extends State<HomeScreen> {
     context.push("/admin/access");
   }
 
+
+  Future<void> _endCurrentBackendSession() async {
+    try {
+      await _api.endSession();
+    } catch (_) {
+      await SessionStore.clearSessionId();
+      _api.clearSessionCache();
+    }
+  }
+
   Future<void> _signOut() async {
-    await SessionStore.clearSessionId();
+    await _endCurrentBackendSession();
     await Supabase.instance.client.auth.signOut();
   }
 
+  Future<void> _addAccount() async {
+    await _endCurrentBackendSession();
+    if (!mounted) return;
+    context.push("/account-login");
+  }
+
+  Future<void> _openAccountMenu() async {
+    final accounts = await AccountStore.loadAccounts();
+    if (!mounted) return;
+    final currentEmail = Supabase.instance.client.auth.currentUser?.email?.toLowerCase() ?? "";
+    final action = await showModalBottomSheet<_AccountSheetAction>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) => _AccountSheet(
+        accounts: accounts,
+        currentEmail: currentEmail,
+      ),
+    );
+    if (action == null || !mounted) return;
+    if (action.addAccount) {
+      await _addAccount();
+      return;
+    }
+    final account = action.account;
+    if (account != null) {
+      await _switchToAccount(account);
+    }
+  }
+
+  Future<void> _switchToAccount(SavedAccount selected) async {
+    final currentEmail = Supabase.instance.client.auth.currentUser?.email?.toLowerCase() ?? "";
+    if (selected.email.toLowerCase() == currentEmail) return;
+
+    try {
+      await _endCurrentBackendSession();
+      final response = await Supabase.instance.client.auth.setSession(selected.refreshToken);
+      final session = response.session ?? Supabase.instance.client.auth.currentSession;
+      if (session == null) throw StateError("Please sign in again");
+      final refreshToken = session.refreshToken ?? selected.refreshToken;
+      await AccountStore.upsertAccount(
+        username: selected.username,
+        email: session.user.email ?? selected.email,
+        refreshToken: refreshToken,
+      );
+      if (!mounted) return;
+      setState(() {
+        _role = "PLAYER";
+        _isAdmin = false;
+        _canManageFunTarget = false;
+        _roleLoaded = false;
+        _subscriptionChecked = false;
+      });
+      await _loadRole();
+      await _checkSubscriptionGate();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Switched to ${selected.username}")),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Please sign in again for this account.")),
+      );
+    }
+  }
+  Future<void> _switchRelativeAccount(int offset) async {
+    final accounts = await AccountStore.loadAccounts();
+    if (!mounted) return;
+    if (accounts.length < 2) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Add another account to switch.")),
+      );
+      return;
+    }
+
+    final currentEmail = Supabase.instance.client.auth.currentUser?.email?.toLowerCase() ?? "";
+    final currentIndex = accounts.indexWhere((account) => account.email.toLowerCase() == currentEmail);
+    final start = currentIndex < 0 ? 0 : currentIndex;
+    final nextIndex = (start + offset + accounts.length) % accounts.length;
+    await _switchToAccount(accounts[nextIndex]);
+  }
   Future<void> _handleMenuAction(_HomeMenuAction action) async {
     switch (action) {
       case _HomeMenuAction.createUser:
@@ -203,7 +311,13 @@ class _HomeScreenState extends State<HomeScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFF0B1220),
       appBar: AppBar(
-        title: const Text("Games"),
+        leadingWidth: 72,
+        leading: _ProfileAccountButton(
+          initials: _initialsFor(_usernameFromEmail(email)),
+          onPressed: _openAccountMenu,
+          onSwipeUp: () => unawaited(_switchRelativeAccount(-1)),
+          onSwipeDown: () => unawaited(_switchRelativeAccount(1)),
+        ),
         actions: compactActions ? _compactActions() : _wideActions(email),
       ),
       body: Padding(
@@ -326,6 +440,90 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 }
 
+class _ProfileAccountButton extends StatelessWidget {
+  final String initials;
+  final VoidCallback onPressed;
+  final VoidCallback onSwipeUp;
+  final VoidCallback onSwipeDown;
+
+  const _ProfileAccountButton({
+    required this.initials,
+    required this.onPressed,
+    required this.onSwipeUp,
+    required this.onSwipeDown,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(left: 14, top: 8, bottom: 8),
+      child: GestureDetector(
+        onVerticalDragEnd: (details) {
+          final velocity = details.primaryVelocity ?? 0;
+          if (velocity < -120) {
+            onSwipeUp();
+          } else if (velocity > 120) {
+            onSwipeDown();
+          }
+        },
+        child: InkWell(
+          onTap: onPressed,
+          customBorder: const CircleBorder(),
+          child: CircleAvatar(
+            backgroundColor: const Color(0xFFC8B5FF),
+            foregroundColor: const Color(0xFF191225),
+            child: Text(initials, style: const TextStyle(fontWeight: FontWeight.w800)),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _AccountSheetAction {
+  final SavedAccount? account;
+  final bool addAccount;
+
+  const _AccountSheetAction.switchTo(this.account) : addAccount = false;
+  const _AccountSheetAction.add() : account = null, addAccount = true;
+}
+
+class _AccountSheet extends StatelessWidget {
+  final List<SavedAccount> accounts;
+  final String currentEmail;
+
+  const _AccountSheet({required this.accounts, required this.currentEmail});
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            for (final account in accounts)
+              ListTile(
+                leading: CircleAvatar(child: Text(_initialsFor(account.username))),
+                title: Text(account.username, maxLines: 1, overflow: TextOverflow.ellipsis),
+                trailing: account.email.toLowerCase() == currentEmail
+                    ? const Icon(Icons.check, color: Colors.greenAccent)
+                    : null,
+                onTap: () => Navigator.of(context).pop(_AccountSheetAction.switchTo(account)),
+              ),
+            if (accounts.isNotEmpty) const Divider(),
+            ListTile(
+              leading: const Icon(Icons.person_add_alt_1),
+              title: const Text("Login to new account"),
+              onTap: () => Navigator.of(context).pop(const _AccountSheetAction.add()),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
 class _CreateUserDialog extends StatefulWidget {
   final FunTargetApi api;
 

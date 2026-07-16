@@ -9,6 +9,8 @@ import java.util.Map;
 import java.util.regex.Pattern;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.Authentication;
+import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -122,6 +124,81 @@ public class AdminUsersController {
         "username", normalized,
         "role", role,
         "repaired", repairedExistingAuthUser);
+  }
+
+
+  @PatchMapping("/users/{userId}")
+  public Map<String, Object> updateUser(
+      Authentication authentication,
+      @PathVariable("userId") String userId,
+      @RequestBody(required = false) Map<String, Object> payload) {
+    SupabaseUser caller = requireUser(authentication);
+    String accessToken = requireBearer(authentication);
+    if (!supabaseRest.isAdmin(accessToken, caller.id())) {
+      throw new AccessDeniedException("Forbidden");
+    }
+    if (userId == null || userId.isBlank()) {
+      throw new IllegalArgumentException("userId is required");
+    }
+
+    String username = payload == null ? "" : String.valueOf(payload.getOrDefault("username", "")).trim();
+    String password = payload == null ? "" : String.valueOf(payload.getOrDefault("password", ""));
+    boolean updateUsername = !username.isBlank();
+    boolean updatePassword = !password.isBlank();
+    if (!updateUsername && !updatePassword) {
+      throw new IllegalArgumentException("No user fields to update");
+    }
+
+    Map<String, Object> currentAccess = supabaseRest.getUserAccessByUserIdServiceRole(userId);
+    if (currentAccess == null || currentAccess.get("user_id") == null) {
+      throw new IllegalArgumentException("User access row not found");
+    }
+
+    String normalized = null;
+    String email = null;
+    if (updateUsername) {
+      normalized = username.toLowerCase();
+      if (!USERNAME_PATTERN.matcher(normalized).matches()) {
+        throw new IllegalArgumentException("Invalid username (use 3-32 chars: a-z, 0-9, . _ -)");
+      }
+      Map<String, Object> existingAccess = supabaseRest.getUserAccessByUsernameServiceRole(normalized);
+      if (existingAccess != null && existingAccess.get("user_id") != null) {
+        String existingUserId = String.valueOf(existingAccess.get("user_id"));
+        if (!existingUserId.equals(userId)) {
+          throw new IllegalArgumentException("Username already exists");
+        }
+      }
+      email = normalized + "@kingmaker.local";
+    }
+
+    SupabaseUser updatedAuth = supabaseAdmin.updateUser(userId, email, updatePassword ? password : null);
+    Map<String, Object> updatedAccess = currentAccess;
+    if (updateUsername) {
+      updatedAccess = supabaseRest.patchUserAccessServiceRole(userId, Map.of("username", normalized));
+      try {
+        supabaseRest.upsertUserProfileServiceRole(userId, normalized);
+      } catch (Exception ignored) {
+      }
+    }
+
+    try {
+      supabaseRest.insertAuditLogServiceRole(
+          caller.id(),
+          "ADMIN",
+          "admin_update_user",
+          userId,
+          Map.of(
+              "username", normalized == null ? "" : normalized,
+              "password_changed", updatePassword));
+    } catch (Exception ignored) {
+    }
+
+    return Map.of(
+        "updated", true,
+        "id", userId,
+        "email", updatedAuth == null || updatedAuth.email() == null ? "" : updatedAuth.email(),
+        "username", updateUsername ? normalized : String.valueOf(currentAccess.getOrDefault("username", "")),
+        "row", updatedAccess == null ? Map.of() : updatedAccess);
   }
 
   private static SupabaseUser requireUser(Authentication authentication) {

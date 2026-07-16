@@ -9,9 +9,12 @@ import "package:supabase_flutter/supabase_flutter.dart";
 import "../../config/app_config.dart";
 import "../../services/android_update_gate.dart";
 import "../../services/android_update_service.dart";
+import "../../storage/account_store.dart";
 
 class LoginScreen extends StatefulWidget {
-  const LoginScreen({super.key});
+  final bool addAccount;
+
+  const LoginScreen({super.key, this.addAccount = false});
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();
@@ -58,7 +61,6 @@ class _LoginScreenState extends State<LoginScreen> {
         return;
       }
 
-      // Block at login page (before Supabase sign-in).
       final check = await _loginCheck(raw);
       final allowed = check["allowed"] == true;
       if (!allowed) {
@@ -66,8 +68,7 @@ class _LoginScreenState extends State<LoginScreen> {
         return;
       }
 
-      final email =
-          raw.contains("@") ? raw : "${raw.toLowerCase()}@kingmaker.local";
+      final email = raw.contains("@") ? raw : "${raw.toLowerCase()}@kingmaker.local";
       final response = await Supabase.instance.client.auth
           .signInWithPassword(
             email: email,
@@ -75,9 +76,20 @@ class _LoginScreenState extends State<LoginScreen> {
           )
           .timeout(_signInTimeout);
       if (!mounted) return;
-      if (response.session == null) {
+      final session = response.session;
+      if (session == null) {
         setState(() => _message = "Sign in failed. Please retry.");
         return;
+      }
+
+      final savedEmail = session.user.email ?? email;
+      final refreshToken = session.refreshToken ?? "";
+      if (refreshToken.isNotEmpty) {
+        await AccountStore.upsertAccount(
+          username: raw.contains("@") ? savedEmail.split("@").first : raw.toLowerCase(),
+          email: savedEmail,
+          refreshToken: refreshToken,
+        );
       }
       context.go("/home");
     } on AuthException catch (e) {
@@ -102,20 +114,14 @@ class _LoginScreenState extends State<LoginScreen> {
     final uri = AppConfig.apiUri("/public/login-check", queryParameters: query);
     http.Response res;
     try {
-      res = await http
-          .get(uri, headers: {"Accept": "application/json"})
-          .timeout(_loginCheckTimeout);
+      res = await http.get(uri, headers: {"Accept": "application/json"}).timeout(_loginCheckTimeout);
     } on TimeoutException {
       throw StateError("Backend is not reachable. Please retry in a minute.");
     } on http.ClientException catch (e) {
-      // Retry once through the configured fallback if the network lookup fails.
       if (e.message.contains("Failed host lookup")) {
-        final fallbackUri =
-            AppConfig.apiUriWithFallback("/public/login-check", queryParameters: query);
+        final fallbackUri = AppConfig.apiUriWithFallback("/public/login-check", queryParameters: query);
         try {
-          res = await http
-              .get(fallbackUri, headers: {"Accept": "application/json"})
-              .timeout(_loginCheckTimeout);
+          res = await http.get(fallbackUri, headers: {"Accept": "application/json"}).timeout(_loginCheckTimeout);
         } on TimeoutException {
           throw StateError("Backend is not reachable. Please retry in a minute.");
         } on http.ClientException {
@@ -149,9 +155,9 @@ class _LoginScreenState extends State<LoginScreen> {
                       mainAxisAlignment: MainAxisAlignment.center,
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        const Text(
-                          "King Maker",
-                          style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold),
+                        Text(
+                          widget.addAccount ? "Add Account" : "King Maker",
+                          style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold),
                           textAlign: TextAlign.center,
                         ),
                         const SizedBox(height: 24),

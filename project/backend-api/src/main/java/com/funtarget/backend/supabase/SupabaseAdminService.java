@@ -110,6 +110,60 @@ public class SupabaseAdminService {
     }
   }
 
+
+  public SupabaseUser updateUser(String userId, String email, String password) {
+    if (userId == null || userId.isBlank()) throw new IllegalArgumentException("userId is required");
+    boolean updateEmail = email != null && !email.isBlank();
+    boolean updatePassword = password != null && !password.isBlank();
+    if (!updateEmail && !updatePassword) throw new IllegalArgumentException("No user fields to update");
+    requireConfigured();
+
+    try {
+      StringBuilder body = new StringBuilder("{");
+      boolean first = true;
+      if (updateEmail) {
+        body.append("\"email\":\"").append(escape(email.trim())).append("\"");
+        first = false;
+      }
+      if (updatePassword) {
+        if (!first) body.append(',');
+        body.append("\"password\":\"").append(escape(password)).append("\"");
+      }
+      body.append('}');
+
+      var request =
+          HttpRequest.newBuilder()
+              .uri(URI.create(normalizeUrl(props.url()) + "/auth/v1/admin/users/" + userId))
+              .timeout(Duration.ofSeconds(20))
+              .header("apikey", props.serviceRoleKey())
+              .header("Authorization", "Bearer " + props.serviceRoleKey())
+              .header("Content-Type", "application/json")
+              .method("PATCH", HttpRequest.BodyPublishers.ofString(body.toString()))
+              .build();
+
+      var response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+      if (response.statusCode() < 200 || response.statusCode() >= 300) {
+        String resp = response.body() == null ? "" : response.body().trim();
+        if (response.statusCode() == 422 && resp.contains("\"error_code\":\"email_exists\"")) {
+          throw new DuplicateUserException("Username already exists");
+        }
+        String preview = resp.length() > 220 ? resp.substring(0, 220) + "..." : resp;
+        throw new IllegalStateException(
+            "Supabase update user failed (status "
+                + response.statusCode()
+                + (preview.isBlank() ? "" : (", body=" + preview))
+                + ")");
+      }
+
+      String resp = response.body() == null ? "" : response.body();
+      return new SupabaseUser(extractJsonStringField(resp, "id"), extractJsonStringField(resp, "email"));
+    } catch (RuntimeException e) {
+      throw e;
+    } catch (Exception e) {
+      throw new RuntimeException("Supabase admin error", e);
+    }
+  }
+
   public void deleteUser(String userId) {
     if (userId == null || userId.isBlank()) return;
     requireConfigured();

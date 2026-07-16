@@ -23,18 +23,24 @@ GoRouter createAppRouter() {
       final session = Supabase.instance.client.auth.currentSession;
       final loggedIn = session != null;
       final loggingIn = state.matchedLocation == "/login";
+      final addingAccount = state.matchedLocation == "/account-login";
 
       if (!loggedIn) {
         return loggingIn ? null : "/login";
       }
 
       if (loggingIn) return "/home";
+      if (addingAccount) return null;
       return null;
     },
     routes: [
       GoRoute(
         path: "/login",
         builder: (context, state) => const LoginScreen(),
+      ),
+      GoRoute(
+        path: "/account-login",
+        builder: (context, state) => const LoginScreen(addAccount: true),
       ),
       GoRoute(
         path: "/home",
