@@ -121,6 +121,7 @@ class _HomeScreenState extends State<HomeScreen> {
             ],
           ),
         );
+        await _removeCurrentAccountProfile();
         await Supabase.instance.client.auth.signOut();
         return;
       }
@@ -160,8 +161,16 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  Future<void> _removeCurrentAccountProfile() async {
+    final email = Supabase.instance.client.auth.currentUser?.email ?? "";
+    if (email.trim().isNotEmpty) {
+      await AccountStore.removeAccount(email);
+    }
+  }
+
   Future<void> _signOut() async {
     await _endCurrentBackendSession();
+    await _removeCurrentAccountProfile();
     await Supabase.instance.client.auth.signOut();
   }
 
@@ -600,6 +609,7 @@ class _CreateUserDialogState extends State<_CreateUserDialog> {
   String _role = "PLAYER";
   DateTime? _endDateLocal;
   bool _busy = false;
+  bool _showPassword = false;
   String? _message;
 
   @override
@@ -610,6 +620,17 @@ class _CreateUserDialogState extends State<_CreateUserDialog> {
   }
 
   Future<void> _create() async {
+    final username = _username.text.trim();
+    final password = _password.text;
+    if (username.isEmpty) {
+      setState(() => _message = "Username is required");
+      return;
+    }
+    if (password.length < 6) {
+      setState(() => _message = "Password must be at least 6 characters");
+      return;
+    }
+
     setState(() {
       _busy = true;
       _message = null;
@@ -622,8 +643,8 @@ class _CreateUserDialogState extends State<_CreateUserDialog> {
               .toUtc()
               .toIso8601String();
       final res = await widget.api.createUser(
-        username: _username.text.trim(),
-        password: _password.text,
+        username: username,
+        password: password,
         role: _role,
         endsAt: endsAtIsoUtc,
       );
@@ -639,89 +660,101 @@ class _CreateUserDialogState extends State<_CreateUserDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final maxHeight = MediaQuery.sizeOf(context).height * 0.68;
     return AlertDialog(
       title: const Text("Create User"),
-      content: SizedBox(
-        width: 420,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: _username,
-              decoration: const InputDecoration(
-                labelText: "Username",
-                hintText: "Example: manager01",
+      content: ConstrainedBox(
+        constraints: BoxConstraints(maxWidth: 420, maxHeight: maxHeight),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: _username,
+                decoration: const InputDecoration(
+                  labelText: "Username",
+                  hintText: "Example: manager01",
+                ),
+                keyboardType: TextInputType.text,
+                scrollPadding: const EdgeInsets.only(bottom: 120),
               ),
-              keyboardType: TextInputType.text,
-            ),
-            const SizedBox(height: 10),
-            TextField(
-              controller: _password,
-              decoration: const InputDecoration(labelText: "Temporary password"),
-              obscureText: true,
-            ),
-            const SizedBox(height: 10),
-            DropdownButtonFormField<String>(
-              key: ValueKey(_role),
-              initialValue: _role,
-              decoration: const InputDecoration(labelText: "Role"),
-              items: const [
-                DropdownMenuItem(value: "PLAYER", child: Text("Player")),
-                DropdownMenuItem(value: "MANAGER", child: Text("Manager")),
-                DropdownMenuItem(value: "SUPER_PLAYER", child: Text("Super Player")),
-                DropdownMenuItem(value: "ADMIN", child: Text("Admin")),
-              ],
-              onChanged: _busy ? null : (v) => setState(() => _role = v ?? "PLAYER"),
-            ),
-            const SizedBox(height: 10),
-            Row(
-              children: [
-                Expanded(
-                  child: InputDecorator(
-                    decoration: const InputDecoration(labelText: "End date (optional)"),
-                    child: Text(
-                      _endDateLocal == null
-                          ? "-"
-                          : "${_endDateLocal!.year.toString().padLeft(4, "0")}-"
-                              "${_endDateLocal!.month.toString().padLeft(2, "0")}-"
-                              "${_endDateLocal!.day.toString().padLeft(2, "0")}",
-                    ),
+              const SizedBox(height: 10),
+              TextField(
+                controller: _password,
+                decoration: InputDecoration(
+                  labelText: "Temporary password",
+                  suffixIcon: IconButton(
+                    tooltip: _showPassword ? "Hide password" : "Show password",
+                    onPressed: () => setState(() => _showPassword = !_showPassword),
+                    icon: Icon(_showPassword ? Icons.visibility_off : Icons.visibility),
                   ),
                 ),
-                const SizedBox(width: 10),
-                OutlinedButton(
-                  onPressed: _busy
-                      ? null
-                      : () async {
-                          final picked = await showDatePicker(
-                            context: context,
-                            firstDate: DateTime(2020),
-                            lastDate: DateTime(2100),
-                            initialDate: _endDateLocal ?? DateTime.now(),
-                          );
-                          if (picked == null) return;
-                          if (!mounted) return;
-                          setState(() => _endDateLocal = picked);
-                        },
-                  child: const Text("Pick"),
-                ),
-                const SizedBox(width: 8),
-                TextButton(
-                  onPressed: _busy ? null : () => setState(() => _endDateLocal = null),
-                  child: const Text("Clear"),
+                obscureText: !_showPassword,
+                scrollPadding: const EdgeInsets.only(bottom: 120),
+              ),
+              const SizedBox(height: 10),
+              DropdownButtonFormField<String>(
+                key: ValueKey(_role),
+                initialValue: _role,
+                decoration: const InputDecoration(labelText: "Role"),
+                items: const [
+                  DropdownMenuItem(value: "PLAYER", child: Text("Player")),
+                  DropdownMenuItem(value: "MANAGER", child: Text("Manager")),
+                  DropdownMenuItem(value: "SUPER_PLAYER", child: Text("Super Player")),
+                  DropdownMenuItem(value: "ADMIN", child: Text("Admin")),
+                ],
+                onChanged: _busy ? null : (v) => setState(() => _role = v ?? "PLAYER"),
+              ),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  Expanded(
+                    child: InputDecorator(
+                      decoration: const InputDecoration(labelText: "End date (optional)"),
+                      child: Text(
+                        _endDateLocal == null
+                            ? "-"
+                            : "${_endDateLocal!.year.toString().padLeft(4, "0")}-"
+                                "${_endDateLocal!.month.toString().padLeft(2, "0")}-"
+                                "${_endDateLocal!.day.toString().padLeft(2, "0")}",
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  OutlinedButton(
+                    onPressed: _busy
+                        ? null
+                        : () async {
+                            final picked = await showDatePicker(
+                              context: context,
+                              firstDate: DateTime(2020),
+                              lastDate: DateTime(2100),
+                              initialDate: _endDateLocal ?? DateTime.now(),
+                            );
+                            if (picked == null) return;
+                            if (!mounted) return;
+                            setState(() => _endDateLocal = picked);
+                          },
+                    child: const Text("Pick"),
+                  ),
+                  const SizedBox(width: 8),
+                  TextButton(
+                    onPressed: _busy ? null : () => setState(() => _endDateLocal = null),
+                    child: const Text("Clear"),
+                  ),
+                ],
+              ),
+              if (_message != null) ...[
+                const SizedBox(height: 10),
+                Text(
+                  _message!,
+                  style: TextStyle(
+                    color: _message!.startsWith("Created") ? Colors.greenAccent : Colors.redAccent,
+                  ),
                 ),
               ],
-            ),
-            if (_message != null) ...[
-              const SizedBox(height: 10),
-              Text(
-                _message!,
-                style: TextStyle(
-                  color: _message!.startsWith("Created") ? Colors.greenAccent : Colors.redAccent,
-                ),
-              ),
             ],
-          ],
+          ),
         ),
       ),
       actions: [

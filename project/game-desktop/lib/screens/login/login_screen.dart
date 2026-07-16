@@ -29,6 +29,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final _passwordController = TextEditingController();
   List<SavedAccount> _savedAccounts = const [];
   bool _busy = false;
+  bool _showPassword = false;
   String? _message;
 
   @override
@@ -51,7 +52,27 @@ class _LoginScreenState extends State<LoginScreen> {
   Future<void> _loadSavedAccounts() async {
     final accounts = await AccountStore.loadAccounts();
     if (!mounted) return;
-    setState(() => _savedAccounts = accounts);
+    setState(() {
+      _savedAccounts = accounts;
+      if (!widget.addAccount &&
+          _usernameController.text.trim().isEmpty &&
+          accounts.isNotEmpty) {
+        _usernameController.text = accounts.first.username;
+      }
+    });
+  }
+
+  SavedAccount? _savedAccountFor(String usernameOrEmail) {
+    final normalized = usernameOrEmail.trim().toLowerCase();
+    if (normalized.isEmpty) return null;
+    for (final account in _savedAccounts) {
+      final email = account.email.toLowerCase();
+      final username = account.username.toLowerCase();
+      if (normalized == email || normalized == username || normalized == email.split("@").first) {
+        return account;
+      }
+    }
+    return null;
   }
 
   Future<void> _openAccountMenu() async {
@@ -72,7 +93,11 @@ class _LoginScreenState extends State<LoginScreen> {
     }
     final account = action.account;
     if (account != null) {
-      await _signInWithSavedAccount(account);
+      setState(() {
+        _message = null;
+        _usernameController.text = account.username;
+        _passwordController.clear();
+      });
     }
   }
 
@@ -117,6 +142,11 @@ class _LoginScreenState extends State<LoginScreen> {
         return;
       }
       if (_passwordController.text.isEmpty) {
+        final saved = _savedAccountFor(raw);
+        if (saved != null) {
+          await _signInWithSavedAccount(saved);
+          return;
+        }
         setState(() => _message = "Password is required");
         return;
       }
@@ -235,8 +265,15 @@ class _LoginScreenState extends State<LoginScreen> {
                             const SizedBox(height: 12),
                             TextField(
                               controller: _passwordController,
-                              decoration: const InputDecoration(labelText: "Password"),
-                              obscureText: true,
+                              decoration: InputDecoration(
+                                labelText: "Password",
+                                suffixIcon: IconButton(
+                                  tooltip: _showPassword ? "Hide password" : "Show password",
+                                  onPressed: () => setState(() => _showPassword = !_showPassword),
+                                  icon: Icon(_showPassword ? Icons.visibility_off : Icons.visibility),
+                                ),
+                              ),
+                              obscureText: !_showPassword,
                               autofillHints: const [AutofillHints.password],
                             ),
                             const SizedBox(height: 18),

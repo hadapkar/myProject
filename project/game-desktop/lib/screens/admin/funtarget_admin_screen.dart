@@ -146,7 +146,7 @@ class _FunTargetAdminScreenState extends State<FunTargetAdminScreen> {
 
   Map<String, dynamic>? _findById(String userId) {
     if (userId.isEmpty) return null;
-    for (final r in _rows) {
+    for (final r in _selectableRows) {
       if ((r["user_id"] ?? "").toString() == userId) return r;
     }
     return null;
@@ -154,20 +154,38 @@ class _FunTargetAdminScreenState extends State<FunTargetAdminScreen> {
 
   Map<String, dynamic>? _findByIdIn(List<Map<String, dynamic>> rows, String userId) {
     if (userId.isEmpty) return null;
-    for (final r in rows) {
+    for (final r in rows.where(_isActiveUserRow)) {
       if ((r["user_id"] ?? "").toString() == userId) return r;
     }
     return null;
   }
 
+  List<Map<String, dynamic>> get _selectableRows {
+    return _rows.where(_isActiveUserRow).toList(growable: false);
+  }
+
   List<Map<String, dynamic>> get _filteredRows {
+    final rows = _selectableRows;
     final query = _search.text.trim().toLowerCase();
-    if (query.isEmpty) return _rows;
-    return _rows.where((row) {
+    if (query.isEmpty) return rows;
+    return rows.where((row) {
       final username = _username(row).toLowerCase();
       final userId = (row["user_id"] ?? "").toString().toLowerCase();
       return username.contains(query) || userId.contains(query);
     }).toList(growable: false);
+  }
+
+  bool _isActiveUserRow(Map<String, dynamic> row) {
+    final status = (row["access_status"] ?? row["status"] ?? "active")
+        .toString()
+        .trim()
+        .toLowerCase();
+    if (status != "active") return false;
+    final endsAt = (row["ends_at"] ?? "").toString().trim();
+    if (endsAt.isEmpty || endsAt.toLowerCase() == "null") return true;
+    final parsed = DateTime.tryParse(endsAt);
+    if (parsed == null) return true;
+    return parsed.isAfter(DateTime.now());
   }
 
   String _username(Map<String, dynamic> row) {

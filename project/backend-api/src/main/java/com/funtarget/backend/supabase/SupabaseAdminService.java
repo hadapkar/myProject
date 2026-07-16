@@ -147,12 +147,7 @@ public class SupabaseAdminService {
         if (response.statusCode() == 422 && resp.contains("\"error_code\":\"email_exists\"")) {
           throw new DuplicateUserException("Username already exists");
         }
-        String preview = resp.length() > 220 ? resp.substring(0, 220) + "..." : resp;
-        throw new IllegalStateException(
-            "Supabase update user failed (status "
-                + response.statusCode()
-                + (preview.isBlank() ? "" : (", body=" + preview))
-                + ")");
+        throw new SupabaseAdminException("Supabase update user failed", response.statusCode(), resp);
       }
 
       String resp = response.body() == null ? "" : response.body();
@@ -248,6 +243,25 @@ public class SupabaseAdminService {
   public static class DuplicateUserException extends IllegalArgumentException {
     public DuplicateUserException(String message) {
       super(message);
+    }
+  }
+
+  public static class SupabaseAdminException extends RuntimeException {
+    private final int statusCode;
+    private final String responseBody;
+
+    public SupabaseAdminException(String message, int statusCode, String responseBody) {
+      super(message + " (status " + statusCode + ")");
+      this.statusCode = statusCode;
+      this.responseBody = responseBody == null ? "" : responseBody;
+    }
+
+    public int statusCode() {
+      return statusCode;
+    }
+
+    public String responseBody() {
+      return responseBody;
     }
   }
 }

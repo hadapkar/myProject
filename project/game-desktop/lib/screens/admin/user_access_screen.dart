@@ -195,6 +195,37 @@ class _UserAccessScreenState extends State<UserAccessScreen> {
     }
   }
 
+  Future<void> _deleteUserDialog(Map<String, dynamic> row) async {
+    final userId = (row["user_id"] ?? "").toString();
+    final username = (row["username"] ?? "").toString();
+    if (userId.isEmpty || username.isEmpty || _roleValue(row) == "ADMIN") return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => _DeleteUserDialog(username: username),
+    );
+    if (confirmed != true) return;
+
+    setState(() {
+      _saving = true;
+      _error = null;
+    });
+    try {
+      await _api.deleteAdminUser(userId: userId);
+      await _load();
+      if (!mounted) return;
+      setState(() => _selectedUserId = null);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Deleted $username.")),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _error = e.toString());
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
   String _roleValue(Map<String, dynamic> row) {
     final role = (row["role"] ?? "PLAYER").toString().toUpperCase();
     return role == "ADMIN" || role == "MANAGER" || role == "SUPER_PLAYER" ? role : "PLAYER";
@@ -314,6 +345,8 @@ class _UserAccessScreenState extends State<UserAccessScreen> {
                               unawaited(_updateRow(userId, status: status == "active" ? "blocked" : "active"));
                             },
                             onEditUser: () => _editUserDialog(selected),
+                            canDelete: _roleValue(selected) != "ADMIN",
+                            onDeleteUser: () => _deleteUserDialog(selected),
                           ),
                       ],
                     ),
@@ -364,6 +397,8 @@ class _SelectedUserPanel extends StatelessWidget {
   final VoidCallback onClearEndDate;
   final VoidCallback onToggleStatus;
   final VoidCallback onEditUser;
+  final bool canDelete;
+  final VoidCallback onDeleteUser;
   final bool disabled;
 
   const _SelectedUserPanel({
@@ -376,6 +411,8 @@ class _SelectedUserPanel extends StatelessWidget {
     required this.onClearEndDate,
     required this.onToggleStatus,
     required this.onEditUser,
+    required this.canDelete,
+    required this.onDeleteUser,
     required this.disabled,
   });
 
@@ -393,16 +430,24 @@ class _SelectedUserPanel extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
+          Text(username, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
             children: [
-              Expanded(
-                child: Text(username, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
-              ),
               OutlinedButton.icon(
                 onPressed: disabled || userId.isEmpty ? null : onEditUser,
                 icon: const Icon(Icons.edit),
                 label: const Text("Edit user"),
               ),
+              if (canDelete)
+                OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(foregroundColor: Colors.redAccent),
+                  onPressed: disabled || userId.isEmpty ? null : onDeleteUser,
+                  icon: const Icon(Icons.delete_outline),
+                  label: const Text("Delete user"),
+                ),
             ],
           ),
           const SizedBox(height: 14),
@@ -453,6 +498,7 @@ class _EditUserDialog extends StatefulWidget {
 class _EditUserDialogState extends State<_EditUserDialog> {
   late final TextEditingController _username;
   final _password = TextEditingController();
+  bool _showPassword = false;
   String? _message;
 
   @override
@@ -479,34 +525,50 @@ class _EditUserDialogState extends State<_EditUserDialog> {
       setState(() => _message = "Change username or enter a new password");
       return;
     }
+    if (password.trim().isNotEmpty && password.length < 6) {
+      setState(() => _message = "Password must be at least 6 characters");
+      return;
+    }
     Navigator.of(context).pop(_UserEditResult(username: username, password: password));
   }
 
   @override
   Widget build(BuildContext context) {
+    final maxHeight = MediaQuery.sizeOf(context).height * 0.60;
     return AlertDialog(
       title: const Text("Edit user"),
-      content: SizedBox(
-        width: 420,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: _username,
-              decoration: const InputDecoration(labelText: "Username"),
-              keyboardType: TextInputType.text,
-            ),
-            const SizedBox(height: 10),
-            TextField(
-              controller: _password,
-              decoration: const InputDecoration(labelText: "New password (optional)"),
-              obscureText: true,
-            ),
-            if (_message != null) ...[
+      content: ConstrainedBox(
+        constraints: BoxConstraints(maxWidth: 420, maxHeight: maxHeight),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: _username,
+                decoration: const InputDecoration(labelText: "Username"),
+                keyboardType: TextInputType.text,
+                scrollPadding: const EdgeInsets.only(bottom: 120),
+              ),
               const SizedBox(height: 10),
-              Text(_message!, style: const TextStyle(color: Colors.redAccent)),
+              TextField(
+                controller: _password,
+                decoration: InputDecoration(
+                  labelText: "New password (optional)",
+                  suffixIcon: IconButton(
+                    tooltip: _showPassword ? "Hide password" : "Show password",
+                    onPressed: () => setState(() => _showPassword = !_showPassword),
+                    icon: Icon(_showPassword ? Icons.visibility_off : Icons.visibility),
+                  ),
+                ),
+                obscureText: !_showPassword,
+                scrollPadding: const EdgeInsets.only(bottom: 120),
+              ),
+              if (_message != null) ...[
+                const SizedBox(height: 10),
+                Text(_message!, style: const TextStyle(color: Colors.redAccent)),
+              ],
             ],
-          ],
+          ),
         ),
       ),
       actions: [
@@ -517,6 +579,64 @@ class _EditUserDialogState extends State<_EditUserDialog> {
         FilledButton(
           onPressed: _submit,
           child: const Text("Save"),
+        ),
+      ],
+    );
+  }
+}
+
+class _DeleteUserDialog extends StatefulWidget {
+  final String username;
+
+  const _DeleteUserDialog({required this.username});
+
+  @override
+  State<_DeleteUserDialog> createState() => _DeleteUserDialogState();
+}
+
+class _DeleteUserDialogState extends State<_DeleteUserDialog> {
+  final _confirm = TextEditingController();
+
+  @override
+  void dispose() {
+    _confirm.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final matches = _confirm.text.trim() == widget.username;
+    final maxHeight = MediaQuery.sizeOf(context).height * 0.48;
+    return AlertDialog(
+      title: const Text("Delete user"),
+      content: ConstrainedBox(
+        constraints: BoxConstraints(maxWidth: 420, maxHeight: maxHeight),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text("This will permanently delete ${widget.username}."),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _confirm,
+                decoration: InputDecoration(labelText: "Type ${widget.username} to confirm"),
+                scrollPadding: const EdgeInsets.only(bottom: 120),
+                onChanged: (_) => setState(() {}),
+              ),
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(false),
+          child: const Text("Cancel"),
+        ),
+        FilledButton(
+          style: FilledButton.styleFrom(backgroundColor: Colors.redAccent),
+          onPressed: matches ? () => Navigator.of(context).pop(true) : null,
+          child: const Text("Delete"),
         ),
       ],
     );

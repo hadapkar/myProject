@@ -13,6 +13,7 @@ import "funtarget_assets.dart";
 import "funtarget_sounds.dart";
 import "funtarget_stage.dart";
 import "timer_anchor.dart";
+import "../../storage/account_store.dart";
 import "../../storage/bet_ok_highlight_store.dart";
 
 class GameScreen extends StatefulWidget {
@@ -117,6 +118,15 @@ class _GameScreenState extends State<GameScreen> {
     } catch (_) {}
   }
 
+
+
+  Future<void> _removeCurrentAccountProfile() async {
+    final email = Supabase.instance.client.auth.currentUser?.email ?? "";
+    if (email.trim().isNotEmpty) {
+      await AccountStore.removeAccount(email);
+    }
+  }
+
   @override
   void dispose() {
     _timer?.cancel();
@@ -203,6 +213,7 @@ class _GameScreenState extends State<GameScreen> {
             ),
           );
         }
+        await _removeCurrentAccountProfile();
         await Supabase.instance.client.auth.signOut();
         return;
       }
@@ -223,6 +234,7 @@ class _GameScreenState extends State<GameScreen> {
             ),
           );
         }
+        await _removeCurrentAccountProfile();
         await Supabase.instance.client.auth.signOut();
         return;
       }
@@ -231,6 +243,7 @@ class _GameScreenState extends State<GameScreen> {
         if (mounted) {
           setState(() => _error = "Session expired. Please sign in again.");
         }
+        await _removeCurrentAccountProfile();
         await Supabase.instance.client.auth.signOut();
         return;
       }

@@ -54,6 +54,9 @@ class FunTargetApi {
   Future<http.Response> _patchUri(Uri uri, Map<String, String> headers, Object body) =>
       _client.patch(uri, headers: headers, body: body).timeout(_timeout);
 
+  Future<http.Response> _deleteUri(Uri uri, Map<String, String> headers) =>
+      _client.delete(uri, headers: headers).timeout(_timeout);
+
   StateError _apiError(http.Response res) {
     try {
       final decoded = jsonDecode(res.body);
@@ -75,6 +78,12 @@ class FunTargetApi {
         }
         if (err == "missing_session") {
           return StateError("missing_session: Session missing");
+        }
+        if (err == "bad_request" && msg.isNotEmpty) {
+          return StateError(msg);
+        }
+        if (err == "forbidden") {
+          return StateError("You do not have permission to perform this action.");
         }
         if (err.isNotEmpty) {
           return StateError("Backend error ${res.statusCode}: $err${msg.isNotEmpty ? " - $msg" : ""}");
@@ -264,6 +273,53 @@ class FunTargetApi {
     return res;
   }
 
+  Future<http.Response> _delete(String path) async {
+    final token = await _accessToken();
+    final sessionId = await _ensureSession(token: token);
+    http.Response res;
+    try {
+      final headers = {
+        "Authorization": "Bearer $token",
+        "Accept": "application/json",
+        "X-Session-Id": sessionId,
+        "X-Platform": _platform(),
+      };
+      res = await _deleteUri(AppConfig.apiUri(path), headers);
+    } on http.ClientException catch (e) {
+      if (_isHostLookupError(e)) {
+        final headers = {
+          "Authorization": "Bearer $token",
+          "Accept": "application/json",
+          "X-Session-Id": sessionId,
+          "X-Platform": _platform(),
+        };
+        res = await _deleteUri(AppConfig.apiUriWithFallback(path), headers);
+      } else {
+        throw _networkError(e);
+      }
+    } on TimeoutException {
+      throw StateError("Backend is not responding. Please retry.");
+    }
+
+    if (res.statusCode == 401) {
+      final retryToken = await _accessToken(allowRefresh: true);
+      final sessionId = await _ensureSession(token: retryToken);
+      try {
+        final headers = {
+          "Authorization": "Bearer $retryToken",
+          "Accept": "application/json",
+          "X-Session-Id": sessionId,
+          "X-Platform": _platform(),
+        };
+        return await _deleteUri(AppConfig.apiUri(path), headers);
+      } on TimeoutException {
+        throw StateError("Backend is not responding. Please retry.");
+      }
+    }
+
+    return res;
+  }
+
   String _platform() {
     if (kIsWeb) return "web";
     switch (defaultTargetPlatform) {
@@ -434,6 +490,13 @@ class FunTargetApi {
     if (username.trim().isNotEmpty) payload["username"] = username.trim();
     if (password.trim().isNotEmpty) payload["password"] = password;
     final res = await _patch("/api/admin/users/$userId", payload);
+    if (res.statusCode < 200 || res.statusCode >= 300) throw _apiError(res);
+    clearUserCache();
+    return jsonDecode(res.body) as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> deleteAdminUser({required String userId}) async {
+    final res = await _delete("/api/admin/users/$userId");
     if (res.statusCode < 200 || res.statusCode >= 300) throw _apiError(res);
     clearUserCache();
     return jsonDecode(res.body) as Map<String, dynamic>;
