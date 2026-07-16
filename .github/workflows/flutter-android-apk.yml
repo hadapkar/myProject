@@ -229,8 +229,8 @@ jobs:
         run: |
           set -euo pipefail
           if [ -z "${ORACLE_SSH_PRIVATE_KEY:-}" ]; then
-            echo "ORACLE_SSH_PRIVATE_KEY is not set; skipping Oracle Android metadata sync."
-            exit 0
+            echo "ORACLE_SSH_PRIVATE_KEY is required for Oracle Android metadata sync." >&2
+            exit 1
           fi
 
           HOST="${ORACLE_HOST:-80.225.236.170}"

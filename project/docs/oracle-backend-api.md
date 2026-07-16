@@ -78,8 +78,7 @@ workflow has Oracle SSH access:
   `KingMaker.apk.size` to the `android-latest` GitHub Release.
 - After publishing, the workflow updates `/etc/kingmaker-backend.env` on Oracle
   and restarts only `kingmaker-backend`.
-- If `ORACLE_SSH_PRIVATE_KEY` is missing, APK publishing still succeeds but
-  Oracle metadata sync is skipped.
+- `ORACLE_SSH_PRIVATE_KEY` is required. If it is missing, the workflow fails after publishing the APK so the old Oracle metadata is not mistaken for a successful release.
 
 The env values used by the backend are:
 
