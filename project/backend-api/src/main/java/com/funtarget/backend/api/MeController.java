@@ -32,7 +32,7 @@ public class MeController {
         } catch (Exception ignored) {}
       }
       boolean isAdmin = role.equals("ADMIN");
-      boolean canManageFunTarget = isAdmin || role.equals("MANAGER");
+      boolean canManageFunTarget = isAdmin || role.equals("MANAGER") || role.equals("SUPER_PLAYER");
       Map<String, Object> body = new LinkedHashMap<>();
       body.put("id", user.id());
       body.put("email", user.email());

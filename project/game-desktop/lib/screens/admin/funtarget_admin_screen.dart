@@ -44,6 +44,8 @@ class _FunTargetAdminScreenState extends State<FunTargetAdminScreen> {
   String? _error;
   List<Map<String, dynamic>> _rows = const [];
   String? _currentUserId;
+  bool _roleChecked = false;
+  bool _selfOnly = true;
 
   Map<String, dynamic>? _selected;
   final TextEditingController _amount = TextEditingController(text: "0");
@@ -64,6 +66,7 @@ class _FunTargetAdminScreenState extends State<FunTargetAdminScreen> {
     try {
       final me = await _api.getMe();
       _currentUserId = (me["id"] ?? "").toString();
+      final role = (me["role"] ?? "PLAYER").toString().trim().toUpperCase();
       final canManageFunTarget = me["canManageFunTarget"] == true || me["isAdmin"] == true;
       if (!canManageFunTarget) {
         if (!mounted) return;
@@ -85,8 +88,19 @@ class _FunTargetAdminScreenState extends State<FunTargetAdminScreen> {
         Navigator.of(context).pop();
         return;
       }
+      if (!mounted) return;
+      setState(() {
+        _selfOnly = role == "SUPER_PLAYER";
+        _roleChecked = true;
+      });
     } catch (e) {
       // If we can't verify role, backend will still enforce.
+      if (mounted) {
+        setState(() {
+          _selfOnly = false;
+          _roleChecked = true;
+        });
+      }
     }
 
     _load();
@@ -213,6 +227,7 @@ class _FunTargetAdminScreenState extends State<FunTargetAdminScreen> {
   @override
   Widget build(BuildContext context) {
     final selected = _selected;
+    final showUserPicker = _roleChecked && !_selfOnly;
     return Scaffold(
       backgroundColor: const Color(0xFF0B1220),
       appBar: AppBar(
@@ -242,12 +257,14 @@ class _FunTargetAdminScreenState extends State<FunTargetAdminScreen> {
                   onRetry: _isRefreshDisabled ? null : _load,
                 ),
               ),
-            const Padding(
-              padding: EdgeInsets.only(bottom: 10),
-              child: Text("Select a user.", style: TextStyle(color: Colors.white70)),
-            ),
-            _buildUserPicker(selected),
-            const SizedBox(height: 12),
+            if (showUserPicker) ...[
+              const Padding(
+                padding: EdgeInsets.only(bottom: 10),
+                child: Text("Select a user.", style: TextStyle(color: Colors.white70)),
+              ),
+              _buildUserPicker(selected),
+              const SizedBox(height: 12),
+            ],
             _buildWheelPanel(selected),
             const SizedBox(height: 12),
             _buildScorePanel(selected),

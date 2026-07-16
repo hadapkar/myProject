@@ -197,7 +197,7 @@ class _UserAccessScreenState extends State<UserAccessScreen> {
 
   String _roleValue(Map<String, dynamic> row) {
     final role = (row["role"] ?? "PLAYER").toString().toUpperCase();
-    return role == "ADMIN" || role == "MANAGER" ? role : "PLAYER";
+    return role == "ADMIN" || role == "MANAGER" || role == "SUPER_PLAYER" ? role : "PLAYER";
   }
 
   String _statusValue(Map<String, dynamic> row) {
@@ -532,12 +532,13 @@ class _RoleDropdown extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return DropdownButtonFormField<String>(
-      value: value == "ADMIN" || value == "MANAGER" ? value : "PLAYER",
+      value: value == "ADMIN" || value == "MANAGER" || value == "SUPER_PLAYER" ? value : "PLAYER",
       decoration: const InputDecoration(labelText: "Role"),
       dropdownColor: const Color(0xFF111827),
       items: const [
         DropdownMenuItem(value: "PLAYER", child: Text("Player")),
         DropdownMenuItem(value: "MANAGER", child: Text("Manager")),
+        DropdownMenuItem(value: "SUPER_PLAYER", child: Text("Super Player")),
         DropdownMenuItem(value: "ADMIN", child: Text("Admin")),
       ],
       onChanged: onChanged == null

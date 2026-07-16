@@ -521,7 +521,7 @@ public class SupabaseRestService {
 
   public static String normalizeUserRole(Object role) {
     String r = role == null ? "" : String.valueOf(role).trim().toUpperCase();
-    if (r.equals("ADMIN") || r.equals("MANAGER") || r.equals("PLAYER")) return r;
+    if (r.equals("ADMIN") || r.equals("MANAGER") || r.equals("SUPER_PLAYER") || r.equals("PLAYER")) return r;
     return "PLAYER";
   }
 
@@ -533,7 +533,7 @@ public class SupabaseRestService {
 
   public boolean canManageFunTarget(String accessToken, String userId) {
     String role = getUserRole(accessToken, userId);
-    return role.equals("ADMIN") || role.equals("MANAGER");
+    return role.equals("ADMIN") || role.equals("MANAGER") || role.equals("SUPER_PLAYER");
   }
 
   public boolean isAdminServiceRole(String userId) {

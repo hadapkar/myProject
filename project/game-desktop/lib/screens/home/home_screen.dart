@@ -97,9 +97,9 @@ class _HomeScreenState extends State<HomeScreen> {
       if (!mounted) return;
       final role = (me["role"] ?? "PLAYER").toString().trim().toUpperCase();
       setState(() {
-        _role = role == "ADMIN" || role == "MANAGER" ? role : "PLAYER";
+        _role = role == "ADMIN" || role == "MANAGER" || role == "SUPER_PLAYER" ? role : "PLAYER";
         _isAdmin = me["isAdmin"] == true || _role == "ADMIN";
-        _canManageFunTarget = me["canManageFunTarget"] == true || _isAdmin || _role == "MANAGER";
+        _canManageFunTarget = me["canManageFunTarget"] == true || _isAdmin || _role == "MANAGER" || _role == "SUPER_PLAYER";
         _roleLoaded = true;
       });
     } on StateError catch (e) {
@@ -668,6 +668,7 @@ class _CreateUserDialogState extends State<_CreateUserDialog> {
               items: const [
                 DropdownMenuItem(value: "PLAYER", child: Text("Player")),
                 DropdownMenuItem(value: "MANAGER", child: Text("Manager")),
+                DropdownMenuItem(value: "SUPER_PLAYER", child: Text("Super Player")),
                 DropdownMenuItem(value: "ADMIN", child: Text("Admin")),
               ],
               onChanged: _busy ? null : (v) => setState(() => _role = v ?? "PLAYER"),

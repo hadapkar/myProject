@@ -39,12 +39,18 @@ public class AdminFunTargetController {
     SupabaseUser caller = requireUser(authentication);
     String accessToken = requireAccessToken(request);
     String callerRole = supabaseRest.getUserRole(accessToken, caller.id());
-    if (!callerRole.equals("ADMIN") && !callerRole.equals("MANAGER")) {
+    if (!canManageFunTarget(callerRole)) {
       throw new AccessDeniedException("Forbidden");
     }
+    List<Map<String, Object>> stateRows;
+    if ("SUPER_PLAYER".equals(callerRole)) {
+      Map<String, Object> ownState = supabaseRest.getFunTargetStateForUserServiceRole(caller.id());
+      stateRows = ownState == null ? List.of() : List.of(ownState);
+    } else {
+      stateRows = supabaseRest.listFunTargetStatesServiceRole(limit);
+    }
     List<Map<String, Object>> rows =
-        buildVisibleRows(
-            callerRole, caller.id(), caller.email(), supabaseRest.listFunTargetStatesServiceRole(limit), limit);
+        buildVisibleRows(callerRole, caller.id(), caller.email(), stateRows, limit);
     return Map.of("count", rows.size(), "rows", rows);
   }
 
@@ -57,7 +63,7 @@ public class AdminFunTargetController {
     SupabaseUser caller = requireUser(authentication);
     String accessToken = requireAccessToken(request);
     String callerRole = supabaseRest.getUserRole(accessToken, caller.id());
-    if (!callerRole.equals("ADMIN") && !callerRole.equals("MANAGER")) {
+    if (!canManageFunTarget(callerRole)) {
       throw new AccessDeniedException("Forbidden");
     }
     if (userId == null || userId.isBlank()) throw new IllegalArgumentException("userId is required");
@@ -126,6 +132,12 @@ public class AdminFunTargetController {
         String userId = String.valueOf(access.getOrDefault("user_id", ""));
         if (!userId.isBlank()) accessByUserId.put(userId, access);
       }
+    }
+
+    if ("SUPER_PLAYER".equals(callerRole)) {
+      Map<String, Object> access = accessByUserId.get(callerUserId);
+      if (access == null) access = callerAccess(callerUserId, callerEmail, callerRole);
+      return List.of(withUserAccess(stateByUserId.get(callerUserId), callerUserId, access));
     }
 
     Set<String> adminUserIds = new HashSet<>();
@@ -220,6 +232,9 @@ public class AdminFunTargetController {
       String callerRole, String callerUserId, String targetUserId) {
     if ("ADMIN".equals(callerRole)) return;
     if (targetUserId != null && targetUserId.equals(callerUserId)) return;
+    if ("SUPER_PLAYER".equals(callerRole)) {
+      throw new AccessDeniedException("Forbidden");
+    }
     if (supabaseRest.isAdminServiceRole(targetUserId)) {
       throw new AccessDeniedException("Forbidden");
     }
@@ -228,6 +243,10 @@ public class AdminFunTargetController {
     if (!"PLAYER".equals(targetRole)) {
       throw new AccessDeniedException("Forbidden");
     }
+  }
+
+  private static boolean canManageFunTarget(String role) {
+    return "ADMIN".equals(role) || "MANAGER".equals(role) || "SUPER_PLAYER".equals(role);
   }
 
   private static double toDouble(Object value, double defaultValue) {
