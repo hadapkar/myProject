@@ -5,3 +5,5 @@ Future<void> downloadAndInstallApk(
 }) async {
   throw UnsupportedError("Android APK download is not supported on this platform.");
 }
+
+Future<void> cleanupInstalledApks({required int currentBuildNumber}) async {}

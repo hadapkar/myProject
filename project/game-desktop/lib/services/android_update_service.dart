@@ -57,6 +57,7 @@ class AndroidUpdateService {
 
   static Future<AndroidUpdateInfo?> checkForUpdate() async {
     if (!isSupported) return null;
+    await cleanupInstalledApks(currentBuildNumber: currentBuildNumber);
 
     final uri = AppConfig.apiUri("/public/android/latest");
     final res = await http

@@ -89,3 +89,40 @@ Future<void> _openInstaller(File file) async {
   if (await file.exists()) await file.delete();
   throw StateError("Could not open Android installer. Please retry.");
 }
+
+Future<void> cleanupInstalledApks({required int currentBuildNumber}) async {
+  String? apkPath;
+  try {
+    apkPath = await _channel.invokeMethod<String>(
+      "getApkPath",
+      {"fileName": "KingMaker-$currentBuildNumber.apk"},
+    );
+  } catch (_) {
+    return;
+  }
+  if (apkPath == null || apkPath.isEmpty) return;
+
+  final dir = File(apkPath).parent;
+  if (!await dir.exists()) return;
+
+  await for (final entity in dir.list()) {
+    if (entity is! File) continue;
+    final name = entity.uri.pathSegments.isEmpty ? "" : entity.uri.pathSegments.last;
+    if (name.endsWith(".download")) {
+      await _deleteQuietly(entity);
+      continue;
+    }
+    final match = RegExp(r"^KingMaker-(\d+)\.apk$").firstMatch(name);
+    if (match == null) continue;
+    final build = int.tryParse(match.group(1) ?? "") ?? 0;
+    if (build > 0 && build <= currentBuildNumber) {
+      await _deleteQuietly(entity);
+    }
+  }
+}
+
+Future<void> _deleteQuietly(File file) async {
+  try {
+    if (await file.exists()) await file.delete();
+  } catch (_) {}
+}
