@@ -33,8 +33,9 @@ public class SecurityConfig {
 
   @Bean
   RateLimitFilter rateLimitFilter(
-      @Value("${app.ratelimit.per-minute:120}") int limitPerMinute) {
-    return new RateLimitFilter(limitPerMinute);
+      @Value("${app.ratelimit.per-minute:120}") int limitPerMinute,
+      @Value("${app.ratelimit.max-keys:2048}") int maxKeys) {
+    return new RateLimitFilter(limitPerMinute, maxKeys);
   }
 
   @Bean

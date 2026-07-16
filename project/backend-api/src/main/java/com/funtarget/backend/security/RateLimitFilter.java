@@ -8,6 +8,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.time.Instant;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -15,7 +16,6 @@ import org.springframework.http.MediaType;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.filter.OncePerRequestFilter;
-import com.funtarget.backend.security.RequestIdFilter;
 
 /**
  * Simple in-memory fixed-window rate limiting for /api/* endpoints.
@@ -28,10 +28,13 @@ public class RateLimitFilter extends OncePerRequestFilter {
   private static final long WINDOW_MS = 60_000;
 
   private final int limitPerMinute;
+  private final int maxKeys;
   private final Map<String, WindowCounter> counters = new ConcurrentHashMap<>();
+  private volatile long lastCleanupMs = 0;
 
-  public RateLimitFilter(int limitPerMinute) {
+  public RateLimitFilter(int limitPerMinute, int maxKeys) {
     this.limitPerMinute = Math.max(1, limitPerMinute);
+    this.maxKeys = Math.max(128, maxKeys);
   }
 
   @Override
@@ -44,8 +47,10 @@ public class RateLimitFilter extends OncePerRequestFilter {
   protected void doFilterInternal(
       HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
       throws ServletException, IOException {
-    String key = keyFor(request);
     long now = System.currentTimeMillis();
+    cleanupIfNeeded(now);
+
+    String key = keyFor(request);
     WindowCounter counter = counters.computeIfAbsent(key, __ -> new WindowCounter(now));
 
     int next;
@@ -68,6 +73,31 @@ public class RateLimitFilter extends OncePerRequestFilter {
     }
 
     filterChain.doFilter(request, response);
+  }
+
+  private void cleanupIfNeeded(long now) {
+    boolean tooManyKeys = counters.size() > maxKeys;
+    if (!tooManyKeys && now - lastCleanupMs < WINDOW_MS) return;
+    synchronized (this) {
+      tooManyKeys = counters.size() > maxKeys;
+      if (!tooManyKeys && now - lastCleanupMs < WINDOW_MS) return;
+      lastCleanupMs = now;
+
+      Iterator<Map.Entry<String, WindowCounter>> it = counters.entrySet().iterator();
+      while (it.hasNext()) {
+        Map.Entry<String, WindowCounter> entry = it.next();
+        WindowCounter counter = entry.getValue();
+        if (now - counter.windowStartMs >= WINDOW_MS * 2) {
+          it.remove();
+        }
+      }
+
+      it = counters.entrySet().iterator();
+      while (counters.size() > maxKeys && it.hasNext()) {
+        it.next();
+        it.remove();
+      }
+    }
   }
 
   private String keyFor(HttpServletRequest request) {

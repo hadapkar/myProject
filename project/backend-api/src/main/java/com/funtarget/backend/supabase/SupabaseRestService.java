@@ -1,11 +1,14 @@
 package com.funtarget.backend.supabase;
 
 import java.net.http.HttpClient;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.OffsetDateTime;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.client.JdkClientHttpRequestFactory;
@@ -17,9 +20,18 @@ import org.springframework.web.client.RestClientResponseException;
 public class SupabaseRestService {
   private final SupabaseProperties props;
   private final RestClient restClient;
+  private final long adminCacheTtlMs;
+  private final int adminCacheMaxEntries;
+  private final Map<String, BooleanCacheEntry> adminCache = new ConcurrentHashMap<>();
+  private volatile long lastAdminCachePruneMs = 0;
 
-  public SupabaseRestService(SupabaseProperties props) {
+  public SupabaseRestService(
+      SupabaseProperties props,
+      @Value("${app.supabase-cache.admin-ttl-seconds:30}") long adminCacheTtlSeconds,
+      @Value("${app.supabase-cache.max-entries:512}") int adminCacheMaxEntries) {
     this.props = props;
+    this.adminCacheTtlMs = Math.max(0, adminCacheTtlSeconds) * 1000L;
+    this.adminCacheMaxEntries = Math.max(0, adminCacheMaxEntries);
     String base = normalizeUrl(props.url());
     if (base.isBlank()) {
       base = "http://localhost";
@@ -494,6 +506,12 @@ public class SupabaseRestService {
 
   public boolean isAdmin(String accessToken, String userId) {
     requireConfigured();
+    if (userId == null || userId.isBlank()) return false;
+    String cacheKey = adminCacheKey("user", userId);
+    Boolean cached = cachedAdmin(cacheKey);
+    if (cached != null) return cached;
+
+    boolean admin;
     try {
       Map<String, Object> row =
           restClient
@@ -510,13 +528,16 @@ public class SupabaseRestService {
               .header(HttpHeaders.ACCEPT, "application/vnd.pgrst.object+json")
               .retrieve()
               .body(Map.class);
-      return row != null && row.get("user_id") != null;
+      admin = row != null && row.get("user_id") != null;
     } catch (RestClientResponseException e) {
       if (e.getStatusCode().value() == 406) {
-        return false;
+        admin = false;
+      } else {
+        throw e;
       }
-      throw e;
     }
+    cacheAdmin(cacheKey, admin);
+    return admin;
   }
 
   public static String normalizeUserRole(Object role) {
@@ -539,6 +560,11 @@ public class SupabaseRestService {
   public boolean isAdminServiceRole(String userId) {
     requireServiceRoleConfigured();
     if (userId == null || userId.isBlank()) return false;
+    String cacheKey = adminCacheKey("service", userId);
+    Boolean cached = cachedAdmin(cacheKey);
+    if (cached != null) return cached;
+
+    boolean admin;
     try {
       Map<String, Object> row =
           restClient
@@ -555,11 +581,16 @@ public class SupabaseRestService {
               .header(HttpHeaders.ACCEPT, "application/vnd.pgrst.object+json")
               .retrieve()
               .body(Map.class);
-      return row != null && row.get("user_id") != null;
+      admin = row != null && row.get("user_id") != null;
     } catch (RestClientResponseException e) {
-      if (e.getStatusCode().value() == 406) return false;
-      throw e;
+      if (e.getStatusCode().value() == 406) {
+        admin = false;
+      } else {
+        throw e;
+      }
     }
+    cacheAdmin(cacheKey, admin);
+    return admin;
   }
 
   public List<Map<String, Object>> listAdminUsersServiceRole() {
@@ -584,6 +615,7 @@ public class SupabaseRestService {
         .body(List.of(Map.of("user_id", userId)))
         .retrieve()
         .toBodilessEntity();
+    invalidateAdminCache(userId);
   }
 
   public void deleteAdminUserServiceRole(String userId) {
@@ -596,6 +628,7 @@ public class SupabaseRestService {
         .header(HttpHeaders.AUTHORIZATION, "Bearer " + props.serviceRoleKey())
         .retrieve()
         .toBodilessEntity();
+    invalidateAdminCache(userId);
   }
 
   public void upsertUserProfileServiceRole(String userId, String username) {
@@ -639,6 +672,56 @@ public class SupabaseRestService {
     }
   }
 
+  private Boolean cachedAdmin(String cacheKey) {
+    if (adminCacheTtlMs <= 0 || adminCacheMaxEntries <= 0 || cacheKey == null || cacheKey.isBlank()) {
+      return null;
+    }
+    long now = System.currentTimeMillis();
+    BooleanCacheEntry entry = adminCache.get(cacheKey);
+    if (entry == null) return null;
+    if (entry.expiresAtMs <= now) {
+      adminCache.remove(cacheKey, entry);
+      return null;
+    }
+    return entry.value;
+  }
+
+  private void cacheAdmin(String cacheKey, boolean value) {
+    if (adminCacheTtlMs <= 0 || adminCacheMaxEntries <= 0 || cacheKey == null || cacheKey.isBlank()) return;
+    long now = System.currentTimeMillis();
+    adminCache.put(cacheKey, new BooleanCacheEntry(value, now + adminCacheTtlMs));
+    pruneAdminCache(now, adminCache.size() > adminCacheMaxEntries);
+  }
+
+  private void invalidateAdminCache(String userId) {
+    if (userId == null || userId.isBlank()) return;
+    adminCache.remove(adminCacheKey("user", userId));
+    adminCache.remove(adminCacheKey("service", userId));
+  }
+
+  private static String adminCacheKey(String scope, String userId) {
+    return scope + ":" + userId;
+  }
+
+  private void pruneAdminCache(long now, boolean force) {
+    if (!force && now - lastAdminCachePruneMs < 30_000L) return;
+    synchronized (this) {
+      if (!force && now - lastAdminCachePruneMs < 30_000L) return;
+      lastAdminCachePruneMs = now;
+      Iterator<Map.Entry<String, BooleanCacheEntry>> it = adminCache.entrySet().iterator();
+      while (it.hasNext()) {
+        Map.Entry<String, BooleanCacheEntry> entry = it.next();
+        if (entry.getValue().expiresAtMs <= now) it.remove();
+      }
+      if (adminCache.size() <= adminCacheMaxEntries) return;
+      it = adminCache.entrySet().iterator();
+      while (adminCache.size() > adminCacheMaxEntries && it.hasNext()) {
+        it.next();
+        it.remove();
+      }
+    }
+  }
+
   private static String normalizeUrl(String url) {
     if (url == null) return "";
     String trimmed = url.trim();
@@ -647,4 +730,6 @@ public class SupabaseRestService {
     }
     return trimmed;
   }
+
+  private record BooleanCacheEntry(boolean value, long expiresAtMs) {}
 }
