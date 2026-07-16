@@ -207,7 +207,10 @@ class _UserAccessScreenState extends State<UserAccessScreen> {
             if (_error != null)
               Padding(
                 padding: const EdgeInsets.only(bottom: 12),
-                child: Text(_error!, style: const TextStyle(color: Colors.redAccent)),
+                child: _AccessErrorBanner(
+                  message: _error!,
+                  onRetry: _loading ? null : () => _load(keepSelectedUserId: _selectedUserId),
+                ),
               ),
             if (_loading)
               const Expanded(child: Center(child: CircularProgressIndicator()))
@@ -267,6 +270,32 @@ class _UserAccessScreenState extends State<UserAccessScreen> {
   }
 }
 
+class _AccessErrorBanner extends StatelessWidget {
+  final String message;
+  final VoidCallback? onRetry;
+
+  const _AccessErrorBanner({required this.message, required this.onRetry});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: const Color.fromRGBO(255, 86, 86, 0.12),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: const Color.fromRGBO(255, 86, 86, 0.28)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.error_outline, color: Colors.redAccent),
+          const SizedBox(width: 10),
+          Expanded(child: Text(message, style: const TextStyle(color: Colors.white70))),
+          TextButton(onPressed: onRetry, child: const Text("Retry")),
+        ],
+      ),
+    );
+  }
+}
 class _SelectedUserPanel extends StatelessWidget {
   final Map<String, dynamic> row;
   final String role;

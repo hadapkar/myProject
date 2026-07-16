@@ -52,13 +52,12 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _isAdmin = false;
   bool _canManageFunTarget = false;
   bool _roleLoaded = false;
-  bool _subscriptionChecked = false;
+  String? _homeError;
 
   @override
   void initState() {
     super.initState();
-    unawaited(_loadRole());
-    unawaited(_checkSubscriptionGate());
+    unawaited(_refreshUserState());
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       unawaited(AndroidUpdateGate.maybeShow(context));
@@ -69,7 +68,30 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  Future<void> _loadRole() async {
+  String _friendlyBackendMessage(Object error) {
+    final text = error.toString();
+    if (text.contains("Backend is not responding") ||
+        text.contains("Backend request failed") ||
+        text.contains("Backend timeout") ||
+        text.contains("Failed to fetch")) {
+      return "Backend is not responding. Please retry.";
+    }
+    if (text.contains("session_conflict")) {
+      return "This account is active on another device. Please sign in again if needed.";
+    }
+    if (text.contains("Not authenticated") || text.contains("Backend error 401")) {
+      return "Session expired. Please sign in again.";
+    }
+    return "Unable to load account details. Please retry.";
+  }
+
+  Future<void> _refreshUserState() async {
+    if (!mounted) return;
+    setState(() {
+      _roleLoaded = false;
+      _homeError = null;
+    });
+
     try {
       final me = await _api.getMe();
       if (!mounted) return;
@@ -80,31 +102,17 @@ class _HomeScreenState extends State<HomeScreen> {
         _canManageFunTarget = me["canManageFunTarget"] == true || _isAdmin || _role == "MANAGER";
         _roleLoaded = true;
       });
-    } catch (_) {
-      if (!mounted) return;
-      setState(() => _roleLoaded = true);
-    }
-  }
-
-  Future<void> _checkSubscriptionGate() async {
-    if (_subscriptionChecked) return;
-    _subscriptionChecked = true;
-    try {
-      await _api.getMe();
     } on StateError catch (e) {
       final msg = e.message;
       if (!mounted) return;
       if (msg.contains("subscription_inactive") || msg.contains("user_blocked")) {
-        final title = msg.contains("user_blocked") ? "Access blocked" : "Subscription inactive";
-        final body = msg.contains("user_blocked")
-            ? "Your access is blocked or expired. Please contact the admin."
-            : "Your subscription is inactive or expired. Please contact the admin.";
+        setState(() => _roleLoaded = true);
         await showDialog<void>(
           context: context,
           barrierDismissible: false,
           builder: (context) => AlertDialog(
-            title: Text(title),
-            content: Text(body),
+            title: const Text("Access unavailable"),
+            content: const Text("Please contact admin."),
             actions: [
               FilledButton(
                 onPressed: () => Navigator.of(context).pop(),
@@ -114,9 +122,18 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         );
         await Supabase.instance.client.auth.signOut();
+        return;
       }
-    } catch (_) {
-      // Ignore other errors here; the Game screen will show a retryable message.
+      setState(() {
+        _homeError = _friendlyBackendMessage(e);
+        _roleLoaded = true;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _homeError = _friendlyBackendMessage(e);
+        _roleLoaded = true;
+      });
     }
   }
 
@@ -198,10 +215,8 @@ class _HomeScreenState extends State<HomeScreen> {
         _isAdmin = false;
         _canManageFunTarget = false;
         _roleLoaded = false;
-        _subscriptionChecked = false;
       });
-      await _loadRole();
-      await _checkSubscriptionGate();
+      await _refreshUserState();
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text("Switched to ${selected.username}")),
@@ -322,39 +337,57 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
       body: Padding(
         padding: const EdgeInsets.all(20),
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            final width = constraints.maxWidth;
-            final crossAxisCount = width >= 1100
-                ? 4
-                : width >= 820
-                    ? 3
-                    : width >= 520
-                        ? 2
-                        : 1;
-            return GridView.count(
-              crossAxisCount: crossAxisCount,
-              crossAxisSpacing: 16,
-              mainAxisSpacing: 16,
-              childAspectRatio: 1.4,
-              children: [
-                _GameTile(
-                  title: "FunTarget",
-                  subtitle: "Wheel / Bet game",
-                  imageAsset: _funTargetLogo,
-                  onTap: () => context.push("/game"),
-                ),
-                if (_roleLoaded && _canManageFunTarget && _mobileApp)
-                  _GameTile(
-                    title: "FunTarget Admin",
-                    subtitle: "Manage live users and wheel results",
-                    imageAsset: _funTargetLogo,
-                    actionLabel: "Open",
-                    onTap: () => context.push("/admin/funtarget"),
-                  ),
-              ],
-            );
-          },
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (!_roleLoaded) ...[
+              const LinearProgressIndicator(minHeight: 2),
+              const SizedBox(height: 12),
+            ],
+            if (_homeError != null) ...[
+              _HomeErrorBanner(
+                message: _homeError!,
+                onRetry: () => unawaited(_refreshUserState()),
+              ),
+              const SizedBox(height: 12),
+            ],
+            Expanded(
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final width = constraints.maxWidth;
+                  final crossAxisCount = width >= 1100
+                      ? 4
+                      : width >= 820
+                          ? 3
+                          : width >= 520
+                              ? 2
+                              : 1;
+                  return GridView.count(
+                    crossAxisCount: crossAxisCount,
+                    crossAxisSpacing: 16,
+                    mainAxisSpacing: 16,
+                    childAspectRatio: 1.4,
+                    children: [
+                      _GameTile(
+                        title: "FunTarget",
+                        subtitle: "Wheel / Bet game",
+                        imageAsset: _funTargetLogo,
+                        onTap: () => context.push("/game"),
+                      ),
+                      if (_roleLoaded && _canManageFunTarget && _mobileApp)
+                        _GameTile(
+                          title: "FunTarget Admin",
+                          subtitle: "Manage live users and wheel results",
+                          imageAsset: _funTargetLogo,
+                          actionLabel: "Open",
+                          onTap: () => context.push("/admin/funtarget"),
+                        ),
+                    ],
+                  );
+                },
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -437,6 +470,33 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
       const SizedBox(width: 8),
     ];
+  }
+}
+
+class _HomeErrorBanner extends StatelessWidget {
+  final String message;
+  final VoidCallback onRetry;
+
+  const _HomeErrorBanner({required this.message, required this.onRetry});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: const Color.fromRGBO(255, 86, 86, 0.12),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: const Color.fromRGBO(255, 86, 86, 0.28)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.error_outline, color: Colors.redAccent),
+          const SizedBox(width: 10),
+          Expanded(child: Text(message, style: const TextStyle(color: Colors.white70))),
+          TextButton(onPressed: onRetry, child: const Text("Retry")),
+        ],
+      ),
+    );
   }
 }
 
@@ -524,6 +584,7 @@ class _AccountSheet extends StatelessWidget {
     );
   }
 }
+
 class _CreateUserDialog extends StatefulWidget {
   final FunTargetApi api;
 

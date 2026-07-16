@@ -5,6 +5,32 @@ import "package:supabase_flutter/supabase_flutter.dart";
 
 import "../../services/funtarget_api.dart";
 
+class _AdminErrorBanner extends StatelessWidget {
+  final String message;
+  final VoidCallback? onRetry;
+
+  const _AdminErrorBanner({required this.message, required this.onRetry});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: const Color.fromRGBO(255, 86, 86, 0.12),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: const Color.fromRGBO(255, 86, 86, 0.28)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.error_outline, color: Colors.redAccent),
+          const SizedBox(width: 10),
+          Expanded(child: Text(message, style: const TextStyle(color: Colors.white70))),
+          TextButton(onPressed: onRetry, child: const Text("Retry")),
+        ],
+      ),
+    );
+  }
+}
 class FunTargetAdminScreen extends StatefulWidget {
   const FunTargetAdminScreen({super.key});
 
@@ -117,6 +143,7 @@ class _FunTargetAdminScreenState extends State<FunTargetAdminScreen> {
     }
     return null;
   }
+
   String _username(Map<String, dynamic> row) {
     final username = (row["username"] ?? "").toString().trim();
     if (username.isNotEmpty) return username;
@@ -157,8 +184,14 @@ class _FunTargetAdminScreenState extends State<FunTargetAdminScreen> {
       final current = double.tryParse((selected["score"] ?? "0").toString()) ?? 0;
       payload["score_delta"] = -current;
     }
-    await _api.patchAdminFunTargetState(userId, payload);
-    await _load();
+    if (mounted) setState(() => _error = null);
+    try {
+      await _api.patchAdminFunTargetState(userId, payload);
+      await _load();
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _error = e.toString());
+    }
   }
 
   @override
@@ -181,10 +214,17 @@ class _FunTargetAdminScreenState extends State<FunTargetAdminScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            if (_loading && _rows.isEmpty) ...[
+              const LinearProgressIndicator(minHeight: 2),
+              const SizedBox(height: 12),
+            ],
             if (_error != null)
               Padding(
                 padding: const EdgeInsets.only(bottom: 12),
-                child: Text(_error!, style: const TextStyle(color: Colors.redAccent)),
+                child: _AdminErrorBanner(
+                  message: _error!,
+                  onRetry: _isRefreshDisabled ? null : _load,
+                ),
               ),
             const Padding(
               padding: EdgeInsets.only(bottom: 10),

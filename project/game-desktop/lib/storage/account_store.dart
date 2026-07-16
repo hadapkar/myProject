@@ -85,6 +85,7 @@ class AccountStore {
     } else {
       updated.add(account);
     }
+    updated.sort((a, b) => b.lastUsedAt.compareTo(a.lastUsedAt));
     await _save(updated.take(10).toList(growable: false));
   }
 

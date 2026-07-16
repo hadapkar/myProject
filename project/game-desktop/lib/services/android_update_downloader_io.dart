@@ -22,7 +22,7 @@ Future<void> downloadAndInstallApk(
   final existingBytes = await _existingFileLength(file);
   if (existingBytes > 0) {
     onProgress?.call(existingBytes, existingBytes);
-    await _channel.invokeMethod<bool>("installApk", {"path": apkPath});
+    await _openInstaller(file);
     return;
   }
 
@@ -57,8 +57,8 @@ Future<void> downloadAndInstallApk(
     }
 
     if (await file.exists()) await file.delete();
-    await tempFile.rename(apkPath);
-    await _channel.invokeMethod<bool>("installApk", {"path": apkPath});
+    final downloadedFile = await tempFile.rename(apkPath);
+    await _openInstaller(downloadedFile);
   } finally {
     await sink?.close();
     client.close();
@@ -75,4 +75,17 @@ Future<int> _existingFileLength(File file) async {
   } catch (_) {
     return 0;
   }
+}
+
+Future<void> _openInstaller(File file) async {
+  try {
+    final opened = await _channel.invokeMethod<bool>("installApk", {"path": file.path});
+    if (opened == true) return;
+  } on PlatformException catch (_) {
+    if (await file.exists()) await file.delete();
+    throw StateError("Could not open Android installer. Please retry.");
+  }
+
+  if (await file.exists()) await file.delete();
+  throw StateError("Could not open Android installer. Please retry.");
 }

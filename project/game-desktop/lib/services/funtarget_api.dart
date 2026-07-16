@@ -31,7 +31,7 @@ class FunTargetApi {
         "Backend request blocked. Check CORS_ALLOWED_ORIGINS and allowed headers.",
       );
     }
-    return StateError("Backend request failed: ${e.message}");
+    return StateError("Backend is not responding. Please retry.");
   }
 
   Future<http.Response> _getUri(Uri uri, Map<String, String> headers) =>
@@ -126,7 +126,7 @@ class FunTargetApi {
         throw _networkError(e);
       }
     } on TimeoutException {
-      throw StateError("Backend timeout. The server may be waking up; please retry.");
+      throw StateError("Backend is not responding. Please retry.");
     }
 
     // If token is stale, refresh session and retry once.
@@ -142,7 +142,7 @@ class FunTargetApi {
         };
         return await _getUri(AppConfig.apiUri(path, queryParameters: queryParameters), headers);
       } on TimeoutException {
-        throw StateError("Backend timeout. The server may be waking up; please retry.");
+        throw StateError("Backend is not responding. Please retry.");
       }
     }
     return res;
@@ -177,7 +177,7 @@ class FunTargetApi {
         throw _networkError(e);
       }
     } on TimeoutException {
-      throw StateError("Backend timeout. The server may be waking up; please retry.");
+      throw StateError("Backend is not responding. Please retry.");
     }
 
     if (res.statusCode == 401) {
@@ -194,7 +194,7 @@ class FunTargetApi {
         final body = jsonEncode(payload);
         return await _postUri(AppConfig.apiUri(path), headers, body);
       } on TimeoutException {
-        throw StateError("Backend timeout. The server may be waking up; please retry.");
+        throw StateError("Backend is not responding. Please retry.");
       }
     }
     return res;
@@ -229,7 +229,7 @@ class FunTargetApi {
         throw _networkError(e);
       }
     } on TimeoutException {
-      throw StateError("Backend timeout. The server may be waking up; please retry.");
+      throw StateError("Backend is not responding. Please retry.");
     }
 
     if (res.statusCode == 401) {
@@ -246,7 +246,7 @@ class FunTargetApi {
         final body = jsonEncode(payload);
         return await _patchUri(AppConfig.apiUri(path), headers, body);
       } on TimeoutException {
-        throw StateError("Backend timeout. The server may be waking up; please retry.");
+        throw StateError("Backend is not responding. Please retry.");
       }
     }
 
