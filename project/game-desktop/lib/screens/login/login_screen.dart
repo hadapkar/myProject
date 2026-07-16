@@ -76,7 +76,9 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> _openAccountMenu() async {
-    if (_savedAccounts.isEmpty || _busy) return;
+    if (_busy) return;
+    await _loadSavedAccounts();
+    if (!mounted || _savedAccounts.isEmpty) return;
     final action = await showModalBottomSheet<_LoginAccountAction>(
       context: context,
       showDragHandle: true,
@@ -121,6 +123,7 @@ class _LoginScreenState extends State<LoginScreen> {
       setState(() => _message = "Sign in timed out. Check your internet and retry.");
     } catch (_) {
       await AccountStore.removeAccount(account.email);
+      await AccountStore.removeAccountByRefreshToken(account.refreshToken);
       if (!mounted) return;
       _usernameController.clear();
       await _loadSavedAccounts();
@@ -159,7 +162,10 @@ class _LoginScreenState extends State<LoginScreen> {
         return;
       }
 
-      final email = raw.contains("@") ? raw : "${raw.toLowerCase()}@kingmaker.local";
+      final resolvedEmail = (check["email"] ?? "").toString().trim();
+      final email = resolvedEmail.contains("@")
+          ? resolvedEmail.toLowerCase()
+          : (raw.contains("@") ? raw.toLowerCase() : "${raw.toLowerCase()}@kingmaker.local");
       final response = await Supabase.instance.client.auth
           .signInWithPassword(
             email: email,

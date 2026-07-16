@@ -40,8 +40,10 @@ class AndroidUpdateInfo {
     );
   }
 
-  String get displayVersion =>
-      version.isEmpty ? "build $build" : "$version+$build";
+  String get displayVersion {
+    if (version.isEmpty) return "build $build";
+    return build > 0 ? "$version (build $build)" : version;
+  }
 
   static int _intValue(Object? value) {
     if (value is int) return value;
@@ -57,7 +59,7 @@ class AndroidUpdateService {
       int.fromEnvironment("APP_BUILD_NUMBER", defaultValue: 0);
 
   static String get currentDisplayVersion => currentBuildNumber > 0
-      ? "$currentVersion+$currentBuildNumber"
+      ? "$currentVersion (build $currentBuildNumber)"
       : currentVersion;
 
   static bool get isSupported =>

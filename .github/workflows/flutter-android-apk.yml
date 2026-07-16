@@ -188,6 +188,40 @@ jobs:
             sed -i 's/android:label="[^"]*"/android:label="@string\\/app_name"/' "$MANIFEST" || true
           fi
 
+      - name: Resolve Android release version
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          APP_PUBSPEC_VERSION="$(grep '^version:' pubspec.yaml | awk '{print $2}')"
+          APP_BASE_VERSION="${APP_PUBSPEC_VERSION%%+*}"
+          APP_BASE_BUILD="${APP_PUBSPEC_VERSION##*+}"
+          if [ "$APP_BASE_VERSION" = "$APP_BASE_BUILD" ] || ! [[ "$APP_BASE_BUILD" =~ ^[0-9]+$ ]]; then
+            APP_BASE_BUILD=0
+          fi
+
+          LAST_VERSION=""
+          mkdir -p /tmp/kingmaker-android-version
+          if gh release view android-latest --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release download android-latest \
+              --repo "$GITHUB_REPOSITORY" \
+              --pattern KingMaker.version.json \
+              --dir /tmp/kingmaker-android-version \
+              --clobber >/dev/null 2>&1 || true
+          fi
+          if [ -f /tmp/kingmaker-android-version/KingMaker.version.json ]; then
+            LAST_VERSION="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("version", ""))' /tmp/kingmaker-android-version/KingMaker.version.json 2>/dev/null || true)"
+          fi
+
+          APP_VERSION_NAME="$APP_BASE_VERSION"
+          if [[ "$LAST_VERSION" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
+            APP_VERSION_NAME="${BASH_REMATCH[1]}.${BASH_REMATCH[2]}.$((BASH_REMATCH[3] + 1))"
+          fi
+          APP_BUILD_NUMBER=$((APP_BASE_BUILD + GITHUB_RUN_NUMBER))
+
+          echo "APP_VERSION_NAME=$APP_VERSION_NAME" >> "$GITHUB_ENV"
+          echo "APP_BUILD_NUMBER=$APP_BUILD_NUMBER" >> "$GITHUB_ENV"
+          echo "Android version: $APP_VERSION_NAME (build $APP_BUILD_NUMBER)"
       - name: Build APK (release)
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
@@ -198,13 +232,10 @@ jobs:
             echo "Missing required secrets SUPABASE_URL / SUPABASE_ANON_KEY" >&2
             exit 1
           fi
-          APP_PUBSPEC_VERSION="$(grep '^version:' pubspec.yaml | awk '{print $2}')"
-          APP_VERSION_NAME="${APP_PUBSPEC_VERSION%%+*}"
-          APP_BASE_BUILD="${APP_PUBSPEC_VERSION##*+}"
-          if [ "$APP_VERSION_NAME" = "$APP_BASE_BUILD" ] || ! [[ "$APP_BASE_BUILD" =~ ^[0-9]+$ ]]; then
-            APP_BASE_BUILD=0
+          if [ -z "${APP_VERSION_NAME:-}" ] || [ -z "${APP_BUILD_NUMBER:-}" ]; then
+            echo "Android version was not resolved" >&2
+            exit 1
           fi
-          APP_BUILD_NUMBER=$((APP_BASE_BUILD + GITHUB_RUN_NUMBER))
           flutter build apk --release \
             --build-name="$APP_VERSION_NAME" \
             --build-number="$APP_BUILD_NUMBER" \
@@ -233,7 +264,10 @@ jobs:
           stat -c%s "$ASSET" > "$ASSET.size"
           gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 || \
             gh release create "$TAG" --target "$GITHUB_SHA" --title "Android Latest" --notes "Latest Android APK for in-app updater." --repo "$GITHUB_REPOSITORY"
-          gh release upload "$TAG" "$ASSET" "$ASSET.sha256" "$ASSET.size" --clobber --repo "$GITHUB_REPOSITORY"
+          META="KingMaker.version.json"
+          printf '{"version":"%s","build":%s,"commit":"%s","runNumber":%s}\n' \
+            "$APP_VERSION_NAME" "$APP_BUILD_NUMBER" "$GITHUB_SHA" "$GITHUB_RUN_NUMBER" > "$META"
+          gh release upload "$TAG" "$ASSET" "$ASSET.sha256" "$ASSET.size" "$META" --clobber --repo "$GITHUB_REPOSITORY"
       # Keep Oracle update metadata aligned with the published APK.
       - name: Sync Android update metadata to Oracle
         shell: bash
@@ -251,13 +285,10 @@ jobs:
           HOST="${ORACLE_HOST:-80.225.236.170}"
           USER="${ORACLE_USER:-opc}"
           ASSET="KingMaker.apk"
-          APP_PUBSPEC_VERSION="$(grep '^version:' pubspec.yaml | awk '{print $2}')"
-          APP_VERSION_NAME="${APP_PUBSPEC_VERSION%%+*}"
-          APP_BASE_BUILD="${APP_PUBSPEC_VERSION##*+}"
-          if [ "$APP_VERSION_NAME" = "$APP_BASE_BUILD" ] || ! [[ "$APP_BASE_BUILD" =~ ^[0-9]+$ ]]; then
-            APP_BASE_BUILD=0
+          if [ -z "${APP_VERSION_NAME:-}" ] || [ -z "${APP_BUILD_NUMBER:-}" ]; then
+            echo "Android version was not resolved" >&2
+            exit 1
           fi
-          APP_BUILD_NUMBER=$((APP_BASE_BUILD + GITHUB_RUN_NUMBER))
           APK_SHA256="$(tr -d '[:space:]' < "$ASSET.sha256")"
           APK_SIZE_BYTES="$(tr -d '[:space:]' < "$ASSET.size")"
           SOURCE_APK_URL="https://github.com/${GITHUB_REPOSITORY}/releases/download/android-latest/${ASSET}"

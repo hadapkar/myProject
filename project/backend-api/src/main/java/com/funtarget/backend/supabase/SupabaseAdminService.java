@@ -111,6 +111,47 @@ public class SupabaseAdminService {
   }
 
 
+  public SupabaseUser findUserById(String userId) {
+    if (userId == null || userId.isBlank()) return null;
+    requireConfigured();
+    String normalized = userId.trim();
+
+    try {
+      for (int page = 1; page <= 10; page++) {
+        var request =
+            HttpRequest.newBuilder()
+                .uri(URI.create(normalizeUrl(props.url()) + "/auth/v1/admin/users?page=" + page + "&per_page=100"))
+                .timeout(Duration.ofSeconds(20))
+                .header("apikey", props.serviceRoleKey())
+                .header("Authorization", "Bearer " + props.serviceRoleKey())
+                .GET()
+                .build();
+
+        var response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+        if (response.statusCode() < 200 || response.statusCode() >= 300) {
+          String resp = response.body() == null ? "" : response.body().trim();
+          String preview = resp.length() > 220 ? resp.substring(0, 220) + "..." : resp;
+          throw new IllegalStateException(
+              "Supabase list users failed (status "
+                  + response.statusCode()
+                  + (preview.isBlank() ? "" : (", body=" + preview))
+                  + ")");
+        }
+
+        String resp = response.body() == null ? "" : response.body();
+        if (!resp.contains("\"users\"")) return null;
+        SupabaseUser user = extractUserById(resp, normalized);
+        if (user != null) return user;
+        if (!resp.contains("\"id\"")) return null;
+      }
+      return null;
+    } catch (RuntimeException e) {
+      throw e;
+    } catch (Exception e) {
+      throw new RuntimeException("Supabase admin error", e);
+    }
+  }
+
   public SupabaseUser updateUser(String userId, String email, String password) {
     if (userId == null || userId.isBlank()) throw new IllegalArgumentException("userId is required");
     boolean updateEmail = email != null && !email.isBlank();
@@ -207,6 +248,19 @@ public class SupabaseAdminService {
       return trimmed.substring(0, trimmed.length() - 1);
     }
     return trimmed;
+  }
+
+  private static SupabaseUser extractUserById(String json, String userId) {
+    if (json == null || userId == null || userId.isBlank()) return null;
+    Pattern idPattern = Pattern.compile("\"id\"\\s*:\\s*\"" + Pattern.quote(userId) + "\"");
+    Matcher idMatcher = idPattern.matcher(json);
+    if (!idMatcher.find()) return null;
+
+    int to = Math.min(json.length(), idMatcher.end() + 2500);
+    String suffix = json.substring(idMatcher.end(), to);
+    String email = extractJsonStringField(suffix, "email");
+    if (email == null || email.isBlank()) return null;
+    return new SupabaseUser(userId, email);
   }
 
   private static SupabaseUser extractUserByEmail(String json, String email) {

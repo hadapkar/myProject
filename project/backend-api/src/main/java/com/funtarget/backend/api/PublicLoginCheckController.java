@@ -1,6 +1,8 @@
 package com.funtarget.backend.api;
 
+import com.funtarget.backend.supabase.SupabaseAdminService;
 import com.funtarget.backend.supabase.SupabaseRestService;
+import com.funtarget.backend.supabase.SupabaseUser;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.util.Map;
@@ -15,11 +17,13 @@ import org.springframework.web.bind.annotation.RestController;
 public class PublicLoginCheckController {
 
   private final SupabaseRestService supabaseRest;
+  private final SupabaseAdminService supabaseAdmin;
 
   private static final Pattern USERNAME_PATTERN = Pattern.compile("^[a-z0-9][a-z0-9._-]{2,31}$");
 
-  public PublicLoginCheckController(SupabaseRestService supabaseRest) {
+  public PublicLoginCheckController(SupabaseRestService supabaseRest, SupabaseAdminService supabaseAdmin) {
     this.supabaseRest = supabaseRest;
+    this.supabaseAdmin = supabaseAdmin;
   }
 
   @GetMapping("/login-check")
@@ -78,6 +82,7 @@ public class PublicLoginCheckController {
         !userActive
             ? "user_blocked"
             : (!subscriptionActive ? "subscription_inactive" : "ok");
+    String resolvedEmail = resolveLoginEmail(access, normalized);
 
     return Map.of(
         "allowed",
@@ -85,13 +90,26 @@ public class PublicLoginCheckController {
         "reason",
         reason,
         "email",
-        normalized + "@kingmaker.local",
+        resolvedEmail,
         "username",
         normalized,
         "role",
         role,
         "endsAt",
         endsAtStr);
+  }
+
+  private String resolveLoginEmail(Map<String, Object> access, String username) {
+    String fallback = username + "@kingmaker.local";
+    try {
+      String userId = String.valueOf(access.getOrDefault("user_id", "")).trim();
+      SupabaseUser user = supabaseAdmin.findUserById(userId);
+      if (user != null && user.email() != null && !user.email().isBlank()) {
+        return user.email().trim().toLowerCase();
+      }
+    } catch (Exception ignored) {
+    }
+    return fallback;
   }
 
   private static boolean isExpired(String endsAtStr, Instant now) {

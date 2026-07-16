@@ -105,6 +105,17 @@ class AccountStore {
     );
   }
 
+  static Future<void> removeAccountByRefreshToken(String refreshToken) async {
+    final normalized = refreshToken.trim();
+    if (normalized.isEmpty) return;
+    final accounts = await loadAccounts();
+    await _save(
+      accounts
+          .where((account) => account.refreshToken.trim() != normalized)
+          .toList(growable: false),
+    );
+  }
+
   static Future<void> _save(List<SavedAccount> accounts) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(

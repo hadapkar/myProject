@@ -122,9 +122,14 @@ class _GameScreenState extends State<GameScreen> {
 
   Future<void> _removeCurrentAccountProfile() async {
     final auth = Supabase.instance.client.auth;
-    final email = auth.currentUser?.email ?? auth.currentSession?.user.email ?? "";
+    final session = auth.currentSession;
+    final email = auth.currentUser?.email ?? session?.user.email ?? "";
+    final refreshToken = session?.refreshToken ?? "";
     if (email.trim().isNotEmpty) {
       await AccountStore.removeAccount(email);
+    }
+    if (refreshToken.trim().isNotEmpty) {
+      await AccountStore.removeAccountByRefreshToken(refreshToken);
     }
   }
 
