@@ -23,19 +23,31 @@ Future<void> main() async {
   runApp(const FunTargetApp());
 }
 
-class FunTargetApp extends StatelessWidget {
+class FunTargetApp extends StatefulWidget {
   const FunTargetApp({super.key});
 
   @override
+  State<FunTargetApp> createState() => _FunTargetAppState();
+}
+
+class _FunTargetAppState extends State<FunTargetApp> {
+  late final _router = createAppRouter();
+
+  @override
+  void dispose() {
+    _router.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final router = createAppRouter();
     return MaterialApp.router(
       title: "FunTarget",
       theme: ThemeData(
         brightness: Brightness.dark,
         useMaterial3: true,
       ),
-      routerConfig: router,
+      routerConfig: _router,
     );
   }
 }

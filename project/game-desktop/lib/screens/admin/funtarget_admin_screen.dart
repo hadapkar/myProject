@@ -103,6 +103,7 @@ class _FunTargetAdminScreenState extends State<FunTargetAdminScreen> {
       }
     }
 
+    if (!mounted) return;
     _load();
     _startRealtime();
   }
@@ -113,10 +114,12 @@ class _FunTargetAdminScreenState extends State<FunTargetAdminScreen> {
     _search.dispose();
     _reloadDebounce?.cancel();
     _channel?.unsubscribe();
+    _api.dispose();
     super.dispose();
   }
 
   Future<void> _load() async {
+    if (!mounted) return;
     setState(() {
       _loading = true;
       _error = null;
@@ -133,11 +136,13 @@ class _FunTargetAdminScreenState extends State<FunTargetAdminScreen> {
       final selectedId = (_selected == null ? "" : (_selected!["user_id"] ?? "").toString());
       final defaultId = selectedId.isNotEmpty ? selectedId : (_currentUserId ?? "");
       final selectedRow = _findByIdIn(rows, defaultId);
+      if (!mounted) return;
       setState(() {
         _rows = rows;
         _selected = selectedRow;
       });
     } catch (e) {
+      if (!mounted) return;
       setState(() => _error = e.toString());
     } finally {
       if (mounted) setState(() => _loading = false);

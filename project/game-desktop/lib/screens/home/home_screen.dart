@@ -70,6 +70,12 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  @override
+  void dispose() {
+    _api.dispose();
+    super.dispose();
+  }
+
   String _friendlyBackendMessage(Object error) {
     final text = error.toString();
     if (text.contains("Backend is not responding") ||
@@ -588,14 +594,18 @@ class _AccountSheet extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            for (final account in accounts)
+            for (final entry in accounts.asMap().entries)
               ListTile(
-                leading: ProfileAvatar(initials: _initialsFor(account.username), seed: account.email),
-                title: Text(account.username, maxLines: 1, overflow: TextOverflow.ellipsis),
-                trailing: account.email.toLowerCase() == currentEmail
+                leading: ProfileAvatar(
+                  initials: _initialsFor(entry.value.username),
+                  seed: entry.value.email,
+                  colorIndex: entry.key,
+                ),
+                title: Text(entry.value.username, maxLines: 1, overflow: TextOverflow.ellipsis),
+                trailing: entry.value.email.toLowerCase() == currentEmail
                     ? const Icon(Icons.check, color: Colors.greenAccent)
                     : null,
-                onTap: () => Navigator.of(context).pop(_AccountSheetAction.switchTo(account)),
+                onTap: () => Navigator.of(context).pop(_AccountSheetAction.switchTo(entry.value)),
               ),
             if (accounts.isNotEmpty) const Divider(),
             ListTile(

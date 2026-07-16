@@ -134,6 +134,7 @@ class _GameScreenState extends State<GameScreen> {
   @override
   void dispose() {
     _timer?.cancel();
+    _api.dispose();
     unawaited(_sounds.dispose());
     _restoreMobileOrientation();
     _exitMobileFullscreen();

@@ -23,6 +23,7 @@ class _UserAccessScreenState extends State<UserAccessScreen> {
   @override
   void dispose() {
     _search.dispose();
+    _api.dispose();
     super.dispose();
   }
 
@@ -79,10 +80,12 @@ class _UserAccessScreenState extends State<UserAccessScreen> {
     } catch (_) {
       _allowed = true; // backend still enforces
     }
+    if (!mounted) return;
     await _load();
   }
 
   Future<void> _load({String? keepSelectedUserId}) async {
+    if (!mounted) return;
     setState(() {
       _loading = true;
       _error = null;
@@ -286,9 +289,25 @@ class _UserAccessScreenState extends State<UserAccessScreen> {
                 const SizedBox(height: 12),
               ],
               if (_loading)
-                const Expanded(child: Center(child: CircularProgressIndicator()))
+                Expanded(
+                  child: ListView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    children: const [
+                      SizedBox(height: 180),
+                      Center(child: CircularProgressIndicator()),
+                    ],
+                  ),
+                )
               else if (_rows.isEmpty)
-                const Expanded(child: Center(child: Text("No users found.")))
+                Expanded(
+                  child: ListView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    children: const [
+                      SizedBox(height: 180),
+                      Center(child: Text("No users found.")),
+                    ],
+                  ),
+                )
               else
                 Expanded(
                   child: SingleChildScrollView(

@@ -25,6 +25,11 @@ Color profileColorFor(String seed) {
   return _profileColors[hash % _profileColors.length];
 }
 
+Color profileColorForIndex(int index) {
+  final normalized = index < 0 ? -index : index;
+  return _profileColors[normalized % _profileColors.length];
+}
+
 Color profileForegroundFor(Color background) {
   return ThemeData.estimateBrightnessForColor(background) == Brightness.dark
       ? Colors.white
@@ -34,18 +39,23 @@ Color profileForegroundFor(Color background) {
 class ProfileAvatar extends StatelessWidget {
   final String initials;
   final String seed;
+  final int? colorIndex;
   final double? radius;
 
   const ProfileAvatar({
     super.key,
     required this.initials,
     required this.seed,
+    this.colorIndex,
     this.radius,
   });
 
   @override
   Widget build(BuildContext context) {
-    final background = profileColorFor(seed.isEmpty ? initials : seed);
+    final index = colorIndex;
+    final background = index == null
+        ? profileColorFor(seed.isEmpty ? initials : seed)
+        : profileColorForIndex(index);
     return CircleAvatar(
       radius: radius,
       backgroundColor: background,

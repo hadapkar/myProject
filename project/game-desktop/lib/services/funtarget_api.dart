@@ -7,8 +7,9 @@ import "package:flutter/foundation.dart";
 import "package:supabase_flutter/supabase_flutter.dart";
 
 import "../config/app_config.dart";
-import "funtarget_models.dart";
+import "../storage/account_store.dart";
 import "../storage/session_store.dart";
+import "funtarget_models.dart";
 
 class FunTargetApi {
   static const Duration _timeout = Duration(seconds: 25);
@@ -21,6 +22,10 @@ class FunTargetApi {
 
   String? _cachedSessionId;
   String? _cachedDeviceId;
+
+  void dispose() {
+    _client.close();
+  }
 
   void clearSessionCache() {
     _cachedSessionId = null;
@@ -112,6 +117,7 @@ class FunTargetApi {
         if (!expiry.isAfter(now.add(const Duration(seconds: 30)))) {
           final refreshed = await auth.refreshSession();
           session = refreshed.session ?? auth.currentSession;
+          await _rememberCurrentSession(session);
         }
       }
     }
@@ -400,14 +406,26 @@ class FunTargetApi {
       } on http.ClientException catch (e) {
         if (_isHostLookupError(e)) {
           await _postUri(AppConfig.apiUriWithFallback("/api/session/end"), headers, body);
-        } else {
-          rethrow;
         }
       }
+    } catch (_) {
+      // Backend session cleanup is best-effort. Local sign-out and account
+      // switching must still work when the VM is slow, offline, or restarting.
     } finally {
       clearSessionCache();
       await SessionStore.clearSessionId();
     }
+  }
+
+  Future<void> _rememberCurrentSession(Session? session) async {
+    final email = session?.user.email ?? Supabase.instance.client.auth.currentUser?.email ?? "";
+    final refreshToken = session?.refreshToken ?? "";
+    if (email.trim().isEmpty || refreshToken.trim().isEmpty) return;
+    await AccountStore.upsertAccount(
+      username: email.split("@").first,
+      email: email,
+      refreshToken: refreshToken,
+    );
   }
 
   String _generateDeviceId() {

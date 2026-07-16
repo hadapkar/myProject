@@ -423,11 +423,15 @@ class _LoginAccountSheet extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            for (final account in accounts)
+            for (final entry in accounts.asMap().entries)
               ListTile(
-                leading: ProfileAvatar(initials: _initialsFor(account.username), seed: account.email),
-                title: Text(account.username, maxLines: 1, overflow: TextOverflow.ellipsis),
-                onTap: () => Navigator.of(context).pop(_LoginAccountAction.switchTo(account)),
+                leading: ProfileAvatar(
+                  initials: _initialsFor(entry.value.username),
+                  seed: entry.value.email,
+                  colorIndex: entry.key,
+                ),
+                title: Text(entry.value.username, maxLines: 1, overflow: TextOverflow.ellipsis),
+                onTap: () => Navigator.of(context).pop(_LoginAccountAction.switchTo(entry.value)),
               ),
             const Divider(),
             ListTile(
