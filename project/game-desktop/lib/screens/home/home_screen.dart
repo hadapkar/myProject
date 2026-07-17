@@ -443,8 +443,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         ),
                         if (_roleLoaded && _canManageFunTarget && _mobileApp)
                           _GameTile(
-                            title: "FunTarget Admin",
-                            subtitle: "Manage live users and wheel results",
+                            title: "FunTarget Setting",
                             imageAsset: _funTargetLogo,
                             actionLabel: "Open",
                             onTap: () => context.push("/admin/funtarget"),
@@ -619,8 +618,8 @@ class _FirstTimeGuideDialogState extends State<_FirstTimeGuideDialog> {
         return const [
           _GuideStep(
             icon: Icons.admin_panel_settings_outlined,
-            title: "Open FunTarget Admin",
-            body: "On mobile, use FunTarget Admin to manage assigned players and super players.",
+            title: "Open FunTarget Setting",
+            body: "On mobile, use FunTarget Setting to manage assigned players and super players.",
           ),
           _GuideStep(
             icon: Icons.account_tree_outlined,
@@ -633,7 +632,7 @@ class _FirstTimeGuideDialogState extends State<_FirstTimeGuideDialog> {
           _GuideStep(
             icon: Icons.admin_panel_settings_outlined,
             title: "Manage your record",
-            body: "On mobile, FunTarget Admin opens for your own game record only.",
+            body: "On mobile, FunTarget Setting opens for your own game record only.",
           ),
           _GuideStep(
             icon: Icons.person_outline,
@@ -1188,7 +1187,7 @@ class _GameTile extends StatelessWidget {
 
   const _GameTile({
     required this.title,
-    required this.subtitle,
+    this.subtitle = "",
     required this.imageAsset,
     required this.onTap,
     this.actionLabel = "Play",
@@ -1233,13 +1232,15 @@ class _GameTile extends StatelessWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
-                    const SizedBox(height: 6),
-                    Text(
-                      subtitle,
-                      style: const TextStyle(color: Colors.white70),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
+                    if (subtitle.trim().isNotEmpty) ...[
+                      const SizedBox(height: 6),
+                      Text(
+                        subtitle,
+                        style: const TextStyle(color: Colors.white70),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
                     const SizedBox(height: 10),
                     Row(
                       children: [

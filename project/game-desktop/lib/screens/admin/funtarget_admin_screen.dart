@@ -75,7 +75,7 @@ class _FunTargetAdminScreenState extends State<FunTargetAdminScreen> {
           barrierDismissible: false,
           builder: (context) => AlertDialog(
             title: const Text("Manager access required"),
-            content: const Text("You do not have access to FunTarget Admin."),
+            content: const Text("You do not have access to FunTarget Setting."),
             actions: [
               FilledButton(
                 onPressed: () => Navigator.of(context).pop(),
@@ -254,7 +254,7 @@ class _FunTargetAdminScreenState extends State<FunTargetAdminScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFF0B1220),
       appBar: AppBar(
-        title: const Text("FunTarget Admin"),
+        title: const Text("FunTarget Setting"),
         actions: [
           IconButton(
             onPressed: _isRefreshDisabled ? null : _load,
