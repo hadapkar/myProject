@@ -58,7 +58,7 @@ public class SupabaseRestService {
       return existing;
     }
 
-    upsertFunTargetState(accessToken, List.of(Map.of("user_id", userId)));
+    upsertFunTargetState(accessToken, List.of(Map.of("user_id", userId, "score", 0)));
     Map<String, Object> created = tryGetFunTargetState(accessToken, userId);
     if (created == null) {
       throw new IllegalStateException("Unable to create fun_target_state row");
@@ -201,7 +201,7 @@ public class SupabaseRestService {
         .header("apikey", props.serviceRoleKey())
         .header(HttpHeaders.AUTHORIZATION, "Bearer " + props.serviceRoleKey())
         .header("Prefer", "resolution=merge-duplicates,return=representation")
-        .body(List.of(Map.of("user_id", targetUserId)))
+        .body(List.of(Map.of("user_id", targetUserId, "score", 0)))
         .retrieve()
         .toBodilessEntity();
   }
