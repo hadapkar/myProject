@@ -352,7 +352,6 @@ class _LoginScreenState extends State<LoginScreen> {
                   child: _LoginProfileButton(
                     initials: initials,
                     colorSeed: profileAccount?.email ?? initials,
-                    colorIndex: 0,
                     onPressed: _openAccountMenu,
                   ),
                 ),
@@ -485,13 +484,11 @@ String _initialsFor(String value) {
 class _LoginProfileButton extends StatelessWidget {
   final String initials;
   final String colorSeed;
-  final int colorIndex;
   final VoidCallback onPressed;
 
   const _LoginProfileButton({
     required this.initials,
     required this.colorSeed,
-    required this.colorIndex,
     required this.onPressed,
   });
 
@@ -500,7 +497,7 @@ class _LoginProfileButton extends StatelessWidget {
     return InkWell(
       onTap: onPressed,
       customBorder: const CircleBorder(),
-      child: ProfileAvatar(initials: initials, seed: colorSeed, colorIndex: colorIndex),
+      child: ProfileAvatar(initials: initials, seed: colorSeed),
     );
   }
 }
@@ -532,7 +529,6 @@ class _LoginAccountSheet extends StatelessWidget {
                 leading: ProfileAvatar(
                   initials: _initialsFor(entry.value.username),
                   seed: entry.value.email,
-                  colorIndex: entry.key,
                 ),
                 title: Text(entry.value.username, maxLines: 1, overflow: TextOverflow.ellipsis),
                 onTap: () => Navigator.of(context).pop(_LoginAccountAction.switchTo(entry.value)),
