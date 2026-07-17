@@ -42,7 +42,7 @@ Future<void> downloadAndInstallPlatform({
 
     await Process.start(
       "cmd.exe",
-      ["/c", scriptPath],
+      ["/d", "/c", scriptPath],
       mode: ProcessStartMode.detached,
       workingDirectory: tempDir.path,
     );
@@ -124,21 +124,34 @@ String _buildWindowsUpdateScript({
 @echo off
 setlocal enabledelayedexpansion
 
-REM Wait briefly for the app to exit.
-ping 127.0.0.1 -n 3 >nul
+REM Wait for the Flutter process to release DLL/exe handles.
+ping 127.0.0.1 -n 4 >nul
 
-REM Copy new build over existing folder.
-xcopy /E /I /Y "$f\\*" "$t\\" >nul
-if errorlevel 1 (
-  echo Update copy failed. Please reinstall from the latest release.
-  exit /b 1
+set "FROM=$f"
+set "TO=$t"
+set "EXE=$exeName"
+set "TEMP_UPDATE_DIR=$tmp"
+set "LOG=%TEMP_UPDATE_DIR%\apply_update.log"
+
+REM Mirror the extracted release into the current app folder. Robocopy returns
+REM 0-7 for success/copy-with-differences and 8+ for failures.
+robocopy "%FROM%" "%TO%" /E /R:8 /W:2 /NFL /NDL /NP /NJH /NJS > "%LOG%" 2>&1
+set "RC=%ERRORLEVEL%"
+if %RC% GEQ 8 (
+  start notepad "%LOG%"
+  exit /b %RC%
 )
 
-REM Restart the app.
-start "" "$t\\$exeName"
+REM Clear Windows downloaded-file blocking metadata where present.
+powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "Get-ChildItem -LiteralPath ''%TO%'' -Recurse -File | Unblock-File -ErrorAction SilentlyContinue" >nul 2>&1
 
-REM Cleanup temp directory.
-rmdir /S /Q "$tmp" >nul 2>&1
+REM Restart the updated app from its existing folder so local app data/session
+REM storage remains attached to the same app identity.
+start "" /D "%TO%" "%TO%\%EXE%"
+
+REM Cleanup temp directory after restart has been requested.
+ping 127.0.0.1 -n 3 >nul
+rmdir /S /Q "%TEMP_UPDATE_DIR%" >nul 2>&1
 
 endlocal
 exit /b 0

@@ -35,6 +35,7 @@ class UpdateState {
   UpdateState copyWith({
     bool? checking,
     UpdateInfo? available,
+    bool clearAvailable = false,
     String? error,
     bool clearError = false,
     bool? installing,
@@ -42,7 +43,7 @@ class UpdateState {
   }) {
     return UpdateState(
       checking: checking ?? this.checking,
-      available: available ?? this.available,
+      available: clearAvailable ? null : (available ?? this.available),
       error: clearError ? null : (error ?? this.error),
       installing: installing ?? this.installing,
       progress01: progress01 ?? this.progress01,
@@ -52,7 +53,8 @@ class UpdateState {
 
 /// GitHub Releases updater (Windows).
 ///
-/// Source of truth is the latest GitHub Release asset named `King Maker.zip`.
+/// Source of truth is the newest SemVer GitHub Release that contains
+/// a Windows zip asset named `King Maker.zip`.
 class UpdateService {
   static final UpdateService instance = UpdateService._();
   UpdateService._();
@@ -87,10 +89,10 @@ class UpdateService {
         if (cur != null && next != null && next.compareTo(cur) > 0) {
           state.value = state.value.copyWith(checking: false, available: latest);
         } else {
-          state.value = state.value.copyWith(checking: false, available: null);
+          state.value = state.value.copyWith(checking: false, clearAvailable: true);
         }
       } catch (e) {
-        state.value = state.value.copyWith(checking: false, error: _friendlyUpdateError(e));
+        state.value = state.value.copyWith(checking: false, clearAvailable: true, error: _friendlyUpdateError(e));
       }
     });
   }
@@ -116,36 +118,50 @@ class UpdateService {
   }
 
   Future<UpdateInfo> _fetchLatest() async {
-    final uri = Uri.parse("https://api.github.com/repos/$_owner/$_repo/releases/latest");
-    final res = await http.get(uri, headers: {"User-Agent": "FunTarget"});
+    final uri = Uri.parse("https://api.github.com/repos/$_owner/$_repo/releases?per_page=50");
+    final res = await http.get(uri, headers: {"User-Agent": "KingMaker-Windows"});
     if (res.statusCode < 200 || res.statusCode >= 300) {
       throw StateError("Update check failed: ${res.statusCode}");
     }
     final json = jsonDecode(res.body);
-    if (json is! Map) throw StateError("Invalid release JSON");
+    if (json is! List) throw StateError("Invalid release JSON");
 
-    final tag = (json["tag_name"] ?? "").toString().trim();
-    if (tag.isEmpty) throw StateError("Missing tag_name");
+    UpdateInfo? best;
+    _SemVer? bestVersion;
+    for (final release in json) {
+      if (release is! Map) continue;
+      if (release["draft"] == true || release["prerelease"] == true) continue;
 
-    final assets = json["assets"];
-    if (assets is! List) throw StateError("Missing assets");
+      final tag = (release["tag_name"] ?? "").toString().trim();
+      final version = _SemVer.tryParse(_stripV(tag));
+      if (tag.isEmpty || version == null) continue;
 
-    final foundNames = <String>[];
-    for (final a in assets) {
-      if (a is! Map) continue;
-      final name = (a["name"] ?? "").toString();
-      if (name.isNotEmpty) foundNames.add(name);
+      final assetUrl = _findWindowsAssetUrl(release["assets"]);
+      if (assetUrl == null) continue;
+
+      if (bestVersion == null || version.compareTo(bestVersion) > 0) {
+        bestVersion = version;
+        best = UpdateInfo(latestTag: tag, downloadUrl: assetUrl);
+      }
+    }
+
+    if (best != null) return best;
+    throw StateError("No Windows update package found. Please try again after the next Windows release is published.");
+  }
+
+  Uri? _findWindowsAssetUrl(Object? assets) {
+    if (assets is! List) return null;
+    for (final asset in assets) {
+      if (asset is! Map) continue;
+      final name = (asset["name"] ?? "").toString();
       if (!_assetNames.contains(name)) continue;
-      final url = (a["browser_download_url"] ?? "").toString();
+      final url = (asset["browser_download_url"] ?? "").toString();
       if (url.isEmpty) continue;
       final parsed = Uri.tryParse(url);
       if (parsed == null || parsed.scheme != "https") continue;
-      return UpdateInfo(latestTag: tag, downloadUrl: parsed);
+      return parsed;
     }
-
-    throw StateError(
-      "Release asset not found. Expected one of: ${_assetNames.join(', ')}. Found: ${foundNames.join(', ')}",
-    );
+    return null;
   }
 }
 

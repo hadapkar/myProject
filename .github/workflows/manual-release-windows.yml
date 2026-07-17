@@ -4,8 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "SemVer tag (e.g. v0.2.0)"
-        required: true
+        description: "SemVer tag (optional, e.g. v1.2.5). Leave blank to auto-bump latest Windows release."
+        required: false
+        default: ""
 
 permissions:
   contents: write
@@ -21,16 +22,40 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Validate version input
+      - name: Resolve release version
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
           VERSION="${{ inputs.version }}"
+          if [ -z "$VERSION" ]; then
+            TAGS="$(gh release list --repo "${{ github.repository }}" --limit 100 --json tagName,isDraft,isPrerelease \
+              --jq '.[] | select(.isDraft == false and .isPrerelease == false) | .tagName')"
+            BEST_MAJOR=1
+            BEST_MINOR=2
+            BEST_PATCH=4
+            while IFS= read -r TAG; do
+              if [[ "$TAG" =~ ^v([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
+                MAJOR="${BASH_REMATCH[1]}"
+                MINOR="${BASH_REMATCH[2]}"
+                PATCH="${BASH_REMATCH[3]}"
+                if (( MAJOR > BEST_MAJOR || \
+                      (MAJOR == BEST_MAJOR && MINOR > BEST_MINOR) || \
+                      (MAJOR == BEST_MAJOR && MINOR == BEST_MINOR && PATCH > BEST_PATCH) )); then
+                  BEST_MAJOR="$MAJOR"
+                  BEST_MINOR="$MINOR"
+                  BEST_PATCH="$PATCH"
+                fi
+              fi
+            done <<< "$TAGS"
+            VERSION="v${BEST_MAJOR}.${BEST_MINOR}.$((BEST_PATCH + 1))"
+          fi
           if [[ ! "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
             echo "Invalid version: $VERSION (expected vMAJOR.MINOR.PATCH)" >&2
             exit 1
           fi
           echo "VERSION=$VERSION" >> "$GITHUB_ENV"
-
+          echo "Windows release version: $VERSION"
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
