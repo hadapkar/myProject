@@ -128,13 +128,22 @@ class _AndroidUpdateDialogState extends State<_AndroidUpdateDialog> {
 
   String _friendlyUpdateError(Object error) {
     final text = error.toString().replaceFirst("Bad state: ", "");
+    final lower = text.toLowerCase();
     if (text.contains("Network connection interrupted") ||
         text.contains("Connection closed") ||
         text.contains("timed out") ||
         text.contains("incomplete")) {
       return "Download interrupted. Tap retry to continue.";
     }
-    return text;
+    if (lower.contains("github") ||
+        lower.contains("release-assets") ||
+        lower.contains("clientexception") ||
+        lower.contains("socketexception")) {
+      return "Update failed. Tap retry to continue.";
+    }
+    return text
+        .replaceAll(RegExp(r"https?:\/\/\S+"), "[download link]")
+        .replaceAll(RegExp(r"uri=\S+"), "uri=[download link]");
   }
 
   @override

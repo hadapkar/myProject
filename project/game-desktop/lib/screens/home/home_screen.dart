@@ -468,12 +468,12 @@ class _HomeScreenState extends State<HomeScreen> {
 
   List<Widget> _wideActions(String email) {
     return [
-      if (_roleLoaded && _isAdmin)
+      if (!_desktopUpdatesSupported && _roleLoaded && _isAdmin)
         TextButton(
           onPressed: _openCreateUserDialog,
           child: const Text("Create User"),
         ),
-      if (_roleLoaded && _isAdmin)
+      if (!_desktopUpdatesSupported && _roleLoaded && _isAdmin)
         TextButton(
           onPressed: _openUserAccessDashboard,
           child: const Text("Subscriptions"),
@@ -496,20 +496,21 @@ class _HomeScreenState extends State<HomeScreen> {
         onPressed: _roleLoaded ? _openGuide : null,
         icon: const Icon(Icons.help_outline),
       ),
-      Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 240),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            child: Text(
-              email,
-              style: const TextStyle(color: Colors.white70),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
+      if (!_desktopUpdatesSupported)
+        Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 240),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              child: Text(
+                email,
+                style: const TextStyle(color: Colors.white70),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
             ),
           ),
         ),
-      ),
       TextButton.icon(
         onPressed: _signOut,
         icon: const Icon(Icons.logout),
@@ -525,12 +526,12 @@ class _HomeScreenState extends State<HomeScreen> {
         tooltip: "Menu",
         onSelected: (value) => unawaited(_handleMenuAction(value)),
         itemBuilder: (context) => [
-          if (_roleLoaded && _isAdmin)
+          if (!_desktopUpdatesSupported && _roleLoaded && _isAdmin)
             const PopupMenuItem(
               value: _HomeMenuAction.createUser,
               child: Text("Create User"),
             ),
-          if (_roleLoaded && _isAdmin)
+          if (!_desktopUpdatesSupported && _roleLoaded && _isAdmin)
             const PopupMenuItem(
               value: _HomeMenuAction.subscriptions,
               child: Text("Subscriptions"),

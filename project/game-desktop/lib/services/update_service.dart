@@ -90,7 +90,7 @@ class UpdateService {
           state.value = state.value.copyWith(checking: false, available: null);
         }
       } catch (e) {
-        state.value = state.value.copyWith(checking: false, error: e.toString());
+        state.value = state.value.copyWith(checking: false, error: _friendlyUpdateError(e));
       }
     });
   }
@@ -111,7 +111,7 @@ class UpdateService {
       // If the platform installer returns, it means it decided not to restart.
       state.value = state.value.copyWith(installing: false, progress01: null);
     } catch (e) {
-      state.value = state.value.copyWith(installing: false, progress01: null, error: e.toString());
+      state.value = state.value.copyWith(installing: false, progress01: null, error: _friendlyUpdateError(e));
     }
   }
 
@@ -147,6 +147,24 @@ class UpdateService {
       "Release asset not found. Expected one of: ${_assetNames.join(', ')}. Found: ${foundNames.join(', ')}",
     );
   }
+}
+
+String _friendlyUpdateError(Object error) {
+  final raw = error.toString().replaceFirst("Bad state: ", "");
+  final lower = raw.toLowerCase();
+  if (lower.contains("github") ||
+      lower.contains("release-assets") ||
+      lower.contains("clientexception") ||
+      lower.contains("socketexception") ||
+      lower.contains("httpexception")) {
+    return "Update download failed. Please retry.";
+  }
+
+  final redacted = raw
+      .replaceAll(RegExp(r"https?:\/\/\S+"), "[download link]")
+      .replaceAll(RegExp(r"uri=\S+"), "uri=[download link]")
+      .trim();
+  return redacted.isEmpty ? "Update failed. Please retry." : redacted;
 }
 
 String _stripV(String v) => v.startsWith("v") ? v.substring(1) : v;
