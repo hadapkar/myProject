@@ -729,29 +729,30 @@ class _ParentDropdown extends StatelessWidget {
   Widget build(BuildContext context) {
     final ids = options.map((row) => (row["user_id"] ?? "").toString()).toSet();
     final dropdownValue = value.isEmpty || ids.contains(value) ? value : "__missing_parent__";
+    final items = <DropdownMenuItem<String>>[
+      const DropdownMenuItem<String>(value: "", child: Text("No parent")),
+      if (dropdownValue == "__missing_parent__")
+        DropdownMenuItem<String>(value: "__missing_parent__", child: Text(fallbackLabel)),
+      ...options.map((row) {
+        final userId = (row["user_id"] ?? "").toString();
+        final username = (row["username"] ?? "").toString();
+        return DropdownMenuItem<String>(
+          value: userId,
+          child: Text(username.isEmpty ? userId : username, maxLines: 1, overflow: TextOverflow.ellipsis),
+        );
+      }),
+    ];
     return DropdownButtonFormField<String>(
       value: dropdownValue,
       isExpanded: true,
       decoration: const InputDecoration(labelText: "Parent user"),
       dropdownColor: const Color(0xFF111827),
-      items: [
-        const DropdownMenuItem(value: "", child: Text("No parent")),
-        if (dropdownValue == "__missing_parent__")
-          DropdownMenuItem(value: "__missing_parent__", child: Text(fallbackLabel)),
-        ...options.map((row) {
-          final userId = (row["user_id"] ?? "").toString();
-          final username = (row["username"] ?? "").toString();
-          return DropdownMenuItem<String>(
-            value: userId,
-            child: Text(username.isEmpty ? userId : username, maxLines: 1, overflow: TextOverflow.ellipsis),
-          );
-        }),
-      ],
+      items: items,
       onChanged: onChanged == null
           ? null
-          : (value) {
-              if (value == null || value == "__missing_parent__" || value == this.value) return;
-              onChanged!(value);
+          : (selectedValue) {
+              if (selectedValue == null || selectedValue == "__missing_parent__" || selectedValue == value) return;
+              onChanged!(selectedValue);
             },
     );
   }
