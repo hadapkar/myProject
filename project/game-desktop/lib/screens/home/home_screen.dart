@@ -657,7 +657,7 @@ class _CreateUserDialogState extends State<_CreateUserDialog> {
           if (item is Map) rows.add(Map<String, dynamic>.from(item));
         }
       }
-      rows.sort((a, b) => _username(a).compareTo(_username(b)));
+      rows.sort((a, b) => _usernameFromRow(a).compareTo(_usernameFromRow(b)));
       if (!mounted) return;
       setState(() {
         _parentRows = rows.where(_canBeParent).toList(growable: false);
@@ -681,7 +681,7 @@ class _CreateUserDialogState extends State<_CreateUserDialog> {
     return role == "ADMIN" || role == "MANAGER" || role == "SUPER_PLAYER" ? role : "PLAYER";
   }
 
-  String _username(Map<String, dynamic> row) => (row["username"] ?? "").toString();
+  String _usernameFromRow(Map<String, dynamic> row) => (row["username"] ?? "").toString();
 
   @override
   void dispose() {
@@ -788,7 +788,7 @@ class _CreateUserDialogState extends State<_CreateUserDialog> {
                   ..._parentOptions.map(
                     (row) => DropdownMenuItem<String>(
                       value: (row["user_id"] ?? "").toString(),
-                      child: Text(_username(row), maxLines: 1, overflow: TextOverflow.ellipsis),
+                      child: Text(_usernameFromRow(row), maxLines: 1, overflow: TextOverflow.ellipsis),
                     ),
                   ),
                 ],
