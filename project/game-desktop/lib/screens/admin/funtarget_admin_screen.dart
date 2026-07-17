@@ -52,6 +52,7 @@ class _FunTargetAdminScreenState extends State<FunTargetAdminScreen> {
   final TextEditingController _search = TextEditingController();
   bool _isSaving = false;
   bool _isWheelSaving = false;
+  bool _predefinedExpanded = false;
 
   RealtimeChannel? _channel;
   Timer? _reloadDebounce;
@@ -374,31 +375,53 @@ class _FunTargetAdminScreenState extends State<FunTargetAdminScreen> {
     final selectedValue = selected == null ? null : selected["predefined_wheel_number"];
     final selectedInt = selectedValue == null ? null : int.tryParse(selectedValue.toString());
     final disabled = selected == null || _isRefreshDisabled;
+    final selectedText = selectedInt == null ? "Not set" : "Selected: $selectedInt";
     return _card(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text("Predefined Wheel Number", style: TextStyle(color: Colors.white70)),
-              TextButton(
-                onPressed: disabled || selectedInt == null ? null : () async {
-                  setState(() => _isWheelSaving = true);
-                  try {
-                    await _patchSelected(clearPredef: true);
-                  } finally {
-                    if (mounted) setState(() => _isWheelSaving = false);
-                  }
-                },
+          InkWell(
+            borderRadius: BorderRadius.circular(8),
+            onTap: () => setState(() => _predefinedExpanded = !_predefinedExpanded),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              child: Row(
+                children: [
+                  const Expanded(
+                    child: Text("Predefined Wheel Number", style: TextStyle(color: Colors.white70)),
+                  ),
+                  Text(selectedText, style: const TextStyle(color: Colors.white54)),
+                  const SizedBox(width: 8),
+                  Icon(
+                    _predefinedExpanded ? Icons.expand_less : Icons.expand_more,
+                    color: Colors.white70,
+                  ),
+                ],
+              ),
+            ),
+          ),
+          if (_predefinedExpanded) ...[
+            const SizedBox(height: 8),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton(
+                onPressed: disabled || selectedInt == null
+                    ? null
+                    : () async {
+                        setState(() => _isWheelSaving = true);
+                        try {
+                          await _patchSelected(clearPredef: true);
+                        } finally {
+                          if (mounted) setState(() => _isWheelSaving = false);
+                        }
+                      },
                 child: const Text("Reset"),
               ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          _wheelRow([1, 2, 3, 4, 5], selectedInt, disabled),
-          const SizedBox(height: 8),
-          _wheelRow([6, 7, 8, 9, 0], selectedInt, disabled),
+            ),
+            _wheelRow([1, 2, 3, 4, 5], selectedInt, disabled),
+            const SizedBox(height: 8),
+            _wheelRow([6, 7, 8, 9, 0], selectedInt, disabled),
+          ],
         ],
       ),
     );
