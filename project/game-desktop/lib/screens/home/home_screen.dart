@@ -350,10 +350,7 @@ class _HomeScreenState extends State<HomeScreen> {
     if (!mounted || !_roleLoaded || _homeError != null || _guideOpen) return;
     if (!(ModalRoute.of(context)?.isCurrent ?? false)) return;
 
-    final user = Supabase.instance.client.auth.currentUser;
-    final accountKey = (user?.email ?? user?.id ?? "").trim().toLowerCase();
-    if (accountKey.isEmpty) return;
-    final key = "kingmaker.firstGuide.v1.$accountKey.$_role";
+    const key = "kingmaker.firstGuide.v2.device";
     final prefs = await SharedPreferences.getInstance();
     if (prefs.getBool(key) == true) return;
     if (!mounted || !(ModalRoute.of(context)?.isCurrent ?? false) || _guideOpen) return;
@@ -560,13 +557,33 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 }
 
-class _FirstTimeGuideDialog extends StatelessWidget {
+class _FirstTimeGuideDialog extends StatefulWidget {
   final String role;
 
   const _FirstTimeGuideDialog({required this.role});
 
+  @override
+  State<_FirstTimeGuideDialog> createState() => _FirstTimeGuideDialogState();
+}
+
+class _FirstTimeGuideDialogState extends State<_FirstTimeGuideDialog> {
+  late final PageController _controller;
+  int _index = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = PageController();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
   String get _roleLabel {
-    switch (role) {
+    switch (widget.role) {
       case "ADMIN":
         return "Admin";
       case "MANAGER":
@@ -578,100 +595,233 @@ class _FirstTimeGuideDialog extends StatelessWidget {
     }
   }
 
-  List<_GuideLine> get _roleLines {
-    switch (role) {
+  List<_GuideStep> get _roleSteps {
+    switch (widget.role) {
       case "ADMIN":
         return const [
-          _GuideLine(Icons.group_add_outlined, "Create users from the menu."),
-          _GuideLine(
-            Icons.manage_accounts_outlined,
-            "Use Subscriptions to edit access, role, parent user, dates, passwords, and deletion.",
+          _GuideStep(
+            icon: Icons.group_add_outlined,
+            title: "Create users",
+            body: "Open the menu and choose Create User to add Player, Super Player, Manager, or Admin accounts.",
           ),
-          _GuideLine(Icons.public, "Admins can see all users."),
+          _GuideStep(
+            icon: Icons.manage_accounts_outlined,
+            title: "Manage subscriptions",
+            body: "Use Subscriptions to update access status, role, parent user, end date, username, password, or delete non-admin users.",
+          ),
+          _GuideStep(
+            icon: Icons.public,
+            title: "Full visibility",
+            body: "Admins can see all users and can manage the complete hierarchy.",
+          ),
         ];
       case "MANAGER":
         return const [
-          _GuideLine(
-            Icons.admin_panel_settings_outlined,
-            "On mobile, open FunTarget Admin to manage assigned players and super players.",
+          _GuideStep(
+            icon: Icons.admin_panel_settings_outlined,
+            title: "Open FunTarget Admin",
+            body: "On mobile, use FunTarget Admin to manage assigned players and super players.",
           ),
-          _GuideLine(Icons.account_tree_outlined, "Your user selector shows users under your parent hierarchy only."),
+          _GuideStep(
+            icon: Icons.account_tree_outlined,
+            title: "Hierarchy based users",
+            body: "Your user selector shows only users assigned under your parent hierarchy, so another manager's users stay separate.",
+          ),
         ];
       case "SUPER_PLAYER":
         return const [
-          _GuideLine(
-            Icons.admin_panel_settings_outlined,
-            "On mobile, open FunTarget Admin for your own game record.",
+          _GuideStep(
+            icon: Icons.admin_panel_settings_outlined,
+            title: "Manage your record",
+            body: "On mobile, FunTarget Admin opens for your own game record only.",
           ),
-          _GuideLine(Icons.person_outline, "No user selector is shown because this role manages only itself."),
+          _GuideStep(
+            icon: Icons.person_outline,
+            title: "No user selector",
+            body: "Super Player access does not show a user selector because this role can manage only itself.",
+          ),
         ];
       default:
         return const [
-          _GuideLine(Icons.home_outlined, "Your home shows the FunTarget game tile."),
-          _GuideLine(Icons.logout, "Use the menu to sign out when finished."),
+          _GuideStep(
+            icon: Icons.home_outlined,
+            title: "Player home",
+            body: "Your Home page shows the FunTarget game tile and account menu.",
+          ),
+          _GuideStep(
+            icon: Icons.logout,
+            title: "Sign out",
+            body: "Use the menu to sign out when you finish playing on this device.",
+          ),
         ];
     }
   }
 
+  List<_GuideStep> get _steps => [
+        _GuideStep(
+          icon: Icons.verified_user_outlined,
+          title: "Welcome",
+          body: "This walkthrough is customized for your current access: $_roleLabel.",
+        ),
+        const _GuideStep(
+          icon: Icons.sports_esports_outlined,
+          title: "Play FunTarget",
+          body: "Tap the FunTarget tile on Home to open the game. On mobile, the game opens in landscape fullscreen.",
+        ),
+        ..._roleSteps,
+        const _GuideStep(
+          icon: Icons.account_circle_outlined,
+          title: "Use multiple accounts",
+          body: "From Home, tap the profile circle to switch saved accounts or choose Login to new account on the same app.",
+        ),
+        const _GuideStep(
+          icon: Icons.swipe_vertical_outlined,
+          title: "Quick account switch",
+          body: "Swipe the profile circle up or down to move between saved accounts in order.",
+        ),
+        const _GuideStep(
+          icon: Icons.refresh,
+          title: "Refresh data",
+          body: "Pull down on supported pages to refresh. Existing refresh buttons are still available where shown.",
+        ),
+      ];
+
+  Future<void> _goTo(int index) async {
+    await _controller.animateToPage(
+      index,
+      duration: const Duration(milliseconds: 220),
+      curve: Curves.easeOut,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final lines = [
-      _GuideLine(Icons.verified_user_outlined, "Access: $_roleLabel"),
-      const _GuideLine(Icons.sports_esports_outlined, "Tap FunTarget to play."),
-      ..._roleLines,
-      const _GuideLine(
-        Icons.account_circle_outlined,
-        "From Home, tap the profile circle to switch accounts or login to a new account on the same app.",
-      ),
-      const _GuideLine(
-        Icons.swipe_vertical_outlined,
-        "Swipe the profile circle up or down to switch saved accounts quickly.",
-      ),
-      const _GuideLine(Icons.refresh, "Pull down on supported pages to refresh."),
-    ];
+    final steps = _steps;
+    final isFirst = _index == 0;
+    final isLast = _index == steps.length - 1;
+    final screenHeight = MediaQuery.sizeOf(context).height;
+    final maxHeight = screenHeight < 520 ? 260.0 : (screenHeight < 680 ? 340.0 : 400.0);
 
     return AlertDialog(
-      title: const Text("Quick guide"),
+      title: const Text("Walkthrough"),
       content: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 460),
-        child: SingleChildScrollView(
+        constraints: const BoxConstraints(maxWidth: 480),
+        child: SizedBox(
+          height: maxHeight,
           child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text("This guide is based on your current access."),
-              const SizedBox(height: 14),
-              for (final line in lines)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Icon(line.icon, size: 20, color: Colors.deepPurpleAccent.shade100),
-                      const SizedBox(width: 12),
-                      Expanded(child: Text(line.text)),
-                    ],
+              Expanded(
+                child: PageView.builder(
+                  controller: _controller,
+                  itemCount: steps.length,
+                  onPageChanged: (value) => setState(() => _index = value),
+                  itemBuilder: (context, index) => _GuideStepCard(
+                    step: steps[index],
+                    index: index,
+                    total: steps.length,
                   ),
                 ),
+              ),
+              const SizedBox(height: 14),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  for (var i = 0; i < steps.length; i++)
+                    AnimatedContainer(
+                      duration: const Duration(milliseconds: 180),
+                      width: i == _index ? 18 : 7,
+                      height: 7,
+                      margin: const EdgeInsets.symmetric(horizontal: 3),
+                      decoration: BoxDecoration(
+                        color: i == _index ? Colors.deepPurpleAccent.shade100 : Colors.white24,
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                    ),
+                ],
+              ),
             ],
           ),
         ),
       ),
       actions: [
-        FilledButton(
+        TextButton(
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text("Got it"),
+          child: Text(isLast ? "Close" : "Skip"),
+        ),
+        TextButton(
+          onPressed: isFirst ? null : () => _goTo(_index - 1),
+          child: const Text("Back"),
+        ),
+        FilledButton(
+          onPressed: isLast ? () => Navigator.of(context).pop() : () => _goTo(_index + 1),
+          child: Text(isLast ? "Done" : "Next"),
         ),
       ],
     );
   }
 }
 
-class _GuideLine {
-  final IconData icon;
-  final String text;
+class _GuideStepCard extends StatelessWidget {
+  final _GuideStep step;
+  final int index;
+  final int total;
 
-  const _GuideLine(this.icon, this.text);
+  const _GuideStepCard({required this.step, required this.index, required this.total});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: const Color(0xFF111827),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white12),
+      ),
+      child: SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 52,
+                  height: 52,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF6D5DF6).withOpacity(0.18),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Icon(step.icon, color: Colors.deepPurpleAccent.shade100, size: 28),
+                ),
+                const Spacer(),
+                Text(
+                  "${index + 1} / $total",
+                  style: const TextStyle(color: Colors.white54, fontSize: 12),
+                ),
+              ],
+            ),
+            const SizedBox(height: 22),
+            Text(
+              step.title,
+              style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              step.body,
+              style: const TextStyle(color: Colors.white70, height: 1.35),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _GuideStep {
+  final IconData icon;
+  final String title;
+  final String body;
+
+  const _GuideStep({required this.icon, required this.title, required this.body});
 }
 
 class _HomeErrorBanner extends StatelessWidget {
