@@ -140,15 +140,6 @@ public class AdminFunTargetController {
       return List.of(withUserAccess(stateByUserId.get(callerUserId), callerUserId, access));
     }
 
-    Set<String> adminUserIds = new HashSet<>();
-    List<Map<String, Object>> adminRows = supabaseRest.listAdminUsersServiceRole();
-    if (adminRows != null) {
-      for (Map<String, Object> admin : adminRows) {
-        String userId = String.valueOf(admin.getOrDefault("user_id", ""));
-        if (!userId.isBlank()) adminUserIds.add(userId);
-      }
-    }
-
     List<Map<String, Object>> visible = new ArrayList<>();
     Set<String> emitted = new HashSet<>();
     if (accessRows != null) {
@@ -161,7 +152,7 @@ public class AdminFunTargetController {
         boolean isCaller = userId.equals(callerUserId);
         if ("MANAGER".equals(callerRole)
             && !isCaller
-            && (adminUserIds.contains(userId) || !"PLAYER".equals(role) || !callerUserId.equals(parentUserId))) {
+            && (!canManagerManageTargetRole(role) || !callerUserId.equals(parentUserId))) {
           continue;
         }
         visible.add(withUserAccess(stateByUserId.get(userId), userId, access));
@@ -239,12 +230,9 @@ public class AdminFunTargetController {
     if ("SUPER_PLAYER".equals(callerRole)) {
       throw new AccessDeniedException("Forbidden");
     }
-    if (supabaseRest.isAdminServiceRole(targetUserId)) {
-      throw new AccessDeniedException("Forbidden");
-    }
     Map<String, Object> access = supabaseRest.getUserAccessByUserIdServiceRole(targetUserId);
     String targetRole = SupabaseRestService.normalizeUserRole(access == null ? null : access.get("role"));
-    if (!"PLAYER".equals(targetRole)) {
+    if (!canManagerManageTargetRole(targetRole)) {
       throw new AccessDeniedException("Forbidden");
     }
     if ("MANAGER".equals(callerRole)) {
@@ -257,6 +245,10 @@ public class AdminFunTargetController {
 
   private static boolean canManageFunTarget(String role) {
     return "ADMIN".equals(role) || "MANAGER".equals(role) || "SUPER_PLAYER".equals(role);
+  }
+
+  private static boolean canManagerManageTargetRole(String role) {
+    return "PLAYER".equals(role) || "SUPER_PLAYER".equals(role);
   }
 
   private static double toDouble(Object value, double defaultValue) {
