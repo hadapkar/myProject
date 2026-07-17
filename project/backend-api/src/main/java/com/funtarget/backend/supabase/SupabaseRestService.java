@@ -2,6 +2,7 @@ package com.funtarget.backend.supabase;
 
 import java.net.http.HttpClient;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -283,7 +284,7 @@ public class SupabaseRestService {
               uriBuilder ->
                   uriBuilder
                       .path("/user_access")
-                      .queryParam("select", "user_id,username,role,status,ends_at")
+                      .queryParam("select", "user_id,username,role,status,ends_at,parent_user_id")
                       .queryParam("user_id", "eq." + userId)
                       .build())
           .header("apikey", props.anonKey())
@@ -308,7 +309,7 @@ public class SupabaseRestService {
               uriBuilder ->
                   uriBuilder
                       .path("/user_access")
-                      .queryParam("select", "user_id,username,role,status,ends_at")
+                      .queryParam("select", "user_id,username,role,status,ends_at,parent_user_id")
                       .queryParam("username", "eq." + username)
                       .build())
           .header("apikey", props.serviceRoleKey())
@@ -333,7 +334,7 @@ public class SupabaseRestService {
               uriBuilder ->
                   uriBuilder
                       .path("/user_access")
-                      .queryParam("select", "user_id,username,role,status,ends_at")
+                      .queryParam("select", "user_id,username,role,status,ends_at,parent_user_id")
                       .queryParam("user_id", "eq." + userId)
                       .build())
           .header("apikey", props.serviceRoleKey())
@@ -461,7 +462,7 @@ public class SupabaseRestService {
             uriBuilder ->
                 uriBuilder
                     .path("/user_access")
-                    .queryParam("select", "user_id,username,role,status,ends_at,updated_at,created_at")
+                    .queryParam("select", "user_id,username,role,status,ends_at,parent_user_id,updated_at,created_at")
                     .queryParam("order", "username.asc")
                     .build())
         .header("apikey", props.serviceRoleKey())
@@ -489,17 +490,26 @@ public class SupabaseRestService {
   }
 
   public void upsertUserAccessServiceRole(String userId, String username, String role) {
+    upsertUserAccessServiceRole(userId, username, role, null);
+  }
+
+  public void upsertUserAccessServiceRole(String userId, String username, String role, String parentUserId) {
     requireServiceRoleConfigured();
     if (userId == null || userId.isBlank()) throw new IllegalArgumentException("userId is required");
     if (username == null || username.isBlank()) throw new IllegalArgumentException("username is required");
     String r = normalizeUserRole(role);
+    Map<String, Object> row = new LinkedHashMap<>();
+    row.put("user_id", userId);
+    row.put("username", username);
+    row.put("role", r);
+    row.put("parent_user_id", parentUserId == null || parentUserId.isBlank() ? null : parentUserId.trim());
     restClient
         .post()
         .uri(uriBuilder -> uriBuilder.path("/user_access").queryParam("on_conflict", "user_id").build())
         .header("apikey", props.serviceRoleKey())
         .header(HttpHeaders.AUTHORIZATION, "Bearer " + props.serviceRoleKey())
         .header("Prefer", "resolution=merge-duplicates,return=representation")
-        .body(List.of(Map.of("user_id", userId, "username", username, "role", r)))
+        .body(List.of(row))
         .retrieve()
         .toBodilessEntity();
   }

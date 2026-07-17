@@ -157,10 +157,11 @@ public class AdminFunTargetController {
         String userId = String.valueOf(access.getOrDefault("user_id", ""));
         if (userId.isBlank()) continue;
         String role = SupabaseRestService.normalizeUserRole(access.get("role"));
+        String parentUserId = String.valueOf(access.getOrDefault("parent_user_id", ""));
         boolean isCaller = userId.equals(callerUserId);
         if ("MANAGER".equals(callerRole)
             && !isCaller
-            && (adminUserIds.contains(userId) || !"PLAYER".equals(role))) {
+            && (adminUserIds.contains(userId) || !"PLAYER".equals(role) || !callerUserId.equals(parentUserId))) {
           continue;
         }
         visible.add(withUserAccess(stateByUserId.get(userId), userId, access));
@@ -199,6 +200,7 @@ public class AdminFunTargetController {
     access.put("role", callerRole);
     access.put("status", "active");
     access.put("ends_at", "");
+    access.put("parent_user_id", null);
     return access;
   }
 
@@ -219,11 +221,13 @@ public class AdminFunTargetController {
       row.put("role", SupabaseRestService.normalizeUserRole(access.get("role")));
       row.put("access_status", String.valueOf(access.getOrDefault("status", "active")));
       row.put("ends_at", access.get("ends_at"));
+      row.put("parent_user_id", access.get("parent_user_id"));
     } else {
       row.put("username", userId);
       row.put("role", "PLAYER");
       row.put("access_status", "active");
       row.put("ends_at", "");
+      row.put("parent_user_id", null);
     }
     return row;
   }
@@ -242,6 +246,12 @@ public class AdminFunTargetController {
     String targetRole = SupabaseRestService.normalizeUserRole(access == null ? null : access.get("role"));
     if (!"PLAYER".equals(targetRole)) {
       throw new AccessDeniedException("Forbidden");
+    }
+    if ("MANAGER".equals(callerRole)) {
+      String parentUserId = access == null ? "" : String.valueOf(access.getOrDefault("parent_user_id", ""));
+      if (!callerUserId.equals(parentUserId)) {
+        throw new AccessDeniedException("Forbidden");
+      }
     }
   }
 

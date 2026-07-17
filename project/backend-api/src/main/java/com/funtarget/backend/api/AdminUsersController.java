@@ -45,6 +45,7 @@ public class AdminUsersController {
     Object endsAtObj = payload == null ? null : payload.get("ends_at");
     String endsAt = endsAtObj == null ? "" : String.valueOf(endsAtObj).trim();
     if ("null".equalsIgnoreCase(endsAt)) endsAt = "";
+    String parentUserId = normalizeNullableUserId(payload == null ? null : payload.get("parent_user_id"));
 
     if (username == null || username.isBlank()) {
       throw new IllegalArgumentException("Username is required");
@@ -59,6 +60,8 @@ public class AdminUsersController {
     if (existingAccess != null && existingAccess.get("user_id") != null) {
       throw new IllegalArgumentException("Username already exists");
     }
+
+    requireValidParent(parentUserId);
 
     String email = normalized + "@kingmaker.local";
     boolean repairedExistingAuthUser = false;
@@ -75,7 +78,7 @@ public class AdminUsersController {
 
     if (created != null && created.id() != null && !created.id().isBlank()) {
       try {
-        supabaseRest.upsertUserAccessServiceRole(created.id(), normalized, role);
+        supabaseRest.upsertUserAccessServiceRole(created.id(), normalized, role, parentUserId);
         if (endsAt != null && !endsAt.isBlank()) {
           // Validate ISO timestamp; UserAccessGate blocks when now >= ends_at.
           OffsetDateTime.parse(endsAt);
@@ -126,6 +129,7 @@ public class AdminUsersController {
         "email", created == null ? null : created.email(),
         "username", normalized,
         "role", role,
+        "parent_user_id", parentUserId == null ? "" : parentUserId,
         "repaired", repairedExistingAuthUser);
   }
 
@@ -251,6 +255,25 @@ public class AdminUsersController {
     }
     supabaseAdmin.deleteUser(userId);
     return Map.of("deleted", true, "id", userId, "username", username);
+  }
+
+  private void requireValidParent(String parentUserId) {
+    if (parentUserId == null || parentUserId.isBlank()) return;
+    Map<String, Object> parent = supabaseRest.getUserAccessByUserIdServiceRole(parentUserId);
+    if (parent == null || parent.get("user_id") == null) {
+      throw new IllegalArgumentException("Parent user not found");
+    }
+    String parentRole = SupabaseRestService.normalizeUserRole(parent.get("role"));
+    if (!"ADMIN".equals(parentRole) && !"MANAGER".equals(parentRole)) {
+      throw new IllegalArgumentException("Parent user must be Admin or Manager");
+    }
+  }
+
+  static String normalizeNullableUserId(Object value) {
+    if (value == null) return null;
+    String normalized = String.valueOf(value).trim();
+    if (normalized.isBlank() || "null".equalsIgnoreCase(normalized)) return null;
+    return normalized;
   }
 
   private static void requirePasswordPolicy(String password, boolean required) {

@@ -481,11 +481,13 @@ class FunTargetApi {
     required String password,
     required String role,
     String endsAt = "",
+    String parentUserId = "",
   }) async {
     final payload = <String, dynamic>{
       "username": username.trim(),
       "password": password,
       "role": role,
+      if (parentUserId.trim().isNotEmpty) "parent_user_id": parentUserId.trim(),
     };
     if (endsAt.trim().isNotEmpty) {
       payload["ends_at"] = endsAt.trim();

@@ -117,12 +117,13 @@ class _UserAccessScreenState extends State<UserAccessScreen> {
     }
   }
 
-  Future<void> _updateRow(String userId, {String? status, String? role, String? endsAtIso}) async {
+  Future<void> _updateRow(String userId, {String? status, String? role, String? endsAtIso, String? parentUserId}) async {
     if (_saving) return;
     final payload = <String, dynamic>{};
     if (status != null) payload["status"] = status;
     if (role != null) payload["role"] = role;
     if (endsAtIso != null) payload["ends_at"] = endsAtIso.isEmpty ? null : endsAtIso;
+    if (parentUserId != null) payload["parent_user_id"] = parentUserId.isEmpty ? null : parentUserId;
     setState(() {
       _saving = true;
       _error = null;
@@ -237,6 +238,32 @@ class _UserAccessScreenState extends State<UserAccessScreen> {
   String _statusValue(Map<String, dynamic> row) {
     final status = (row["status"] ?? "active").toString().toLowerCase();
     return status == "blocked" ? "blocked" : "active";
+  }
+
+  String _parentUserIdValue(Map<String, dynamic> row) {
+    final value = (row["parent_user_id"] ?? "").toString().trim();
+    return value.toLowerCase() == "null" ? "" : value;
+  }
+
+  List<Map<String, dynamic>> _parentOptionsFor(Map<String, dynamic> row) {
+    final currentUserId = (row["user_id"] ?? "").toString();
+    return _rows.where((candidate) {
+      final candidateId = (candidate["user_id"] ?? "").toString();
+      if (candidateId.isEmpty || candidateId == currentUserId) return false;
+      final role = _roleValue(candidate);
+      return role == "ADMIN" || role == "MANAGER";
+    }).toList(growable: false);
+  }
+
+  String _usernameForUserId(String userId) {
+    if (userId.isEmpty) return "No parent";
+    for (final row in _rows) {
+      if ((row["user_id"] ?? "").toString() == userId) {
+        final username = (row["username"] ?? "").toString();
+        return username.isEmpty ? userId : username;
+      }
+    }
+    return "Unknown parent";
   }
 
   String _formatEndsAt(Map<String, dynamic> row) {
@@ -356,9 +383,13 @@ class _UserAccessScreenState extends State<UserAccessScreen> {
                               row: selected,
                               role: _roleValue(selected),
                               status: _statusValue(selected),
+                              parentUserId: _parentUserIdValue(selected),
+                              parentOptions: _parentOptionsFor(selected),
+                              parentLabel: _usernameForUserId(_parentUserIdValue(selected)),
                               endsAt: _formatEndsAt(selected),
                               disabled: _saving,
                               onRoleChanged: (role) => _updateRow((selected["user_id"] ?? "").toString(), role: role),
+                              onParentChanged: (parentUserId) => _updateRow((selected["user_id"] ?? "").toString(), parentUserId: parentUserId),
                               onSetEndDate: () => _setEndDateDialog(selected),
                               onClearEndDate: () => _updateRow((selected["user_id"] ?? "").toString(), endsAtIso: ""),
                               onToggleStatus: () {
@@ -414,8 +445,12 @@ class _SelectedUserPanel extends StatelessWidget {
   final Map<String, dynamic> row;
   final String role;
   final String status;
+  final String parentUserId;
+  final List<Map<String, dynamic>> parentOptions;
+  final String parentLabel;
   final String endsAt;
   final ValueChanged<String> onRoleChanged;
+  final ValueChanged<String> onParentChanged;
   final VoidCallback onSetEndDate;
   final VoidCallback onClearEndDate;
   final VoidCallback onToggleStatus;
@@ -428,8 +463,12 @@ class _SelectedUserPanel extends StatelessWidget {
     required this.row,
     required this.role,
     required this.status,
+    required this.parentUserId,
+    required this.parentOptions,
+    required this.parentLabel,
     required this.endsAt,
     required this.onRoleChanged,
+    required this.onParentChanged,
     required this.onSetEndDate,
     required this.onClearEndDate,
     required this.onToggleStatus,
@@ -475,6 +514,13 @@ class _SelectedUserPanel extends StatelessWidget {
           ),
           const SizedBox(height: 14),
           _RoleDropdown(value: role, onChanged: disabled || userId.isEmpty ? null : onRoleChanged),
+          const SizedBox(height: 12),
+          _ParentDropdown(
+            value: parentUserId,
+            options: parentOptions,
+            fallbackLabel: parentLabel,
+            onChanged: disabled || userId.isEmpty ? null : onParentChanged,
+          ),
           const SizedBox(height: 12),
           Row(
             children: [
@@ -662,6 +708,51 @@ class _DeleteUserDialogState extends State<_DeleteUserDialog> {
           child: const Text("Delete"),
         ),
       ],
+    );
+  }
+}
+
+class _ParentDropdown extends StatelessWidget {
+  final String value;
+  final List<Map<String, dynamic>> options;
+  final String fallbackLabel;
+  final ValueChanged<String>? onChanged;
+
+  const _ParentDropdown({
+    required this.value,
+    required this.options,
+    required this.fallbackLabel,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final ids = options.map((row) => (row["user_id"] ?? "").toString()).toSet();
+    final dropdownValue = value.isEmpty || ids.contains(value) ? value : "__missing_parent__";
+    return DropdownButtonFormField<String>(
+      value: dropdownValue,
+      isExpanded: true,
+      decoration: const InputDecoration(labelText: "Parent user"),
+      dropdownColor: const Color(0xFF111827),
+      items: [
+        const DropdownMenuItem(value: "", child: Text("No parent")),
+        if (dropdownValue == "__missing_parent__")
+          DropdownMenuItem(value: "__missing_parent__", child: Text(fallbackLabel)),
+        ...options.map((row) {
+          final userId = (row["user_id"] ?? "").toString();
+          final username = (row["username"] ?? "").toString();
+          return DropdownMenuItem<String>(
+            value: userId,
+            child: Text(username.isEmpty ? userId : username, maxLines: 1, overflow: TextOverflow.ellipsis),
+          );
+        }),
+      ],
+      onChanged: onChanged == null
+          ? null
+          : (value) {
+              if (value == null || value == "__missing_parent__" || value == this.value) return;
+              onChanged!(value);
+            },
     );
   }
 }

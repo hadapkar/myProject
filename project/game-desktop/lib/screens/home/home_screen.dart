@@ -633,10 +633,55 @@ class _CreateUserDialogState extends State<_CreateUserDialog> {
   final _username = TextEditingController();
   final _password = TextEditingController();
   String _role = "PLAYER";
+  String _parentUserId = "";
+  List<Map<String, dynamic>> _parentRows = const [];
+  bool _parentsLoading = true;
   DateTime? _endDateLocal;
   bool _busy = false;
   bool _showPassword = false;
   String? _message;
+
+  @override
+  void initState() {
+    super.initState();
+    unawaited(_loadParentRows());
+  }
+
+  Future<void> _loadParentRows() async {
+    try {
+      final decoded = await widget.api.listUserAccess();
+      final list = decoded["rows"];
+      final rows = <Map<String, dynamic>>[];
+      if (list is List) {
+        for (final item in list) {
+          if (item is Map) rows.add(Map<String, dynamic>.from(item));
+        }
+      }
+      rows.sort((a, b) => _username(a).compareTo(_username(b)));
+      if (!mounted) return;
+      setState(() {
+        _parentRows = rows.where(_canBeParent).toList(growable: false);
+        _parentsLoading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _parentsLoading = false);
+    }
+  }
+
+  List<Map<String, dynamic>> get _parentOptions => _parentRows;
+
+  bool _canBeParent(Map<String, dynamic> row) {
+    final role = _roleValue(row);
+    return role == "ADMIN" || role == "MANAGER";
+  }
+
+  String _roleValue(Map<String, dynamic> row) {
+    final role = (row["role"] ?? "PLAYER").toString().toUpperCase();
+    return role == "ADMIN" || role == "MANAGER" || role == "SUPER_PLAYER" ? role : "PLAYER";
+  }
+
+  String _username(Map<String, dynamic> row) => (row["username"] ?? "").toString();
 
   @override
   void dispose() {
@@ -673,6 +718,7 @@ class _CreateUserDialogState extends State<_CreateUserDialog> {
         password: password,
         role: _role,
         endsAt: endsAtIsoUtc,
+        parentUserId: _parentUserId,
       );
       final createdUsername = (res["username"] ?? "").toString();
       final createdEmail = (res["email"] ?? "").toString();
@@ -730,6 +776,25 @@ class _CreateUserDialogState extends State<_CreateUserDialog> {
                   DropdownMenuItem(value: "ADMIN", child: Text("Admin")),
                 ],
                 onChanged: _busy ? null : (v) => setState(() => _role = v ?? "PLAYER"),
+              ),
+              const SizedBox(height: 10),
+              DropdownButtonFormField<String>(
+                value: _parentUserId,
+                isExpanded: true,
+                decoration: const InputDecoration(labelText: "Parent user (optional)"),
+                hint: Text(_parentsLoading ? "Loading users..." : "No parent"),
+                items: [
+                  const DropdownMenuItem<String>(value: "", child: Text("No parent")),
+                  ..._parentOptions.map(
+                    (row) => DropdownMenuItem<String>(
+                      value: (row["user_id"] ?? "").toString(),
+                      child: Text(_username(row), maxLines: 1, overflow: TextOverflow.ellipsis),
+                    ),
+                  ),
+                ],
+                onChanged: _busy || _parentsLoading
+                    ? null
+                    : (v) => setState(() => _parentUserId = v ?? ""),
               ),
               const SizedBox(height: 10),
               Row(

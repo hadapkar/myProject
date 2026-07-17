@@ -88,6 +88,14 @@ public class AdminUserAccessController {
         String role = SupabaseRestService.normalizeUserRole(payload.get("role"));
         patch.put("role", role);
       }
+      if (payload.containsKey("parent_user_id")) {
+        String parentUserId = AdminUsersController.normalizeNullableUserId(payload.get("parent_user_id"));
+        if (parentUserId != null && parentUserId.equals(userId)) {
+          throw new IllegalArgumentException("Parent user cannot be the same user");
+        }
+        requireValidParent(parentUserId);
+        patch.put("parent_user_id", parentUserId);
+      }
     }
 
     if (patch.isEmpty()) {
@@ -123,6 +131,18 @@ public class AdminUserAccessController {
         throw new IllegalStateException("Supabase table public.user_access not found. Apply migration 20260528121500_user_access.sql.");
       }
       throw e;
+    }
+  }
+
+  private void requireValidParent(String parentUserId) {
+    if (parentUserId == null || parentUserId.isBlank()) return;
+    Map<String, Object> parent = supabaseRest.getUserAccessByUserIdServiceRole(parentUserId);
+    if (parent == null || parent.get("user_id") == null) {
+      throw new IllegalArgumentException("Parent user not found");
+    }
+    String parentRole = SupabaseRestService.normalizeUserRole(parent.get("role"));
+    if (!"ADMIN".equals(parentRole) && !"MANAGER".equals(parentRole)) {
+      throw new IllegalArgumentException("Parent user must be Admin or Manager");
     }
   }
 }
