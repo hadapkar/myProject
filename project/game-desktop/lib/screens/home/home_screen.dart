@@ -3,6 +3,7 @@ import "dart:async";
 import "package:flutter/foundation.dart";
 import "package:flutter/material.dart";
 import "package:go_router/go_router.dart";
+import "package:shared_preferences/shared_preferences.dart";
 import "package:supabase_flutter/supabase_flutter.dart";
 
 import "../../services/android_update_gate.dart";
@@ -39,7 +40,7 @@ String _initialsFor(String value) {
   return (parts[0].substring(0, 1) + parts[1].substring(0, 1)).toUpperCase();
 }
 
-enum _HomeMenuAction { createUser, subscriptions, updates, signOut }
+enum _HomeMenuAction { createUser, subscriptions, updates, guide, signOut }
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -55,6 +56,7 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _canManageFunTarget = false;
   bool _roleLoaded = false;
   String? _homeError;
+  bool _guideOpen = false;
 
   @override
   void initState() {
@@ -110,6 +112,7 @@ class _HomeScreenState extends State<HomeScreen> {
         _canManageFunTarget = me["canManageFunTarget"] == true || _isAdmin || _role == "MANAGER" || _role == "SUPER_PLAYER";
         _roleLoaded = true;
       });
+      unawaited(_maybeShowFirstTimeGuide());
     } on StateError catch (e) {
       final msg = e.message;
       if (!mounted) return;
@@ -277,6 +280,9 @@ class _HomeScreenState extends State<HomeScreen> {
       case _HomeMenuAction.updates:
         await _openUpdateDialog();
         return;
+      case _HomeMenuAction.guide:
+        await _openGuide();
+        return;
       case _HomeMenuAction.signOut:
         await _signOut();
         return;
@@ -338,6 +344,43 @@ class _HomeScreenState extends State<HomeScreen> {
         );
       },
     );
+  }
+
+  Future<void> _maybeShowFirstTimeGuide() async {
+    if (!mounted || !_roleLoaded || _homeError != null || _guideOpen) return;
+    if (!(ModalRoute.of(context)?.isCurrent ?? false)) return;
+
+    final user = Supabase.instance.client.auth.currentUser;
+    final accountKey = (user?.email ?? user?.id ?? "").trim().toLowerCase();
+    if (accountKey.isEmpty) return;
+    final key = "kingmaker.firstGuide.v1.$accountKey.$_role";
+    final prefs = await SharedPreferences.getInstance();
+    if (prefs.getBool(key) == true) return;
+    if (!mounted || !(ModalRoute.of(context)?.isCurrent ?? false) || _guideOpen) return;
+
+    _guideOpen = true;
+    try {
+      await showDialog<void>(
+        context: context,
+        builder: (context) => _FirstTimeGuideDialog(role: _role),
+      );
+      await prefs.setBool(key, true);
+    } finally {
+      _guideOpen = false;
+    }
+  }
+
+  Future<void> _openGuide() async {
+    if (!mounted || _guideOpen) return;
+    _guideOpen = true;
+    try {
+      await showDialog<void>(
+        context: context,
+        builder: (context) => _FirstTimeGuideDialog(role: _role),
+      );
+    } finally {
+      _guideOpen = false;
+    }
   }
 
   @override
@@ -452,6 +495,11 @@ class _HomeScreenState extends State<HomeScreen> {
             );
           },
         ),
+      IconButton(
+        tooltip: "Guide",
+        onPressed: _roleLoaded ? _openGuide : null,
+        icon: const Icon(Icons.help_outline),
+      ),
       Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 240),
@@ -496,6 +544,11 @@ class _HomeScreenState extends State<HomeScreen> {
               value: _HomeMenuAction.updates,
               child: Text("Updates"),
             ),
+          if (_roleLoaded)
+            const PopupMenuItem(
+              value: _HomeMenuAction.guide,
+              child: Text("Guide"),
+            ),
           const PopupMenuItem(
             value: _HomeMenuAction.signOut,
             child: Text("Sign out"),
@@ -505,6 +558,120 @@ class _HomeScreenState extends State<HomeScreen> {
       const SizedBox(width: 8),
     ];
   }
+}
+
+class _FirstTimeGuideDialog extends StatelessWidget {
+  final String role;
+
+  const _FirstTimeGuideDialog({required this.role});
+
+  String get _roleLabel {
+    switch (role) {
+      case "ADMIN":
+        return "Admin";
+      case "MANAGER":
+        return "Manager";
+      case "SUPER_PLAYER":
+        return "Super Player";
+      default:
+        return "Player";
+    }
+  }
+
+  List<_GuideLine> get _roleLines {
+    switch (role) {
+      case "ADMIN":
+        return const [
+          _GuideLine(Icons.group_add_outlined, "Create users from the menu."),
+          _GuideLine(
+            Icons.manage_accounts_outlined,
+            "Use Subscriptions to edit access, role, parent user, dates, passwords, and deletion.",
+          ),
+          _GuideLine(Icons.public, "Admins can see all users."),
+        ];
+      case "MANAGER":
+        return const [
+          _GuideLine(
+            Icons.admin_panel_settings_outlined,
+            "On mobile, open FunTarget Admin to manage assigned players and super players.",
+          ),
+          _GuideLine(Icons.account_tree_outlined, "Your user selector shows users under your parent hierarchy only."),
+        ];
+      case "SUPER_PLAYER":
+        return const [
+          _GuideLine(
+            Icons.admin_panel_settings_outlined,
+            "On mobile, open FunTarget Admin for your own game record.",
+          ),
+          _GuideLine(Icons.person_outline, "No user selector is shown because this role manages only itself."),
+        ];
+      default:
+        return const [
+          _GuideLine(Icons.home_outlined, "Your home shows the FunTarget game tile."),
+          _GuideLine(Icons.logout, "Use the menu to sign out when finished."),
+        ];
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final lines = [
+      _GuideLine(Icons.verified_user_outlined, "Access: $_roleLabel"),
+      const _GuideLine(Icons.sports_esports_outlined, "Tap FunTarget to play."),
+      ..._roleLines,
+      const _GuideLine(
+        Icons.account_circle_outlined,
+        "From Home, tap the profile circle to switch accounts or login to a new account on the same app.",
+      ),
+      const _GuideLine(
+        Icons.swipe_vertical_outlined,
+        "Swipe the profile circle up or down to switch saved accounts quickly.",
+      ),
+      const _GuideLine(Icons.refresh, "Pull down on supported pages to refresh."),
+    ];
+
+    return AlertDialog(
+      title: const Text("Quick guide"),
+      content: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 460),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text("This guide is based on your current access."),
+              const SizedBox(height: 14),
+              for (final line in lines)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(line.icon, size: 20, color: Colors.deepPurpleAccent.shade100),
+                      const SizedBox(width: 12),
+                      Expanded(child: Text(line.text)),
+                    ],
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        FilledButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text("Got it"),
+        ),
+      ],
+    );
+  }
+}
+
+class _GuideLine {
+  final IconData icon;
+  final String text;
+
+  const _GuideLine(this.icon, this.text);
 }
 
 class _HomeErrorBanner extends StatelessWidget {

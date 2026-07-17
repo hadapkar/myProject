@@ -113,11 +113,14 @@ class _AndroidUpdateDialogState extends State<_AndroidUpdateDialog> {
       final permissionRequired = errorText.contains("install unknown apps");
       setState(() {
         _busy = false;
-        _error = errorText;
         if (permissionRequired) {
           _downloadReady = true;
           _progress = 1;
           _progressText = "Download complete";
+          _status = "First time install:\n1. Enable Allow from this source for King Maker.\n2. Press Back, then tap Open installer.\nThe APK is already downloaded.";
+          _error = null;
+        } else {
+          _error = errorText;
         }
       });
     }
