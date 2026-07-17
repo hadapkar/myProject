@@ -375,7 +375,6 @@ class _FunTargetAdminScreenState extends State<FunTargetAdminScreen> {
     final selectedValue = selected == null ? null : selected["predefined_wheel_number"];
     final selectedInt = selectedValue == null ? null : int.tryParse(selectedValue.toString());
     final disabled = selected == null || _isRefreshDisabled;
-    final selectedText = selectedInt == null ? "Not set" : "Selected: $selectedInt";
     return _card(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -390,8 +389,6 @@ class _FunTargetAdminScreenState extends State<FunTargetAdminScreen> {
                   const Expanded(
                     child: Text("Predefined Wheel Number", style: TextStyle(color: Colors.white70)),
                   ),
-                  Text(selectedText, style: const TextStyle(color: Colors.white54)),
-                  const SizedBox(width: 8),
                   Icon(
                     _predefinedExpanded ? Icons.expand_less : Icons.expand_more,
                     color: Colors.white70,
