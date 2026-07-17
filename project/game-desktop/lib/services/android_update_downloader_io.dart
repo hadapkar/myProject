@@ -313,7 +313,12 @@ Future<void> _openInstaller(File file) async {
   try {
     final opened = await _channel.invokeMethod<bool>("installApk", {"path": file.path});
     if (opened == true) return;
-  } on PlatformException catch (_) {
+  } on PlatformException catch (e) {
+    if (e.code == "install_permission_required") {
+      throw StateError(
+        e.message ?? "Allow King Maker to install unknown apps, then return and tap Open installer.",
+      );
+    }
     if (await file.exists()) await file.delete();
     throw StateError("Could not open Android installer. Please retry.");
   }

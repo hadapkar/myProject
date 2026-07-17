@@ -109,9 +109,16 @@ class _AndroidUpdateDialogState extends State<_AndroidUpdateDialog> {
       });
     } catch (e) {
       if (!mounted) return;
+      final errorText = _friendlyUpdateError(e);
+      final permissionRequired = errorText.contains("install unknown apps");
       setState(() {
         _busy = false;
-        _error = _friendlyUpdateError(e);
+        _error = errorText;
+        if (permissionRequired) {
+          _downloadReady = true;
+          _progress = 1;
+          _progressText = "Download complete";
+        }
       });
     }
   }

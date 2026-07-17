@@ -133,6 +133,7 @@ import android.content.pm.ActivityInfo
 import android.net.Uri
 import android.os.Build
 import android.os.Environment
+import android.provider.Settings
 import android.view.View
 import android.view.WindowInsets
 import android.view.WindowInsetsController
@@ -169,6 +170,25 @@ class MainActivity : FlutterActivity() {{
                     val apkFile = File(path)
                     if (!apkFile.exists()) {{
                         result.error("missing_apk", "APK file was not downloaded", null)
+                        return@setMethodCallHandler
+                    }}
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && !packageManager.canRequestPackageInstalls()) {{
+                        val settingsIntent = Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES).apply {{
+                            data = Uri.parse("package:$packageName")
+                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        }}
+                        try {{
+                            startActivity(settingsIntent)
+                        }} catch (ex: Exception) {{
+                            startActivity(Intent(Settings.ACTION_SECURITY_SETTINGS).apply {{
+                                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                            }})
+                        }}
+                        result.error(
+                            "install_permission_required",
+                            "Allow King Maker to install unknown apps, then return and tap Open installer.",
+                            null
+                        )
                         return@setMethodCallHandler
                     }}
                     val uri = FileProvider.getUriForFile(this, "$packageName.fileprovider", apkFile)
