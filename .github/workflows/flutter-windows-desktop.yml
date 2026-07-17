@@ -9,7 +9,11 @@ on:
   workflow_dispatch: {}
 
 permissions:
-  contents: read
+  contents: write
+
+concurrency:
+  group: windows-desktop-release
+  cancel-in-progress: true
 
 jobs:
   build-windows:
@@ -22,6 +26,52 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Resolve Windows release version
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          LAST_VERSION=""
+          mkdir -p /tmp/kingmaker-windows-version
+          if gh release view desktop-latest --repo "${{ github.repository }}" >/dev/null 2>&1; then
+            gh release download desktop-latest \
+              --repo "${{ github.repository }}" \
+              --pattern KingMaker.windows.version.json \
+              --dir /tmp/kingmaker-windows-version \
+              --clobber >/dev/null 2>&1 || true
+          fi
+          if [ -f /tmp/kingmaker-windows-version/KingMaker.windows.version.json ]; then
+            LAST_VERSION="$(python -c 'import json,sys; print(json.load(open(sys.argv[1])).get("version", ""))' /tmp/kingmaker-windows-version/KingMaker.windows.version.json 2>/dev/null || true)"
+          fi
+          if [ -z "$LAST_VERSION" ]; then
+            TAGS="$(gh release list --repo "${{ github.repository }}" --limit 100 --json tagName,isDraft,isPrerelease \
+              --jq '.[] | select(.isDraft == false and .isPrerelease == false) | .tagName')"
+            BEST_MAJOR=1
+            BEST_MINOR=2
+            BEST_PATCH=4
+            while IFS= read -r TAG; do
+              if [[ "$TAG" =~ ^v([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
+                MAJOR="${BASH_REMATCH[1]}"
+                MINOR="${BASH_REMATCH[2]}"
+                PATCH="${BASH_REMATCH[3]}"
+                if (( MAJOR > BEST_MAJOR || \
+                      (MAJOR == BEST_MAJOR && MINOR > BEST_MINOR) || \
+                      (MAJOR == BEST_MAJOR && MINOR == BEST_MINOR && PATCH > BEST_PATCH) )); then
+                  BEST_MAJOR="$MAJOR"
+                  BEST_MINOR="$MINOR"
+                  BEST_PATCH="$PATCH"
+                fi
+              fi
+            done <<< "$TAGS"
+            LAST_VERSION="v${BEST_MAJOR}.${BEST_MINOR}.${BEST_PATCH}"
+          fi
+          if [[ "$LAST_VERSION" =~ ^v?([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
+            WINDOWS_VERSION="v${BASH_REMATCH[1]}.${BASH_REMATCH[2]}.$((BASH_REMATCH[3] + 1))"
+          else
+            WINDOWS_VERSION="v1.2.6"
+          fi
+          echo "WINDOWS_VERSION=$WINDOWS_VERSION" >> "$GITHUB_ENV"
+          echo "Windows release version: $WINDOWS_VERSION"
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
@@ -69,7 +119,7 @@ jobs:
             --dart-define=SUPABASE_URL="$SUPABASE_URL" \
             --dart-define=SUPABASE_ANON_KEY="$SUPABASE_ANON_KEY" \
             --dart-define=API_BASE_URL="$API_BASE_URL" \
-            --dart-define=APP_VERSION="0.0.0+${GITHUB_SHA:0:7}"
+            --dart-define=APP_VERSION="$WINDOWS_VERSION"
 
       - name: Ensure exe is named KingMaker.exe
         run: |
@@ -115,6 +165,50 @@ jobs:
           fi
           cd "$OUT_DIR"
           7z a -tzip "../../../../King Maker.zip" ./*
+
+      - name: Publish Desktop latest release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "${WINDOWS_VERSION:-}" ]; then
+            echo "WINDOWS_VERSION was not resolved" >&2
+            exit 1
+          fi
+          SOURCE="build/King Maker.zip"
+          ASSET="King Maker.zip"
+          META="KingMaker.windows.version.json"
+          cp -f "$SOURCE" "$ASSET"
+          sha256sum "$ASSET" | awk '{print $1}' > "$ASSET.sha256"
+          stat -c%s "$ASSET" > "$ASSET.size"
+          printf '{"version":"%s","commit":"%s","runNumber":%s}\n' \
+            "$WINDOWS_VERSION" "$GITHUB_SHA" "$GITHUB_RUN_NUMBER" > "$META"
+
+          VERSION_TAG="$WINDOWS_VERSION"
+          if gh release view "$VERSION_TAG" --repo "${{ github.repository }}" >/dev/null 2>&1; then
+            gh release upload "$VERSION_TAG" "$ASSET" "$ASSET.sha256" "$ASSET.size" "$META" --clobber --repo "${{ github.repository }}"
+          else
+            gh release create "$VERSION_TAG" "$ASSET" "$ASSET.sha256" "$ASSET.size" "$META" \
+              --target "$GITHUB_SHA" \
+              --title "$VERSION_TAG" \
+              --notes "Windows desktop build $WINDOWS_VERSION." \
+              --repo "${{ github.repository }}"
+          fi
+
+          LATEST_TAG="desktop-latest"
+          if gh release view "$LATEST_TAG" --repo "${{ github.repository }}" >/dev/null 2>&1; then
+            gh release edit "$LATEST_TAG" \
+              --title "Desktop Latest" \
+              --notes "Latest Windows desktop build: $WINDOWS_VERSION." \
+              --repo "${{ github.repository }}"
+            gh release upload "$LATEST_TAG" "$ASSET" "$ASSET.sha256" "$ASSET.size" "$META" --clobber --repo "${{ github.repository }}"
+          else
+            gh release create "$LATEST_TAG" "$ASSET" "$ASSET.sha256" "$ASSET.size" "$META" \
+              --target "$GITHUB_SHA" \
+              --title "Desktop Latest" \
+              --notes "Latest Windows desktop build: $WINDOWS_VERSION." \
+              --repo "${{ github.repository }}"
+          fi
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4

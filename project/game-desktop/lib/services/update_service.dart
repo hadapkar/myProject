@@ -8,7 +8,7 @@ import "update_service_io.dart"
     if (dart.library.html) "update_service_web.dart";
 
 class UpdateInfo {
-  final String latestTag; // e.g. v0.2.0
+  final String latestTag; // e.g. v1.2.6
   final Uri downloadUrl; // zip asset
 
   const UpdateInfo({required this.latestTag, required this.downloadUrl});
@@ -53,8 +53,8 @@ class UpdateState {
 
 /// GitHub Releases updater (Windows).
 ///
-/// Source of truth is the newest SemVer GitHub Release that contains
-/// a Windows zip asset named `King Maker.zip`.
+/// Preferred source of truth is the stable `desktop-latest` release.
+/// Fallback source is the newest SemVer release containing `King Maker.zip`.
 class UpdateService {
   static final UpdateService instance = UpdateService._();
   UpdateService._();
@@ -62,11 +62,15 @@ class UpdateService {
   // Hard-coded to avoid spoofing via runtime config.
   static const String _owner = "hadapkar";
   static const String _repo = "myProject";
-  // Accept a small set of historical/CI-safe names.
+  static const String _desktopLatestTag = "desktop-latest";
   static const Set<String> _assetNames = {
     "King Maker.zip",
     "King.Maker.zip",
     "KingMaker.zip",
+  };
+  static const Set<String> _versionAssetNames = {
+    "KingMaker.windows.version.json",
+    "KingMaker.version.json",
   };
 
   static const String currentVersion =
@@ -118,6 +122,29 @@ class UpdateService {
   }
 
   Future<UpdateInfo> _fetchLatest() async {
+    final desktopLatest = await _fetchDesktopLatest();
+    if (desktopLatest != null) return desktopLatest;
+    return _fetchLatestSemVerRelease();
+  }
+
+  Future<UpdateInfo?> _fetchDesktopLatest() async {
+    final release = await _fetchRelease(
+      Uri.parse("https://api.github.com/repos/$_owner/$_repo/releases/tags/$_desktopLatestTag"),
+      allowNotFound: true,
+    );
+    if (release == null) return null;
+
+    final assets = release["assets"];
+    final zipUrl = _findAssetUrl(assets, _assetNames);
+    final versionUrl = _findAssetUrl(assets, _versionAssetNames);
+    if (zipUrl == null || versionUrl == null) return null;
+
+    final version = await _fetchVersion(versionUrl);
+    if (version == null || _SemVer.tryParse(_stripV(version)) == null) return null;
+    return UpdateInfo(latestTag: version, downloadUrl: zipUrl);
+  }
+
+  Future<UpdateInfo> _fetchLatestSemVerRelease() async {
     final uri = Uri.parse("https://api.github.com/repos/$_owner/$_repo/releases?per_page=50");
     final res = await http.get(uri, headers: {"User-Agent": "KingMaker-Windows"});
     if (res.statusCode < 200 || res.statusCode >= 300) {
@@ -136,7 +163,7 @@ class UpdateService {
       final version = _SemVer.tryParse(_stripV(tag));
       if (tag.isEmpty || version == null) continue;
 
-      final assetUrl = _findWindowsAssetUrl(release["assets"]);
+      final assetUrl = _findAssetUrl(release["assets"], _assetNames);
       if (assetUrl == null) continue;
 
       if (bestVersion == null || version.compareTo(bestVersion) > 0) {
@@ -149,12 +176,32 @@ class UpdateService {
     throw StateError("No Windows update package found. Please try again after the next Windows release is published.");
   }
 
-  Uri? _findWindowsAssetUrl(Object? assets) {
+  Future<Map?> _fetchRelease(Uri uri, {bool allowNotFound = false}) async {
+    final res = await http.get(uri, headers: {"User-Agent": "KingMaker-Windows"});
+    if (allowNotFound && res.statusCode == 404) return null;
+    if (res.statusCode < 200 || res.statusCode >= 300) {
+      throw StateError("Update check failed: ${res.statusCode}");
+    }
+    final json = jsonDecode(res.body);
+    if (json is! Map) throw StateError("Invalid release JSON");
+    return json;
+  }
+
+  Future<String?> _fetchVersion(Uri versionUrl) async {
+    final res = await http.get(versionUrl, headers: {"User-Agent": "KingMaker-Windows"});
+    if (res.statusCode < 200 || res.statusCode >= 300) return null;
+    final json = jsonDecode(res.body);
+    if (json is! Map) return null;
+    final version = (json["version"] ?? "").toString().trim();
+    return version.isEmpty ? null : version;
+  }
+
+  Uri? _findAssetUrl(Object? assets, Set<String> names) {
     if (assets is! List) return null;
     for (final asset in assets) {
       if (asset is! Map) continue;
       final name = (asset["name"] ?? "").toString();
-      if (!_assetNames.contains(name)) continue;
+      if (!names.contains(name)) continue;
       final url = (asset["browser_download_url"] ?? "").toString();
       if (url.isEmpty) continue;
       final parsed = Uri.tryParse(url);
