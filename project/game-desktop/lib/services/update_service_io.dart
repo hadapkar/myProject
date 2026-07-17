@@ -131,7 +131,7 @@ set "FROM=$f"
 set "TO=$t"
 set "EXE=$exeName"
 set "TEMP_UPDATE_DIR=$tmp"
-set "LOG=%TEMP_UPDATE_DIR%\apply_update.log"
+set "LOG=%TEMP_UPDATE_DIR%\\apply_update.log"
 
 REM Mirror the extracted release into the current app folder. Robocopy returns
 REM 0-7 for success/copy-with-differences and 8+ for failures.
@@ -147,7 +147,7 @@ powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "Get-
 
 REM Restart the updated app from its existing folder so local app data/session
 REM storage remains attached to the same app identity.
-start "" /D "%TO%" "%TO%\%EXE%"
+start "" /D "%TO%" "%TO%\\%EXE%"
 
 REM Cleanup temp directory after restart has been requested.
 ping 127.0.0.1 -n 3 >nul
