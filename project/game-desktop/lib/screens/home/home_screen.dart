@@ -57,6 +57,8 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _roleLoaded = false;
   String? _homeError;
   bool _guideOpen = false;
+  bool _desktopUpdatePromptOpen = false;
+  String? _lastPromptedDesktopVersion;
 
   @override
   void initState() {
@@ -67,6 +69,7 @@ class _HomeScreenState extends State<HomeScreen> {
       unawaited(AndroidUpdateGate.maybeShow(context));
     });
     if (_desktopUpdatesSupported) {
+      UpdateService.instance.state.addListener(_handleDesktopUpdateState);
       // Background check; UI will show "update available" if needed.
       UpdateService.instance.checkForUpdates();
     }
@@ -74,8 +77,33 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   void dispose() {
+    if (_desktopUpdatesSupported) {
+      UpdateService.instance.state.removeListener(_handleDesktopUpdateState);
+    }
     _api.dispose();
     super.dispose();
+  }
+
+  void _handleDesktopUpdateState() {
+    if (!mounted || !_desktopUpdatesSupported || _desktopUpdatePromptOpen) return;
+    final available = UpdateService.instance.state.value.available;
+    if (available == null) return;
+    if (_lastPromptedDesktopVersion == available.latestTag) return;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _desktopUpdatePromptOpen) return;
+      if (!(ModalRoute.of(context)?.isCurrent ?? false)) return;
+      final currentAvailable = UpdateService.instance.state.value.available;
+      if (currentAvailable == null) return;
+
+      _desktopUpdatePromptOpen = true;
+      _lastPromptedDesktopVersion = currentAvailable.latestTag;
+      unawaited(
+        _openUpdateDialog(automatic: true).whenComplete(() {
+          _desktopUpdatePromptOpen = false;
+        }),
+      );
+    });
   }
 
   String _friendlyBackendMessage(Object error) {
@@ -289,7 +317,7 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  Future<void> _openUpdateDialog() async {
+  Future<void> _openUpdateDialog({bool automatic = false}) async {
     if (!_desktopUpdatesSupported) return;
     await showDialog<void>(
       context: context,
@@ -299,7 +327,7 @@ class _HomeScreenState extends State<HomeScreen> {
           builder: (context, UpdateState update, _) {
             final available = update.available;
             return AlertDialog(
-              title: const Text("Update"),
+              title: Text(automatic ? "Update available" : "Update"),
               content: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -323,7 +351,7 @@ class _HomeScreenState extends State<HomeScreen> {
               actions: [
                 TextButton(
                   onPressed: update.installing ? null : () => Navigator.of(context).pop(),
-                  child: const Text("Close"),
+                  child: Text(automatic ? "Later" : "Close"),
                 ),
                 TextButton(
                   onPressed: update.installing
@@ -347,7 +375,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _maybeShowFirstTimeGuide() async {
-    if (!mounted || !_roleLoaded || _homeError != null || _guideOpen) return;
+    if (!mounted || !_roleLoaded || _homeError != null || _guideOpen || _desktopUpdatePromptOpen) return;
     if (!(ModalRoute.of(context)?.isCurrent ?? false)) return;
 
     const key = "kingmaker.firstGuide.v2.device";
