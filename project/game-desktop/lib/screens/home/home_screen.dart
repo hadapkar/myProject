@@ -55,11 +55,13 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _canManageFunTarget = false;
   bool _roleLoaded = false;
   String? _homeError;
+  int? _currentAccountColorIndex;
 
   @override
   void initState() {
     super.initState();
     unawaited(_refreshUserState());
+    unawaited(_refreshCurrentAccountColorIndex());
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       unawaited(AndroidUpdateGate.maybeShow(context));
@@ -173,11 +175,23 @@ class _HomeScreenState extends State<HomeScreen> {
     final auth = Supabase.instance.client.auth;
     final session = auth.currentSession;
     final email = auth.currentUser?.email ?? session?.user.email ?? "";
+    final username = email.contains("@") ? email.split("@").first : email;
     final refreshToken = session?.refreshToken ?? "";
     await AccountStore.removeCurrentAccount(
       email: email,
+      username: username,
       refreshToken: refreshToken,
     );
+  }
+
+  Future<void> _refreshCurrentAccountColorIndex({List<SavedAccount>? accounts}) async {
+    final loadedAccounts = accounts ?? await AccountStore.loadAccounts();
+    final currentEmail = Supabase.instance.client.auth.currentUser?.email?.toLowerCase() ?? "";
+    final index = loadedAccounts.indexWhere(
+      (account) => account.email.toLowerCase() == currentEmail,
+    );
+    if (!mounted) return;
+    setState(() => _currentAccountColorIndex = index < 0 ? null : index);
   }
 
   Future<void> _signOut() async {
@@ -194,6 +208,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _openAccountMenu() async {
     final accounts = await AccountStore.loadAccounts();
+    if (!mounted) return;
+    await _refreshCurrentAccountColorIndex(accounts: accounts);
     if (!mounted) return;
     final currentEmail = Supabase.instance.client.auth.currentUser?.email?.toLowerCase() ?? "";
     final action = await showModalBottomSheet<_AccountSheetAction>(
@@ -230,6 +246,8 @@ class _HomeScreenState extends State<HomeScreen> {
         email: session.user.email ?? selected.email,
         refreshToken: refreshToken,
       );
+      if (!mounted) return;
+      await _refreshCurrentAccountColorIndex();
       if (!mounted) return;
       setState(() {
         _role = "PLAYER";
@@ -352,6 +370,7 @@ class _HomeScreenState extends State<HomeScreen> {
         leading: _ProfileAccountButton(
           initials: _initialsFor(username),
           colorSeed: email == "-" ? username : email,
+          colorIndex: _currentAccountColorIndex,
           onPressed: _openAccountMenu,
           onSwipeUp: () => unawaited(_switchRelativeAccount(-1)),
           onSwipeDown: () => unawaited(_switchRelativeAccount(1)),
@@ -536,6 +555,7 @@ class _HomeErrorBanner extends StatelessWidget {
 class _ProfileAccountButton extends StatelessWidget {
   final String initials;
   final String colorSeed;
+  final int? colorIndex;
   final VoidCallback onPressed;
   final VoidCallback onSwipeUp;
   final VoidCallback onSwipeDown;
@@ -543,6 +563,7 @@ class _ProfileAccountButton extends StatelessWidget {
   const _ProfileAccountButton({
     required this.initials,
     required this.colorSeed,
+    required this.colorIndex,
     required this.onPressed,
     required this.onSwipeUp,
     required this.onSwipeDown,
@@ -564,7 +585,7 @@ class _ProfileAccountButton extends StatelessWidget {
         child: InkWell(
           onTap: onPressed,
           customBorder: const CircleBorder(),
-          child: ProfileAvatar(initials: initials, seed: colorSeed),
+          child: ProfileAvatar(initials: initials, seed: colorSeed, colorIndex: colorIndex),
         ),
       ),
     );

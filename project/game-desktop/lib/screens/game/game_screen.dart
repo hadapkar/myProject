@@ -124,9 +124,11 @@ class _GameScreenState extends State<GameScreen> {
     final auth = Supabase.instance.client.auth;
     final session = auth.currentSession;
     final email = auth.currentUser?.email ?? session?.user.email ?? "";
+    final username = email.contains("@") ? email.split("@").first : email;
     final refreshToken = session?.refreshToken ?? "";
     await AccountStore.removeCurrentAccount(
       email: email,
+      username: username,
       refreshToken: refreshToken,
     );
   }

@@ -132,13 +132,18 @@ class AccountStore {
     String? refreshToken,
   }) async {
     final prefs = await SharedPreferences.getInstance();
-    final identifiers = <String>{
+    final rawIdentifiers = <String>{
       if (email != null && email.trim().isNotEmpty) email.trim().toLowerCase(),
       if (username != null && username.trim().isNotEmpty) username.trim().toLowerCase(),
-      if ((email ?? "").contains("@")) email!.trim().toLowerCase().split("@").first,
       (prefs.getString(_currentAccountEmailKey) ?? "").trim().toLowerCase(),
       (prefs.getString(_currentAccountUsernameKey) ?? "").trim().toLowerCase(),
     }..removeWhere((value) => value.isEmpty);
+
+    final identifiers = <String>{};
+    for (final value in rawIdentifiers) {
+      identifiers.add(value);
+      if (value.contains("@")) identifiers.add(value.split("@").first);
+    }
 
     final tokens = <String>{
       if (refreshToken != null && refreshToken.trim().isNotEmpty) refreshToken.trim(),
