@@ -4,7 +4,14 @@ on:
   push:
     branches: [main]
     paths:
-      - "project/game-desktop/**"
+      # Shared Flutter app changes affect Android.
+      - "project/game-desktop/lib/**"
+      - "project/game-desktop/assets/**"
+      - "project/game-desktop/pubspec.yaml"
+      - "project/game-desktop/pubspec.lock"
+      # Android-only build inputs.
+      - "project/game-desktop/android/**"
+      - "project/game-desktop/tools/patch_android_*.py"
       - ".github/workflows/flutter-android-apk.yml"
   workflow_dispatch: {}
 

@@ -43,6 +43,8 @@ class _GameScreenState extends State<GameScreen> {
   static const int _resultHighlightClearSecond = 50;
   static const int _payoutForfeitSecond = 30;
   static const int _finalTenSecond = 10;
+  static const int _preSpinRefreshSecond = 3;
+  static const Duration _preSpinRefreshTimeout = Duration(milliseconds: 1500);
 
   static const String _defaultFooterMessage =
       "You can either Make a Bet or press BET OK button";
@@ -79,6 +81,9 @@ class _GameScreenState extends State<GameScreen> {
   bool _isFinalTenSeconds = false;
   int? _lastTimerSecond;
   bool _loadingSoundPlayed = false;
+  String? _preSpinRefreshRoundKey;
+  int? _preSpinRefreshPredefinedNumber;
+  bool _preSpinRefreshInProgress = false;
   bool _isBetOkHighlighted = false;
   bool _betOkHighlightLoaded = false;
 
@@ -284,6 +289,9 @@ class _GameScreenState extends State<GameScreen> {
       _spinFinalizedRoundKey = null;
       _exitSuppressUntilRoundKey = null;
       _lastTimerSecond = null;
+      _preSpinRefreshRoundKey = null;
+      _preSpinRefreshPredefinedNumber = null;
+      _preSpinRefreshInProgress = false;
       _lastRoundAtIso = nextLastRoundAtIso;
       _roundEndsAtIso = nextRoundEndsAtIso;
     }
@@ -366,6 +374,14 @@ class _GameScreenState extends State<GameScreen> {
       }
     }
 
+    // Refresh predefined number just before spin so admin changes are picked up without delaying 0:00.
+    if (_crossedSecond(prev, curr, _preSpinRefreshSecond)) {
+      final roundKey = _getCurrentRoundKey();
+      if (roundKey != null) {
+        unawaited(_refreshPredefinedWheelNumberForRound(roundKey));
+      }
+    }
+
     // Start spin at 0:00.
     if (_crossedSecond(prev, curr, _spinStartSecond)) {
       final roundKey = _getCurrentRoundKey();
@@ -374,7 +390,7 @@ class _GameScreenState extends State<GameScreen> {
         if (_spinStartedRoundKey == roundKey) return;
         _spinStartedRoundKey = roundKey;
       }
-      _startAutoSpinRound();
+      unawaited(_startAutoSpinRound());
     }
 
     // Finalize at 0:55.
@@ -440,7 +456,7 @@ class _GameScreenState extends State<GameScreen> {
     }
   }
 
-  void _startAutoSpinRound() {
+  Future<void> _startAutoSpinRound() async {
     if (_autoSpinActive || _roundStartInProgress) return;
     _roundStartInProgress = true;
     try {
@@ -451,7 +467,7 @@ class _GameScreenState extends State<GameScreen> {
       });
       unawaited(_setBetOkHighlighted(false));
 
-      final predefined = _state?.predefinedWheelNumber;
+      final predefined = _predefinedWheelNumberForCurrentRound();
       final result = predefined ?? Random().nextInt(_segments);
       final targetAngle = _targetAngleForNumber(result);
       final normalized = ((_rotationDegrees % 360) + 360) % 360;
@@ -464,13 +480,43 @@ class _GameScreenState extends State<GameScreen> {
         _spinDuration = const Duration(milliseconds: 5000);
         _spinCurve = const Cubic(0.1, 0.95, 0.15, 1.0);
       });
-      unawaited(_sounds.stop("wheelStart"));
+      await _sounds.stop("wheelStart");
       unawaited(_sounds.playOnce("wheelStart", FunTargetAssets.soundWheelStart));
+      if (!mounted) return;
       setState(() {
         _rotationDegrees = _rotationDegrees + 12 * 360 + delta;
       });
     } finally {
       _roundStartInProgress = false;
+    }
+  }
+
+  int? _predefinedWheelNumberForCurrentRound() {
+    final roundKey = _getCurrentRoundKey();
+    if (roundKey != null && _preSpinRefreshRoundKey == roundKey) {
+      return _preSpinRefreshPredefinedNumber;
+    }
+    return _state?.predefinedWheelNumber;
+  }
+
+  Future<void> _refreshPredefinedWheelNumberForRound(String roundKey) async {
+    if (_preSpinRefreshInProgress || _preSpinRefreshRoundKey == roundKey) return;
+    _preSpinRefreshInProgress = true;
+    try {
+      final latest = await _api.getState().timeout(_preSpinRefreshTimeout);
+      if (!mounted) return;
+      final serverNow = latest.serverNow;
+      if (serverNow != null) {
+        _serverClockOffsetMs = serverNow.toUtc().millisecondsSinceEpoch -
+            DateTime.now().millisecondsSinceEpoch;
+      }
+      _preSpinRefreshRoundKey = roundKey;
+      _preSpinRefreshPredefinedNumber = latest.predefinedWheelNumber;
+      setState(() => _state = latest);
+    } catch (_) {
+      // Keep cached state if the pre-spin refresh is slow or unavailable.
+    } finally {
+      _preSpinRefreshInProgress = false;
     }
   }
 

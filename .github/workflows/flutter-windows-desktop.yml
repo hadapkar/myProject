@@ -4,7 +4,15 @@ on:
   push:
     branches: [main]
     paths:
-      - "project/game-desktop/**"
+      # Shared Flutter app changes affect Windows.
+      - "project/game-desktop/lib/**"
+      - "project/game-desktop/assets/**"
+      - "project/game-desktop/pubspec.yaml"
+      - "project/game-desktop/pubspec.lock"
+      # Windows-only release inputs.
+      - "project/game-desktop/windows/**"
+      - "project/game-desktop/dist/**"
+      - "project/game-desktop/tools/patch_windows_runner.ps1"
       - ".github/workflows/flutter-windows-desktop.yml"
   workflow_dispatch: {}
 
