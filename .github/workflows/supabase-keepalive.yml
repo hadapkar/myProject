@@ -1,0 +1,37 @@
+name: Supabase keep-alive
+
+on:
+  schedule:
+    # Supabase considers the previous seven days of database activity. Three
+    # lightweight reads per day leave room for delayed GitHub scheduled runs.
+    - cron: "17 1,9,17 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  query-database:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Run a lightweight Supabase query
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: |
+          if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_ANON_KEY" ]; then
+            echo "Add SUPABASE_URL and SUPABASE_ANON_KEY as repository secrets." >&2
+            exit 1
+          fi
+
+          curl --fail-with-body --silent --show-error \
+            --retry 2 \
+            --retry-all-errors \
+            --connect-timeout 15 \
+            --max-time 45 \
+            --get "${SUPABASE_URL%/}/rest/v1/fun_target_state" \
+            --header "apikey: $SUPABASE_ANON_KEY" \
+            --data-urlencode "select=user_id" \
+            --data-urlencode "limit=1" \
+            --output /dev/null
